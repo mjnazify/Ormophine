@@ -1,206 +1,248 @@
-# 🚀 Ormophine
+<div align="center">
 
-### The Pythonic ORM That's *Simpler* and *Faster*
+# Ormophine
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Status-Alpha_Development-yellow?style=for-the-badge" alt="Status">
-  <img src="https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge&logo=python" alt="Python">
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
-  <img src="https://img.shields.io/badge/PyPI-Coming_Soon-red?style=for-the-badge" alt="PyPI">
-  <img src="https://img.shields.io/badge/Benchmarks-Available_Soon-orange?style=for-the-badge" alt="Benchmarks">
-</p>
+**A fast, Pythonic ORM that gets out of your way.**
 
----
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Active%20Development-orange)](https://github.com/yourusername/ormophine)
+[![PyPI](https://img.shields.io/badge/PyPI-Coming%20Soon-lightgrey?logo=pypi)](https://pypi.org/)
 
-## 📌 Project Status (Read Me First!)
+*Write database queries the way you think — in plain Python.*
 
-> ⚠️ **Heads up!** The core source code of Ormophine is currently under heavy development and **has not been pushed to this repository yet**.
->
-> This repository currently serves as a **design showcase** and a **benchmarking hub**.
-> - **Phase 1 (Current):** Publishing benchmark results, performance comparisons, and API design examples.
-> - **Phase 2 (Next):** Open-sourcing the complete codebase.
-> - **Phase 3 (Final):** Publishing the package on PyPI (`pip install ormophine`).
+</div>
 
 ---
 
-## 🤔 Why Ormophine?
+## The Problem with Other ORMs
 
-Let's face it—most ORMs in Python are either:
-- **Too complex:** SQLAlchemy is powerful but has a steep learning curve with its hybrid properties, deferred columns, and intricate session management.
-- **Too slow:** Django ORM is convenient but notoriously heavy and slow for high-throughput applications.
-- **Too un-Pythonic:** Writing `filter(MyModel.age > 18)` is okay, but chaining multiple `.filter()` calls or writing raw strings inside queries breaks the flow.
+Most Python ORMs are either too verbose, too magical, or too slow. Compare fetching filtered rows with a popular ORM versus Ormophine:
 
-**Ormophine** was built from the ground up to solve these exact pain points. It provides a **native Python experience** for database interactions. You write Python, and Ormophine translates it into highly optimized SQL—often **outperforming** traditional ORMs because of its lightweight AST (Abstract Syntax Tree) parsing and minimal overhead.
-
----
-
-## ✨ Core Features
-
-- **🧠 Intuitive Syntax:** Leverages native Python operators (`&`, `|`, `==`, `>`, `<`) and string methods (`startswith`, `endswith`, slicing) directly on column objects.
-- **⚡ Blazing Fast:** Minimal abstraction layers. The query builder compiles directly to SQL strings without heavy object-relational mapping overhead.
-- **🔗 Chain-Free Filtering:** No more `.filter().filter().filter()` nonsense. Write complex `WHERE` clauses in a single, readable expression.
-- **🐍 Pure Python Logic:** Use `and` / `or` or `&` / `|` exactly as you would in regular Python conditionals.
-- **🗄️ Multi-Database Support (Planned):** Currently focusing on SQLite with PostgreSQL and MySQL support on the roadmap.
-- **🔮 Smart Column Handling:** Columns are first-class citizens. You can manipulate them like variables.
-
----
-
-## 📖 Quick Start & API Examples
-
-Here is a sneak peek at how Ormophine simplifies database interactions.
-
-### 1. Connecting to the Database
+**Other ORMs:**
 ```python
-from Ormophine import Sqlite
+# SQLAlchemy (Core)
+with engine.connect() as conn:
+    stmt = select(users.c.phone, users.c.name, users.c.age).where(
+        and_(
+            users.c.age > 18,
+            or_(
+                users.c.phone.like('+98%'),
+                func.substr(users.c.phone, 1, 3) == '+98'
+            )
+        )
+    ).order_by(users.c.age)
+    result = conn.execute(stmt).fetchall()
+```
 
-# Just point to your DB file. No connection strings, no engines, no sessions!
-my_db = Sqlite('my_db')
-
-### 2. Accessing Tables
-Tables are dynamically accessible as attributes of the database object.
+**Ormophine:**
 ```python
-# Access the 'users' table
+my_db = Ormophine.Sqlite('my_db')
 users = my_db.users
-```
-
-### 3. Defining Columns
-Columns are accessed directly from the table instance. You can assign them to variables for cleaner queries.
-```python
 phone, name, age = users.phone, users.name, users.age
-```
 
-### 4. Inserting Data
-Inserting is as straightforward as passing keyword arguments.
-```python
-users.insert(phone='+989123456789', name='Alice', age=30)
-users.insert(phone='+989876543210', name='Bob', age=22)
-users.insert(phone='+442012345678', name='Charlie', age=19)
-```
-
-### 5. The Star of the Show: `get_row`
-Retrieving a single row with complex conditions is where Ormophine truly shines.
-
-```python
-result = users.get_row(
-    [phone, name, age],  # Select these columns
-    where=(age > 18) & (phone.startswith('+98') | (phone[:3] == '+98')),
-    order_by=age          # Sort by age
+users.get_row(
+    [phone, name, age],
+    where = (age > 18) & (phone.startswith('+98') | (phone[:3] == '+98')),
+    order_by = age
 )
-
-print(result)
-# Output: {'phone': '+989123456789', 'name': 'Alice', 'age': 30}
 ```
 
-#### 🔍 Breaking Down the Magic:
-- **`where=(age > 18)`** → Compiled to `WHERE age > 18` in SQL.
-- **`phone.startswith('+98')`** → Compiled to `WHERE phone LIKE '+98%'`.
-- **`(phone[:3] == '+98')`** → Pythonic slicing! Compiled to `WHERE SUBSTR(phone, 1, 3) = '+98'`.
-- **`&` and `|`** → Natively represent `AND` and `OR` in SQL.
-- **`order_by=age`** → Pass the column object directly. No strings attached!
+Same result. No boilerplate. No imports. No ceremony.
 
-### 6. Getting Multiple Rows: `get_all`
-Need more than one row? Use `get_all`, which supports the exact same syntax.
+---
+
+## Why Ormophine?
+
+- **Intuitive syntax** — columns behave like Python variables with full operator overloading (`>`, `&`, `|`, `+`, `[]`, `.startswith()`, etc.)
+- **Fast** — built on a dedicated writer thread + read-only connection pool; no ORM overhead on the hot path
+- **Multi-database** — one API across all supported backends
+- **Connection pooling built-in** — parallel reads, serialized writes, no configuration needed
+- **WAL mode support** (SQLite) — automatic checkpointing for maximum write throughput
+- **Blocking and non-blocking** — fire-and-forget writes or wait for commit confirmation
+
+---
+
+## Supported Databases
+
+| Database     | Status              |
+|--------------|---------------------|
+| SQLite       | ✅ Available         |
+| MySQL        | 🔧 In development   |
+| MariaDB      | 🔧 In development   |
+| PostgreSQL   | 🔧 In development   |
+
+The API is identical across all backends. Switch databases by changing one line.
+
+---
+
+## Benchmark Results
+
+> 📊 **Coming soon** — benchmark results comparing Ormophine against SQLAlchemy, Tortoise ORM, and raw DB-API 2.0 will be published here across INSERT, SELECT, bulk operations, and concurrent read workloads.
+
+---
+
+## Quick Examples
+
+### Connect and access tables
 
 ```python
-all_users = users.get_all(
-    [name, age],
-    where=(age < 30),
-    order_by=(age.desc())  # Descending order
+import Ormophine
+
+db = Ormophine.Sqlite('company.db')
+
+# Tables and columns are discovered automatically
+users   = db.users
+orders  = db.orders
+```
+
+### Insert
+
+```python
+users.insert({
+    users.name:  'Alice',
+    users.email: 'alice@example.com',
+    users.age:   30
+})
+```
+
+### Select with conditions
+
+```python
+name, email, age = users.name, users.email, users.age
+
+rows = users.get_row(
+    [name, email],
+    where   = (age >= 18) & name.startswith('A'),
+    order_by = age
 )
-
-for user in all_users:
-    print(f"{user['name']} is {user['age']} years old.")
 ```
 
-### 7. Updating Data
-Update rows that match a specific condition.
+### Update
+
 ```python
-# Give a raise in age to everyone from the UK (phone starts with +44)
 users.update(
-    where=phone.startswith('+44'),
-    set={age: age + 1}
+    update = {users.age: users.age + 1},
+    where  = users.status == 'active'
 )
 ```
 
-### 8. Deleting Data
-Deletion follows the same intuitive pattern.
+### Bulk insert
+
 ```python
-# Delete users who are minors
-users.delete(where=(age < 18))
+users.bulk_insert(
+    columns   = [users.name, users.age],
+    data_list = [['Bob', 25], ['Carol', 32], ['Dave', 28]]
+)
+```
+
+### Joins
+
+```python
+from Ormophine import Join
+
+result = orders.join(
+    columns    = [users.name, orders.amount, orders.date],
+    joins_list = [Join.Inner(users, users.id == orders.user_id)],
+    where      = orders.amount > 100,
+    order_by   = [orders.date]
+)
+```
+
+### Batch operations (single transaction)
+
+```python
+(users.batch()
+    .insert({users.name: 'Eve', users.age: 28})
+    .update({users.age: 29}, where=users.name == 'Eve')
+    .run())
+```
+
+### Schema management
+
+```python
+from Ormophine import TableStructure
+
+schema = TableStructure('products', strict=True)
+schema.add_column('id',    int,   primary_key=True)
+schema.add_column('title', str,   not_null=True, unique=True)
+schema.add_column('price', float, default_value=0.0)
+
+products = db.create_table(schema)
+
+# Add / rename / drop columns
+products.add_column('stock', int, default_value=0, not_null=True)
+products.rename_column(products.stock, 'inventory')
+products.delete_column(products.inventory, True, True, True)
+```
+
+### WAL mode and performance tuning
+
+```python
+db.set_WAL_mode(True, wal_timer=60)   # automatic checkpoint every 60 s
+
+db.SetPragma.synchronous('NORMAL')
+db.SetPragma.cache_size(-4000)        # 4 MiB page cache
+db.SetPragma.foreign_keys(True)
 ```
 
 ---
 
-## 📊 Benchmarks (Coming Soon)
+## Operator Reference
 
-We are currently running extensive benchmarks to prove Ormophine's performance superiority. The results will be published here in this repository as soon as the testing suite stabilizes.
+Ormophine columns support native Python expressions — all values are automatically parameterized.
 
-We are comparing Ormophine against:
-
-| ORM / Driver       | SELECT (Single) | SELECT (Bulk) | INSERT (Bulk) | UPDATE | DELETE |
-| :------------------ | :-------------: | :-----------: | :-----------: | :----: | :----: |
-| **Ormophine**       | ⏳ Pending      | ⏳ Pending    | ⏳ Pending    | ⏳ Pending | ⏳ Pending |
-| **SQLAlchemy (Core)** | ⏳ Pending      | ⏳ Pending    | ⏳ Pending    | ⏳ Pending | ⏳ Pending |
-| **Django ORM**      | ⏳ Pending      | ⏳ Pending    | ⏳ Pending    | ⏳ Pending | ⏳ Pending |
-| **Peewee**          | ⏳ Pending      | ⏳ Pending    | ⏳ Pending    | ⏳ Pending | ⏳ Pending |
-| **Raw `sqlite3`**   | ⏳ Pending      | ⏳ Pending    | ⏳ Pending    | ⏳ Pending | ⏳ Pending |
-
-> *Preliminary internal tests show Ormophine is consistently **20-30% faster** than SQLAlchemy and **2x faster** than Django ORM for read-heavy workloads, thanks to its lightweight query compilation layer.*
-
----
-
-## 🗺️ Roadmap
-
-Here is how we plan to bring Ormophine to the public:
-
-| Phase | Milestone | Status |
-| :--- | :--- | :--- |
-| **Phase 1** | Release Benchmarks, API documentation, and syntax examples in this repo. | ✅ **CURRENT** |
-| **Phase 2** | Open-source the complete source code (SQLite driver + Core AST). | 🔜 Coming soon |
-| **Phase 3** | Add PostgreSQL and MySQL support. | 📅 Planned |
-| **Phase 4** | Release on PyPI as a stable package (`pip install ormophine`). | 📅 Planned |
-| **Phase 5** | Add asynchronous (async/await) support. | 📅 Future |
+| Expression                          | SQL equivalent                          |
+|-------------------------------------|-----------------------------------------|
+| `age > 18`                          | `age > 18`                              |
+| `(age >= 18) & (age < 65)`          | `age >= 18 AND age < 65`               |
+| `status == 'active'`                | `status = 'active'`                     |
+| `name.startswith('A')`              | `name LIKE 'A%'`                        |
+| `email.contains('@corp.com')`       | `email LIKE '%@corp.com%'`             |
+| `code[:3]`                          | `SUBSTR(code, 1, 3)`                    |
+| `name.upper().strip()`              | `TRIM(UPPER(name))`                     |
+| `price * qty - discount`            | `price * qty - discount`               |
 
 ---
 
-## 🛠️ Installation (For when Phase 3 hits)
+## Installation
 
-Eventually, you will be able to install Ormophine via pip:
+> 🚧 **PyPI release coming soon.**
 
 ```bash
+# Not yet available — star the repo to get notified
 pip install ormophine
 ```
 
-For now, if you want to experiment with the design, you can clone the repo and run the dummy examples (once uploaded).
+---
+
+## Roadmap
+
+- [x] SQLite backend with full ORM
+- [x] Operator overloading for columns
+- [x] Read-only connection pool
+- [x] WAL mode + automatic checkpointing
+- [x] Batch / bulk operations
+- [ ] MySQL / MariaDB backend
+- [ ] PostgreSQL backend
+- [ ] Async support
+- [ ] PyPI release
+- [ ] Benchmark suite publication
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Since the project is in its **Alpha** stage, we are **not yet accepting pull requests** for the core code to avoid breaking changes. However, we **highly encourage**:
-
-- **Feature Requests:** Open an issue to suggest syntax improvements or new features.
-- **Benchmark Ideas:** Let us know which edge cases we should test!
-- **Discussions:** Join the conversation in the Discussions tab to share your thoughts on the API design.
-
-Your feedback during this early phase will shape the future of Ormophine!
+The codebase is currently in active development and not yet public. Once released, contributions, bug reports, and feature requests will be very welcome.
 
 ---
 
-## 📜 License
+## License
 
-Distributed under the **MIT License**. See the `LICENSE` file for more information.  
-This means you are free to use Ormophine in commercial, closed-source, and open-source projects without any restrictions.
-
----
-
-## ❤️ Support the Project
-
-If you love the idea of a faster, simpler ORM, give this repository a ⭐ **Star** to show your support and stay tuned for the upcoming code release!
+[MIT](LICENSE) — free to use, modify, and distribute.
 
 ---
 
-**Made with ❤️ for Python developers who value clean code and high performance.**
-
-**Ormophine** – *Where Python meets Database, flawlessly.*
-```
+<div align="center">
+  <sub>Built with Python · Designed for developers who value clarity and speed</sub>
+</div>
