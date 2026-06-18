@@ -1,4 +1,3 @@
-```markdown
 # 🚀 Ormophine
 
 ### The Pythonic ORM That's *Simpler* and *Faster*
@@ -56,7 +55,6 @@ from Ormophine import Sqlite
 
 # Just point to your DB file. No connection strings, no engines, no sessions!
 my_db = Sqlite('my_db')
-```
 
 ### 2. Accessing Tables
 Tables are dynamically accessible as attributes of the database object.
