@@ -113,7 +113,7 @@ class ColumnsOperation:
             method automatically chooses the appropriate operator based on
             the column's datatype.
         """
-        self._output = (f'({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} + %s)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) else (f'({self._output[0]} || %s)', self._output[1]+[other if isinstance(other, str) else str(other)])
+        self._output = (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other._output[0]})", self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other.name})", self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} + %s)', self._output[1] + [other]) if isinstance(other, int) or isinstance(other, float) else (f'({self._output[0]} || %s)', self._output[1] + [other if isinstance(other, str) else str(other)])
         return self
 
     def __radd__(self, other):

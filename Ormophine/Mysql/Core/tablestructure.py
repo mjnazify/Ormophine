@@ -1978,7 +1978,7 @@ class TableStructure:
             raise Exception('Cant set bytes object as default value')
         self.primary_keys.append(column_name) if primary_key else None
         self.items[column_name] = [datatype, default_value, unique, not_null, primary_key, auto_increment]
-        self.table_query = self.table_query + f' {column_name.strip()} {datatype}{' AUTO_INCREMENT' if auto_increment else ''}{' UNIQUE' if unique else ''}{' NOT NULL' if not_null else ''}{f' DEFAULT {f"'{default_value}'" if type(default_value) == str else default_value}' if default_value else ''},'
+        self.table_query = self.table_query + f' {column_name.strip()} {datatype}{" AUTO_INCREMENT" if auto_increment else ""}{" UNIQUE" if unique else ""}{" NOT NULL" if not_null else ""}{f" DEFAULT {f'"{default_value}"' if type(default_value) == str else default_value}" if default_value else ""},'
         return self
 
     def delete_column(self, column_name: str):

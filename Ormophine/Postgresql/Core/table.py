@@ -432,8 +432,8 @@ class Table:
         """
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
-        self._excp(f'UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value , Column) else f'{key.first_name}=%s' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key , value in list(update.items()))} WHERE {where._output[0]};', temp_list+where._output[1])
-        
+        self._excp(f"UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value, Column) else f'{key.first_name}=%s' if not isinstance(value, ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key, value in list(update.items()))} WHERE {where._output[0]};", temp_list + where._output[1])
+
     def get_row(self, which_columns: list['Column' | 'ColumnsOperation'], where: 'ColumnsOperation' = None, order_by: 'Column' = None):
         """Fetch rows from the table with selected columns, optional filtering and ordering.
 
