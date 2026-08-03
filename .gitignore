@@ -1,2 +1,6 @@
 __pycache__/
-PasargadNumbers.db
+*.py[cod]
+*.egg-info/
+dist/
+build/
+docs/build/

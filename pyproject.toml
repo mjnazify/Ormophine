@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Ormophine"
+version = "0.7.1" 
+description = "A Python ORM for MySQL, PostgreSQL, and SQLite"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Mohammad Javad Nazify Yummy", email = "M.J.Nazify.Yummy@gmail.com" }
+]
+
+dependencies = [
+    "mysqlclient",
+    "psycopg2-binary",
+]
+
+[project.urls]
+Homepage = "https://github.com/mjnazify/Ormophine"
+Documentation = "https://ormophine.readthedocs.io/en/latest/"
+Repository = "https://github.com/mjnazify/Ormophine"
+
+[tool.setuptools.packages.find]
+include = ["Ormophine*"]
+exclude = ["docs*", "tests*"]
