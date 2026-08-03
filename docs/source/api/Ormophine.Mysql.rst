@@ -4,34 +4,44 @@ MySQL API
 The MySQL backend follows the same public pattern as the SQLite package. Applications
 should import from the package root rather than from internal implementation namespaces.
 
-It is built to stay lightweight and expressive, with a Pythonic query style that keeps
-expression building close to normal Python code. That includes Python-alike condition
-syntax and string helpers such as ``startswith()``, ``endswith()``, and slice-style
-operations like ``column[2:5]``.
-
 .. currentmodule:: Ormophine.Mysql
 
 Driver
 ------
 
-.. autoclass:: Driver
+.. autoclass:: Ormophine.Mysql.Driver
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 TableStructure
 --------------
 
-.. autoclass:: TableStructure
+.. autoclass:: Ormophine.Mysql.TableStructure
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 DataTypes
 ---------
 
-.. autoclass:: DataTypes
+.. autoclass:: Ormophine.Mysql.DataTypes
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Table
 -----
 
-.. autoclass:: Table
+.. autoclass:: Ormophine.Mysql.Table
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Join
 ----
 
-.. autoclass:: Join
+.. autoclass:: Ormophine.Mysql.Join
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -16,28 +16,46 @@ Driver
 ------
 
 .. autoclass:: Driver
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 TableStructure
 --------------
 
 .. autoclass:: TableStructure
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 DataTypes
 ---------
 
 .. autoclass:: DataTypes
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Table
 -----
 
 .. autoclass:: Table
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Join
 ----
 
 .. autoclass:: Join
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 SetPragma
 ---------
 
 .. autoclass:: SetPragma
+    :members:
+    :undoc-members:
+    :show-inheritance:
