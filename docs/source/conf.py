@@ -17,15 +17,14 @@ extensions = [
 DOCS_DIR = os.path.abspath(os.path.dirname(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(DOCS_DIR, '..', '..'))
 
-# 1. اضافه کردن مسیر ریشه پروژه به صورت ایمن و مستقل از cwd (RTD/Local)
 sys.path.insert(0, PROJECT_ROOT)
 
-# 2. شبیه‌سازی پکیج‌هایی که در محیط لینوکسی RTD نصب نیستند یا خطا می‌دهند
 autodoc_mock_imports = [
     'MySQLdb', 
     'mysqlclient', 
     'psycopg2', 
-    'psycopg2_binary'
+    'psycopg2_binary',
+    'psycopg'  
 ]
 
 autodoc_member_order = 'bysource'

@@ -51,6 +51,30 @@ Table
    :inherited-members:
    :member-order: bysource
 
+ColumnsOperation
+----------------
+
+.. autoclass:: Ormophine.Postgresql.Core.columnsoperation.ColumnsOperation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Column
+------
+
+.. autoclass:: Ormophine.Postgresql.Core.columnsoperation.Column
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+BatchOperation
+--------------
+
+.. autoclass:: Ormophine.Postgresql.Core.columnsoperation.BatchOperation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Join
 ----
 

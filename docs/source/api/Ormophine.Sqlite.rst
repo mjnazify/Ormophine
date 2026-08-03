@@ -52,6 +52,31 @@ Table
    :inherited-members:
    :member-order: bysource
 
+ColumnsOperation
+----------------
+
+.. autoclass:: Ormophine.Sqlite.Core.columnsoperation.ColumnsOperation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Column
+------
+
+.. autoclass:: Ormophine.Sqlite.Core.columnsoperation.Column
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+BatchOperation
+--------------
+
+.. autoclass:: Ormophine.Sqlite.Core.columnsoperation.BatchOperation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Join
 ----
 
