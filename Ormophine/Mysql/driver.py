@@ -1,5 +1,7 @@
-from . import Literal, SimpleQueue, Empty, TableStructure, Table
+from . import TableStructure, Table
 from MySQLdb import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
 
 class Driver():
     """

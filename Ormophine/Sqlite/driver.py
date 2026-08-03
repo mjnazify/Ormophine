@@ -1,4 +1,10 @@
-from . import Literal, Any, SimpleQueue, Event, Thread, SetPragma, TableStructure, Table, sleep, print_exc, connect
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
 
 class Driver:
     """

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .. import Literal
+from typing import Literal
 
 class DataTypes:
     """

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .. import Literal
+from typing import Literal
 
 class DataTypes:
     """Collection of PostgreSQL 16 data types as static methods.

@@ -1,5 +1,7 @@
 from __future__ import annotations
-from .. import Column, ColumnsOperation, BatchOperation, Join, SimpleQueue, Any
+from .. import Column, ColumnsOperation, BatchOperation, Join
+from queue import SimpleQueue
+from typing import Any
 
 class Table:
     """Represents a database table with methods for data manipulation, schema changes, and queries.

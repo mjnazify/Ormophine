@@ -1,5 +1,6 @@
 from __future__ import annotations
-from .. import Column, ColumnsOperation, BatchOperation, Join, Any
+from .. import Column, ColumnsOperation, BatchOperation, Join
+from typing import Any
 
 class Table:
     PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_%s_'

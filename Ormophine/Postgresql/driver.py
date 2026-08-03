@@ -1,5 +1,8 @@
-from . import Literal, SimpleQueue, Empty, TableStructure, Table
+from . import TableStructure, Table
 from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
             
 class Driver():
     """High-level PostgreSQL driver for Ormophine.
