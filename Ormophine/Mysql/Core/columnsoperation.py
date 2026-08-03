@@ -192,7 +192,7 @@ class ColumnsOperation:
                 op = 100 + users.age
                 # Resulting SQL: (%s + users.age)
         """
-        self._output = (f'({other._output[0]} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s + {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(%s || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
+        self._output = (f"({other._output[0]} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})", other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f"({other.name} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})", self._output[1]) if isinstance(other, Column) else (f'(%s + {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(%s || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
         return self
 
     def __sub__(self, other):
