@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Ormophine"
-version = "0.7.2" 
+version = "0.7.3" 
 description = "A Python ORM for MySQL, PostgreSQL, and SQLite"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,6 +23,7 @@ Homepage = "https://github.com/mjnazify/Ormophine"
 Documentation = "https://ormophine.readthedocs.io/en/latest/"
 Repository = "https://github.com/mjnazify/Ormophine"
 
-[tool.setuptools.packages.find]
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.ipynb"]
 include = ["Ormophine*"]
 exclude = ["docs*", "tests*"]
