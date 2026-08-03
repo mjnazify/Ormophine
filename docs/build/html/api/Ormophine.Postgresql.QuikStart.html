@@ -1,0 +1,392 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PostgreSQL Quickstart &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="PostgreSQL API" href="Ormophine.Postgresql.html" />
+    <link rel="prev" title="MySQL API" href="Ormophine.Mysql.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">API Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="Ormophine.Sqlite.QuikStart.html">Sqlite Quickstart</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Ormophine.Sqlite.html">SQLite API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Ormophine.Mysql.QuikStart.html">MySQL Quickstart</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Ormophine.Mysql.html">MySQL API</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">PostgreSQL Quickstart</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#import-the-orm">Import the ORM</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#connecting-to-a-database">Connecting to a Database</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#creating-your-first-table">Creating Your First Table</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#inserting-data">Inserting Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#querying-data">Querying Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#updating-data">Updating Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#deleting-data">Deleting Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#complex-example-with-columnsoperation">Complex Example with ColumnsOperation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#batch-operations-transactions">Batch Operations – Transactions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#joining-tables">Joining Tables</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="Ormophine.Postgresql.html">PostgreSQL API</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">API Reference</a></li>
+      <li class="breadcrumb-item active">PostgreSQL Quickstart</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/Ormophine.Postgresql.QuikStart.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="postgresql-quickstart">
+<span id="quickstart-postgresql"></span><h1>PostgreSQL Quickstart<a class="headerlink" href="#postgresql-quickstart" title="Link to this heading"></a></h1>
+<p>This guide will get you started with <strong>Ormophine</strong> for PostgreSQL. If you have used the SQLite version, the API is nearly identical, but adapted for PostgreSQL features and <code class="docutils literal notranslate"><span class="pre">psycopg</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul class="simple">
+<li><p>Tables and columns become <strong>Python attributes automatically</strong> when you connect.</p></li>
+<li><p>All queries use <code class="docutils literal notranslate"><span class="pre">%s</span></code> placeholders (psycopg style) and are parametrised safely.</p></li>
+<li><p>The driver manages a <strong>connection pool</strong> for efficiency.</p></li>
+</ul>
+</div>
+<section id="import-the-orm">
+<h2>Import the ORM<a class="headerlink" href="#import-the-orm" title="Link to this heading"></a></h2>
+<p>Everything you need is in <code class="docutils literal notranslate"><span class="pre">Ormophine.PostgreSQL</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">Ormophine.PostgreSQL</span><span class="w"> </span><span class="kn">import</span> <span class="n">Driver</span><span class="p">,</span> <span class="n">TableStructure</span><span class="p">,</span> <span class="n">DataTypes</span><span class="p">,</span> <span class="n">Join</span>
+</pre></div>
+</div>
+</section>
+<section id="connecting-to-a-database">
+<h2>Connecting to a Database<a class="headerlink" href="#connecting-to-a-database" title="Link to this heading"></a></h2>
+<p>Create a <code class="docutils literal notranslate"><span class="pre">Driver</span></code> instance with your PostgreSQL credentials:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span> <span class="o">=</span> <span class="n">Driver</span><span class="p">(</span>
+    <span class="n">host</span><span class="o">=</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span>
+    <span class="n">port</span><span class="o">=</span><span class="mi">5432</span><span class="p">,</span>
+    <span class="n">username</span><span class="o">=</span><span class="s2">&quot;postgres&quot;</span><span class="p">,</span>
+    <span class="n">password</span><span class="o">=</span><span class="s2">&quot;your_password&quot;</span><span class="p">,</span>
+    <span class="n">db_name</span><span class="o">=</span><span class="s2">&quot;mydb&quot;</span><span class="p">,</span>
+    <span class="n">pool_size</span><span class="o">=</span><span class="mi">5</span>               <span class="c1"># number of connections in the pool</span>
+<span class="p">)</span>
+<span class="c1"># All existing tables are now available as attributes of `db`.</span>
+<span class="c1"># For example, if a table &#39;users&#39; already exists, you can use `db.users`.</span>
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The Driver <strong>automatically discovers</strong> every table in your default schema (<code class="docutils literal notranslate"><span class="pre">current_schema()</span></code>) and makes them available as attributes of the <code class="docutils literal notranslate"><span class="pre">db</span></code> object. Likewise, every column of those tables becomes an attribute of the corresponding <code class="docutils literal notranslate"><span class="pre">Table</span></code> object. No manual model definition is required.</p>
+</div>
+</section>
+<section id="creating-your-first-table">
+<h2>Creating Your First Table<a class="headerlink" href="#creating-your-first-table" title="Link to this heading"></a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">TableStructure</span></code> to define a new table, then call <code class="docutils literal notranslate"><span class="pre">db.create_table()</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Define a &#39;users&#39; table</span>
+<span class="n">users_schema</span> <span class="o">=</span> <span class="n">TableStructure</span><span class="p">(</span><span class="s2">&quot;users&quot;</span><span class="p">)</span>
+
+<span class="n">users_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span>
+    <span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">SERIAL</span><span class="p">(),</span>
+    <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span>          <span class="c1"># automatically NOT NULL and auto‑increment</span>
+<span class="p">)</span>
+<span class="n">users_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span>
+    <span class="s2">&quot;username&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">VARCHAR</span><span class="p">(</span><span class="mi">50</span><span class="p">),</span>
+    <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">not_null</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+<span class="n">users_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span>
+    <span class="s2">&quot;age&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">INTEGER</span><span class="p">(),</span>
+    <span class="n">default_value</span><span class="o">=</span><span class="mi">18</span>
+<span class="p">)</span>
+
+<span class="c1"># Create the table – returns a Table object.</span>
+<span class="n">users</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">create_table</span><span class="p">(</span><span class="n">users_schema</span><span class="p">)</span>
+<span class="c1"># Now `db.users` also points to the same object.</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><code class="docutils literal notranslate"><span class="pre">DataTypes.SERIAL()</span></code> is a convenient shortcut for an auto‑incrementing primary key. Other PostgreSQL‑specific types like <code class="docutils literal notranslate"><span class="pre">BOOLEAN()</span></code>, <code class="docutils literal notranslate"><span class="pre">JSONB()</span></code>, <code class="docutils literal notranslate"><span class="pre">UUID()</span></code> are all supported.</p>
+</div>
+</section>
+<section id="inserting-data">
+<h2>Inserting Data<a class="headerlink" href="#inserting-data" title="Link to this heading"></a></h2>
+<p>Single insert:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">users</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span>
+    <span class="n">users</span><span class="o">.</span><span class="n">username</span><span class="p">:</span> <span class="s2">&quot;alice&quot;</span><span class="p">,</span>
+    <span class="n">users</span><span class="o">.</span><span class="n">age</span><span class="p">:</span> <span class="mi">25</span>
+<span class="p">})</span>
+<span class="c1"># &#39;id&#39; is automatically generated by the SERIAL column</span>
+</pre></div>
+</div>
+<p>Bulk insert:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">users</span><span class="o">.</span><span class="n">bulk_insert</span><span class="p">(</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="n">users</span><span class="o">.</span><span class="n">username</span><span class="p">,</span> <span class="n">users</span><span class="o">.</span><span class="n">age</span><span class="p">],</span>
+    <span class="n">data_list</span><span class="o">=</span><span class="p">[</span>
+        <span class="p">(</span><span class="s2">&quot;bob&quot;</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">&quot;charlie&quot;</span><span class="p">,</span> <span class="mi">22</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">&quot;diana&quot;</span><span class="p">,</span> <span class="mi">28</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="querying-data">
+<h2>Querying Data<a class="headerlink" href="#querying-data" title="Link to this heading"></a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">get_row()</span></code> to fetch rows. Select specific columns, filter with a <code class="docutils literal notranslate"><span class="pre">WHERE</span></code> condition, and order the results.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Fetch usernames and ages, ordered by age</span>
+<span class="n">all_users</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">get_row</span><span class="p">(</span>
+    <span class="n">which_columns</span><span class="o">=</span><span class="p">[</span><span class="n">users</span><span class="o">.</span><span class="n">username</span><span class="p">,</span> <span class="n">users</span><span class="o">.</span><span class="n">age</span><span class="p">],</span>
+    <span class="n">order_by</span><span class="o">=</span><span class="n">users</span><span class="o">.</span><span class="n">age</span>
+<span class="p">)</span>
+<span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">all_users</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>  <span class="c1"># e.g., (&#39;charlie&#39;, 22), (&#39;alice&#39;, 25), ...</span>
+</pre></div>
+</div>
+<p>Building conditions with <code class="docutils literal notranslate"><span class="pre">ColumnsOperation</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Users older than 24</span>
+<span class="n">condition</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">age</span> <span class="o">&gt;</span> <span class="mi">24</span>
+<span class="n">older_users</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">get_row</span><span class="p">(</span>
+    <span class="n">which_columns</span><span class="o">=</span><span class="p">[</span><span class="n">users</span><span class="o">.</span><span class="n">username</span><span class="p">],</span>
+    <span class="n">where</span><span class="o">=</span><span class="n">condition</span>
+<span class="p">)</span>
+<span class="k">for</span> <span class="p">(</span><span class="n">username</span><span class="p">,)</span> <span class="ow">in</span> <span class="n">older_users</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">username</span><span class="p">)</span>  <span class="c1"># alice, bob, diana</span>
+</pre></div>
+</div>
+</section>
+<section id="updating-data">
+<h2>Updating Data<a class="headerlink" href="#updating-data" title="Link to this heading"></a></h2>
+<p>Update rows that match a condition. You can use constant values or column‑based arithmetic.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Increase age by 1 for all users under 30</span>
+<span class="n">condition</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">age</span> <span class="o">&lt;</span> <span class="mi">30</span>
+<span class="n">users</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+    <span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="n">users</span><span class="o">.</span><span class="n">age</span><span class="p">:</span> <span class="n">users</span><span class="o">.</span><span class="n">age</span> <span class="o">+</span> <span class="mi">1</span><span class="p">},</span>   <span class="c1"># ColumnsOperation</span>
+    <span class="n">where</span><span class="o">=</span><span class="n">condition</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="deleting-data">
+<h2>Deleting Data<a class="headerlink" href="#deleting-data" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove user &#39;charlie&#39;</span>
+<span class="n">condition</span> <span class="o">=</span> <span class="n">users</span><span class="o">.</span><span class="n">username</span> <span class="o">==</span> <span class="s2">&quot;charlie&quot;</span>
+<span class="n">users</span><span class="o">.</span><span class="n">delete_row</span><span class="p">(</span><span class="n">where</span><span class="o">=</span><span class="n">condition</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="complex-example-with-columnsoperation">
+<h2>Complex Example with ColumnsOperation<a class="headerlink" href="#complex-example-with-columnsoperation" title="Link to this heading"></a></h2>
+<p>Now let’s work with a <code class="docutils literal notranslate"><span class="pre">products</span></code> table and perform arithmetic and string manipulations.</p>
+<ol class="arabic">
+<li><p><strong>Create the products table</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">products_schema</span> <span class="o">=</span> <span class="n">TableStructure</span><span class="p">(</span><span class="s2">&quot;products&quot;</span><span class="p">)</span>
+<span class="n">products_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">SERIAL</span><span class="p">(),</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">products_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">TEXT</span><span class="p">())</span>
+<span class="n">products_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="s2">&quot;price&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">NUMERIC</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">products_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="s2">&quot;discount&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">NUMERIC</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>  <span class="c1"># e.g., 0.10</span>
+<span class="n">products_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">VARCHAR</span><span class="p">(</span><span class="mi">50</span><span class="p">))</span>
+
+<span class="n">products</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">create_table</span><span class="p">(</span><span class="n">products_schema</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Insert sample data</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">products</span><span class="o">.</span><span class="n">bulk_insert</span><span class="p">(</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="n">products</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">products</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">products</span><span class="o">.</span><span class="n">discount</span><span class="p">,</span> <span class="n">products</span><span class="o">.</span><span class="n">category</span><span class="p">],</span>
+    <span class="n">data_list</span><span class="o">=</span><span class="p">[</span>
+        <span class="p">(</span><span class="s2">&quot;Widget&quot;</span><span class="p">,</span> <span class="mf">19.99</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">&quot;gadgets&quot;</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">&quot;Gadget Pro&quot;</span><span class="p">,</span> <span class="mf">49.99</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="s2">&quot;gadgets&quot;</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">&quot;SuperTool&quot;</span><span class="p">,</span> <span class="mf">29.99</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">&quot;tools&quot;</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">&quot;MegaWidget&quot;</span><span class="p">,</span> <span class="mf">99.99</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="s2">&quot;gadgets&quot;</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Arithmetic expression</strong> – compute final price and filter</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># final_price = price * (1 - discount)</span>
+<span class="n">final_price</span> <span class="o">=</span> <span class="n">products</span><span class="o">.</span><span class="n">price</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">products</span><span class="o">.</span><span class="n">discount</span><span class="p">)</span>
+<span class="n">condition</span> <span class="o">=</span> <span class="n">final_price</span> <span class="o">&gt;</span> <span class="mi">30</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">products</span><span class="o">.</span><span class="n">get_row</span><span class="p">(</span>
+    <span class="n">which_columns</span><span class="o">=</span><span class="p">[</span><span class="n">products</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">final_price</span><span class="p">],</span>
+    <span class="n">where</span><span class="o">=</span><span class="n">condition</span><span class="p">,</span>
+    <span class="n">order_by</span><span class="o">=</span><span class="n">final_price</span>
+<span class="p">)</span>
+
+<span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">price</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: $</span><span class="si">{</span><span class="n">price</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># Output: Gadget Pro: $39.99, MegaWidget: $74.99</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>String operations</strong> – case‑insensitive search (PostgreSQL ILIKE is not used directly; we use <code class="docutils literal notranslate"><span class="pre">LOWER()</span></code> and <code class="docutils literal notranslate"><span class="pre">LIKE</span></code>)</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Gadgets whose name contains &quot;widget&quot; (case‑insensitive)</span>
+<span class="n">condition</span> <span class="o">=</span> <span class="p">(</span><span class="n">products</span><span class="o">.</span><span class="n">category</span> <span class="o">==</span> <span class="s2">&quot;gadgets&quot;</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">products</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="s2">&quot;widget&quot;</span><span class="p">))</span>
+
+<span class="n">gadget_widgets</span> <span class="o">=</span> <span class="n">products</span><span class="o">.</span><span class="n">get_row</span><span class="p">(</span>
+    <span class="n">which_columns</span><span class="o">=</span><span class="p">[</span><span class="n">products</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">products</span><span class="o">.</span><span class="n">price</span><span class="p">],</span>
+    <span class="n">where</span><span class="o">=</span><span class="n">condition</span>
+<span class="p">)</span>
+<span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">price</span> <span class="ow">in</span> <span class="n">gadget_widgets</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: $</span><span class="si">{</span><span class="n">price</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># Widget: $19.99, MegaWidget: $99.99</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Update using a calculation</strong> – apply extra discount</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Increase discount by 5 percentage points where discount &lt; 20%</span>
+<span class="n">new_discount</span> <span class="o">=</span> <span class="n">products</span><span class="o">.</span><span class="n">discount</span> <span class="o">+</span> <span class="mf">0.05</span>
+<span class="n">products</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+    <span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="n">products</span><span class="o">.</span><span class="n">discount</span><span class="p">:</span> <span class="n">new_discount</span><span class="p">},</span>
+    <span class="n">where</span><span class="o">=</span><span class="n">products</span><span class="o">.</span><span class="n">discount</span> <span class="o">&lt;</span> <span class="mf">0.2</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Deleting with a string condition</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove all tools</span>
+<span class="n">products</span><span class="o">.</span><span class="n">delete_row</span><span class="p">(</span><span class="n">where</span><span class="o">=</span><span class="n">products</span><span class="o">.</span><span class="n">category</span> <span class="o">==</span> <span class="s2">&quot;tools&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="batch-operations-transactions">
+<h2>Batch Operations – Transactions<a class="headerlink" href="#batch-operations-transactions" title="Link to this heading"></a></h2>
+<p>For multiple statements that must run atomically, use <code class="docutils literal notranslate"><span class="pre">batch()</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">batch</span> <span class="o">=</span> <span class="n">products</span><span class="o">.</span><span class="n">batch</span><span class="p">()</span>
+<span class="n">batch</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="n">products</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="s2">&quot;Hammer&quot;</span><span class="p">,</span> <span class="n">products</span><span class="o">.</span><span class="n">price</span><span class="p">:</span> <span class="mf">12.50</span><span class="p">,</span> <span class="n">products</span><span class="o">.</span><span class="n">discount</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">products</span><span class="o">.</span><span class="n">category</span><span class="p">:</span> <span class="s2">&quot;tools&quot;</span><span class="p">})</span>
+<span class="n">batch</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+    <span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="n">products</span><span class="o">.</span><span class="n">price</span><span class="p">:</span> <span class="n">products</span><span class="o">.</span><span class="n">price</span> <span class="o">*</span> <span class="mf">1.1</span><span class="p">},</span>  <span class="c1"># 10% price increase</span>
+    <span class="n">where</span><span class="o">=</span><span class="n">products</span><span class="o">.</span><span class="n">discount</span> <span class="o">==</span> <span class="mf">0.0</span>
+<span class="p">)</span>
+<span class="n">batch</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>   <span class="c1"># both operations execute in a single transaction</span>
+</pre></div>
+</div>
+</section>
+<section id="joining-tables">
+<h2>Joining Tables<a class="headerlink" href="#joining-tables" title="Link to this heading"></a></h2>
+<p>Assume we have an <code class="docutils literal notranslate"><span class="pre">orders</span></code> table referencing <code class="docutils literal notranslate"><span class="pre">products</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">orders_schema</span> <span class="o">=</span> <span class="n">TableStructure</span><span class="p">(</span><span class="s2">&quot;orders&quot;</span><span class="p">)</span>
+<span class="n">orders_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">SERIAL</span><span class="p">(),</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">orders_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="s2">&quot;product_id&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">INTEGER</span><span class="p">())</span>
+<span class="n">orders_schema</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="s2">&quot;quantity&quot;</span><span class="p">,</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">INTEGER</span><span class="p">())</span>
+<span class="n">orders</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">create_table</span><span class="p">(</span><span class="n">orders_schema</span><span class="p">)</span>
+
+<span class="n">orders</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="n">orders</span><span class="o">.</span><span class="n">product_id</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="n">orders</span><span class="o">.</span><span class="n">quantity</span><span class="p">:</span> <span class="mi">3</span><span class="p">})</span>
+<span class="n">orders</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="n">orders</span><span class="o">.</span><span class="n">product_id</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="n">orders</span><span class="o">.</span><span class="n">quantity</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+<span class="n">orders</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="n">orders</span><span class="o">.</span><span class="n">product_id</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="n">orders</span><span class="o">.</span><span class="n">quantity</span><span class="p">:</span> <span class="mi">5</span><span class="p">})</span>
+</pre></div>
+</div>
+<p>Now join <code class="docutils literal notranslate"><span class="pre">orders</span></code> with <code class="docutils literal notranslate"><span class="pre">products</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">Ormophine.PostgreSQL</span><span class="w"> </span><span class="kn">import</span> <span class="n">Join</span>  <span class="c1"># if not already imported</span>
+
+<span class="n">join_condition</span> <span class="o">=</span> <span class="n">orders</span><span class="o">.</span><span class="n">product_id</span> <span class="o">==</span> <span class="n">products</span><span class="o">.</span><span class="n">id</span>
+
+<span class="n">columns</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">orders</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+    <span class="n">products</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+    <span class="n">orders</span><span class="o">.</span><span class="n">quantity</span><span class="p">,</span>
+    <span class="n">products</span><span class="o">.</span><span class="n">price</span> <span class="o">*</span> <span class="n">orders</span><span class="o">.</span><span class="n">quantity</span>   <span class="c1"># total cost</span>
+<span class="p">]</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">orders</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+    <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span>
+    <span class="n">joins_list</span><span class="o">=</span><span class="p">[</span><span class="n">Join</span><span class="o">.</span><span class="n">Inner</span><span class="p">(</span><span class="n">products</span><span class="p">,</span> <span class="n">join_condition</span><span class="p">)],</span>
+    <span class="n">order_by</span><span class="o">=</span><span class="n">orders</span><span class="o">.</span><span class="n">id</span>
+<span class="p">)</span>
+
+<span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>  <span class="c1"># (order_id, product_name, quantity, total_cost)</span>
+</pre></div>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>The PostgreSQL ORM supports all the same operations as the SQLite version: string slicing (<code class="docutils literal notranslate"><span class="pre">column[1:5]</span></code>), pattern matching (<code class="docutils literal notranslate"><span class="pre">.startswith()</span></code>, <code class="docutils literal notranslate"><span class="pre">.endswith()</span></code>, <code class="docutils literal notranslate"><span class="pre">.contains()</span></code>), bulk operations with custom placeholders, and many more. Explore the API documentation for full details.</p>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="Ormophine.Mysql.html" class="btn btn-neutral float-left" title="MySQL API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="Ormophine.Postgresql.html" class="btn btn-neutral float-right" title="PostgreSQL API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

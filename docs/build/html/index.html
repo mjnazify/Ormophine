@@ -1,0 +1,192 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-Powered Assistance &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5a057da9"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API Reference" href="api/modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">AI-Powered Assistance</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="ai-powered-assistance">
+<h1>AI-Powered Assistance<a class="headerlink" href="#ai-powered-assistance" title="Link to this heading"></a></h1>
+<p>To help you write queries and debug your Ormophine code, we provide reference files that contain the full source code of the ORM for each backend:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Sqlite.AI.Reference.txt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MySQL.AI.Reference.txt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PostgreSQL.AI.Reference.txt</span></code></p></li>
+</ul>
+<p>These files are designed to be sent to any capable AI assistant (such as ChatGPT, Claude, or Gemini). Simply attach the appropriate file along with a short instruction prompt and your question. The AI will then answer using the exact API and behaviour of your Ormophine version.</p>
+<p><strong>Where to find the files</strong></p>
+<p>After installing Ormophine via pip (or cloning the repository), the reference files are located in the <strong>root directory</strong> of the package.
+For example, if you installed the package in a virtual environment, you can find them at:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>path/to/venv/lib/python3.x/site-packages/Ormophine/{Sqlite,MySQL,PostgreSQL}.AI.Reference.txt
+</pre></div>
+</div>
+<p>When working directly from the source repository, they are simply at the top‑level folder.</p>
+<p><strong>Recommended prompt</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>You are an expert in the Ormophine ORM for {SQLite/MySQL/PostgreSQL}.
+The attached file contains the complete source code of that library.
+Answer all questions based solely on this code.
+Be concise, practical and include relevant code examples.
+</pre></div>
+</div>
+<p><strong>Example usage</strong></p>
+<ol class="arabic simple">
+<li><p>Locate the reference file for your database (e.g., <code class="docutils literal notranslate"><span class="pre">Sqlite.AI.Reference.txt</span></code>) in the Ormophine installation directory.</p></li>
+<li><p>Open your preferred AI chat.</p></li>
+<li><p>Paste the prompt above, replacing <code class="docutils literal notranslate"><span class="pre">{SQLite/MySQL/PostgreSQL}</span></code> with your backend.</p></li>
+<li><p>Attach the <code class="docutils literal notranslate"><span class="pre">.txt</span></code> file.</p></li>
+<li><p>Ask your question – for instance, <em>“How do I perform a bulk update with dynamic values?”</em></p></li>
+</ol>
+<p>The AI will then consult the real implementation and provide an accurate, version‑specific answer.</p>
+</section>
+<section id="ormophine-documentation">
+<h1>Ormophine Documentation<a class="headerlink" href="#ormophine-documentation" title="Link to this heading"></a></h1>
+<p>Ormophine is a lightweight, fast, and highly Pythonic ORM for modern database-driven
+applications. It provides a unified programming model for SQLite, MySQL, and PostgreSQL
+while keeping SQL generation and database interaction straightforward for Python developers.</p>
+<p>The design goal is to feel natural in Python rather than like a separate query DSL. In
+practice this means you work with dynamic table and column objects, build filters with
+Python operators, and use expression helpers that behave like familiar Python string APIs.
+For example, the project simulates Python string behavior for expressions such as
+<code class="docutils literal notranslate"><span class="pre">&quot;a&quot;</span> <span class="pre">+</span> <span class="pre">&quot;b&quot;</span></code> together with helpers like <code class="docutils literal notranslate"><span class="pre">lower()</span></code>, <code class="docutils literal notranslate"><span class="pre">upper()</span></code>, <code class="docutils literal notranslate"><span class="pre">startswith()</span></code>,
+<code class="docutils literal notranslate"><span class="pre">endswith()</span></code>, <code class="docutils literal notranslate"><span class="pre">strip()</span></code>, <code class="docutils literal notranslate"><span class="pre">lstrip()</span></code>, <code class="docutils literal notranslate"><span class="pre">rstrip()</span></code>, and <code class="docutils literal notranslate"><span class="pre">replace()</span></code>. The same
+style is also used for slice expressions such as <code class="docutils literal notranslate"><span class="pre">column[2:5]</span></code> so the query syntax stays
+close to regular Python code. Additional Python-style string methods are planned to be
+simulated in future releases.</p>
+<p>The public API should be imported from the database-specific package root, for example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">Ormophine.Sqlite</span><span class="w"> </span><span class="kn">import</span> <span class="n">Driver</span><span class="p">,</span> <span class="n">Table</span><span class="p">,</span> <span class="n">TableStructure</span><span class="p">,</span> <span class="n">DataTypes</span>
+</pre></div>
+</div>
+<p>This documentation focuses on the supported public classes and helpers that developers
+actually use when building applications with Ormophine.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>Ormophine offers a practical set of features for high-performance database work:</p>
+<ul class="simple">
+<li><p>Thread-safe database access through a dedicated writer queue</p></li>
+<li><p>Optional reader-pool support for non-blocking read operations</p></li>
+<li><p>Fluent schema construction with <code class="docutils literal notranslate"><span class="pre">TableStructure</span></code> and <code class="docutils literal notranslate"><span class="pre">DataTypes</span></code></p></li>
+<li><p>Dynamic table objects exposed directly from the driver instance</p></li>
+<li><p>Pythonic column expression building with operator-overloaded conditions</p></li>
+<li><p>Built-in-like string helpers such as <code class="docutils literal notranslate"><span class="pre">startswith()</span></code>, <code class="docutils literal notranslate"><span class="pre">endswith()</span></code>, and slice syntax
+like <code class="docutils literal notranslate"><span class="pre">column[2:5]</span></code></p></li>
+<li><p>Batch transaction support for grouped inserts and updates</p></li>
+<li><p>Join helpers for multi-table queries</p></li>
+<li><p>Direct SQL execution helpers for advanced use cases</p></li>
+<li><p>PRAGMA management for SQLite tuning and operational control</p></li>
+</ul>
+<p>The source code and API reference in this guide are organized around the public package
+exports rather than the internal <code class="docutils literal notranslate"><span class="pre">Core</span></code> module implementation details.</p>
+</section>
+<section id="documentation-map">
+<h2>Documentation map<a class="headerlink" href="#documentation-map" title="Link to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/modules.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/Ormophine.Sqlite.QuikStart.html">Sqlite Quickstart</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/Ormophine.Sqlite.html">SQLite API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/Ormophine.Mysql.QuikStart.html">MySQL Quickstart</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/Ormophine.Mysql.html">MySQL API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/Ormophine.Postgresql.QuikStart.html">PostgreSQL Quickstart</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/Ormophine.Postgresql.html">PostgreSQL API</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="api/modules.html" class="btn btn-neutral float-right" title="API Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

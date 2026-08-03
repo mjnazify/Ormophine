@@ -1,0 +1,1631 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ormophine.Sqlite.Core.tablestructure &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">Ormophine.Sqlite.Core.tablestructure</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for Ormophine.Sqlite.Core.tablestructure</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+
+<div class="viewcode-block" id="DataTypes">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DataTypes</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Factory for SQLite column definitions with built‑in CHECK constraints.</span>
+
+<span class="sd">    This class provides static methods that generate SQL column definition</span>
+<span class="sd">    strings for various data types. Each method returns a string that</span>
+<span class="sd">    includes the column name placeholder ``&#39;my_saulted_x&#39;``, the SQLite</span>
+<span class="sd">    type, and optional ``CHECK`` constraints to enforce limits, ranges,</span>
+<span class="sd">    or allowed values.</span>
+
+<span class="sd">    The placeholder ``&#39;my_saulted_x&#39;`` is a special marker that is</span>
+<span class="sd">    replaced with the actual column name when the definition is used in</span>
+<span class="sd">    a :class:`TableStructure` (specifically by :meth:`TableStructure.add_column`).</span>
+<span class="sd">    This design allows the same definition to be reused for multiple</span>
+<span class="sd">    columns.</span>
+
+<span class="sd">    All methods are static and are meant to be called directly on the</span>
+<span class="sd">    class, e.g., ``DataTypes.INTEGER(unsigned=True)``.</span>
+
+<span class="sd">    Supported data types include:</span>
+<span class="sd">      - Integer types: :meth:`INTEGER`, :meth:`INT`, :meth:`BIGINT`,</span>
+<span class="sd">        :meth:`TINYINT`, :meth:`SMALLINT`, :meth:`MEDIUMINT`</span>
+<span class="sd">      - Floating‑point types: :meth:`REAL`, :meth:`FLOAT`, :meth:`DOUBLE`,</span>
+<span class="sd">        :meth:`DECIMAL`, :meth:`NUMERIC`</span>
+<span class="sd">      - Text types: :meth:`TEXT`, :meth:`VARCHAR`, :meth:`CHAR`</span>
+<span class="sd">      - Binary: :meth:`BLOB`</span>
+<span class="sd">      - Boolean: :meth:`BOOLEAN`</span>
+<span class="sd">      - Enum: :meth:`ENUM`</span>
+<span class="sd">      - Custom: :meth:`CUSTOM`</span>
+<span class="sd">      - Other: :meth:`NULL`</span>
+
+<span class="sd">    Each method accepts optional parameters to define constraints such as</span>
+<span class="sd">    minimum/maximum values, unsigned ranges, length limits, or allowed</span>
+<span class="sd">    enumerations. These constraints are translated into SQLite ``CHECK``</span>
+<span class="sd">    clauses.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        Using :class:`DataTypes` with :class:`TableStructure` to define</span>
+<span class="sd">        a table::</span>
+
+<span class="sd">            from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">            # Define a table structure</span>
+<span class="sd">            structure = TableStructure(&#39;products&#39;, strict=True)</span>
+
+<span class="sd">            # Add columns using DataTypes</span>
+<span class="sd">            structure.add_column(</span>
+<span class="sd">                column_name=&#39;id&#39;,</span>
+<span class="sd">                datatype=DataTypes.INTEGER(unsigned=True, min_val=1)</span>
+<span class="sd">            )</span>
+<span class="sd">            structure.add_column(</span>
+<span class="sd">                column_name=&#39;name&#39;,</span>
+<span class="sd">                datatype=DataTypes.VARCHAR(max_length=100)</span>
+<span class="sd">            )</span>
+<span class="sd">            structure.add_column(</span>
+<span class="sd">                column_name=&#39;price&#39;,</span>
+<span class="sd">                datatype=DataTypes.DECIMAL(precision=10, scale=2, unsigned=True)</span>
+<span class="sd">            )</span>
+<span class="sd">            structure.add_column(</span>
+<span class="sd">                column_name=&#39;status&#39;,</span>
+<span class="sd">                datatype=DataTypes.ENUM(&#39;active&#39;, &#39;inactive&#39;, &#39;pending&#39;)</span>
+<span class="sd">            )</span>
+<span class="sd">            structure.add_column(</span>
+<span class="sd">                column_name=&#39;is_active&#39;,</span>
+<span class="sd">                datatype=DataTypes.BOOLEAN()</span>
+<span class="sd">            )</span>
+
+<span class="sd">            # Create the table using Driver</span>
+<span class="sd">            db = Driver(&#39;store.db&#39;)</span>
+<span class="sd">            db.create_table(structure)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="DataTypes.INTEGER">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.INTEGER">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">INTEGER</span><span class="p">(</span><span class="n">min_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a SQLite column definition for an INTEGER type with optional constraints.</span>
+
+<span class="sd">        This method returns a string that can be used as a column definition in a</span>
+<span class="sd">        ``CREATE TABLE`` or ``ALTER TABLE ADD COLUMN`` statement. The placeholder</span>
+<span class="sd">        ``my_saulted_x`` is used for the column name and will be replaced by the</span>
+<span class="sd">        actual column name when used (e.g., in :class:`TableStructure.add_column`).</span>
+
+<span class="sd">        The method supports range constraints via ``min_val`` and ``max_val``, and</span>
+<span class="sd">        an unsigned constraint. If multiple constraints are given, they are combined</span>
+<span class="sd">        with ``AND`` in a ``CHECK`` clause. If no constraints are specified, the</span>
+<span class="sd">        definition is simply ``my_saulted_x INTEGER``.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_val (int, optional): Minimum allowed value (inclusive). If provided,</span>
+<span class="sd">                adds a ``CHECK(my_saulted_x &gt;= min_val)`` constraint.</span>
+<span class="sd">            max_val (int, optional): Maximum allowed value (inclusive). If provided,</span>
+<span class="sd">                adds a ``CHECK(my_saulted_x &lt;= max_val)`` constraint.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, adds a</span>
+<span class="sd">                ``CHECK(my_saulted_x &gt;= 0)`` constraint. This is applied in addition</span>
+<span class="sd">                to any min/max constraints (but does not override them). Defaults to</span>
+<span class="sd">                ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A SQL column definition string. Examples:</span>
+<span class="sd">                - ``&quot;my_saulted_x INTEGER&quot;``</span>
+<span class="sd">                - ``&quot;my_saulted_x INTEGER CHECK(my_saulted_x &gt;= 0)&quot;``</span>
+<span class="sd">                - ``&quot;my_saulted_x INTEGER CHECK(my_saulted_x &gt;= 1 AND my_saulted_x &lt;= 100)&quot;``</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using with :class:`TableStructure`:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Sqlite import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; table = TableStructure(&#39;products&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; table.add_column(&#39;id&#39;, DataTypes.INTEGER(unsigned=True))</span>
+<span class="sd">            &gt;&gt;&gt; table.add_column(&#39;price&#39;, DataTypes.INTEGER(min_val=0, max_val=9999))</span>
+<span class="sd">            &gt;&gt;&gt; print(table.get_structure())</span>
+<span class="sd">            CREATE TABLE [products] ( [id] INTEGER CHECK([id] &gt;= 0), [price] INTEGER CHECK([price] &gt;= 0 AND [price] &lt;= 9999),) ;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">checks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">unsigned</span> <span class="ow">and</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;my_saulted_x &gt;= 0&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x &gt;= </span><span class="si">{</span><span class="n">min_val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x &lt;= </span><span class="si">{</span><span class="n">max_val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">checks</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER CHECK(</span><span class="si">{</span><span class="s1">&#39; AND &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">checks</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.REAL">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.REAL">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">REAL</span><span class="p">(</span><span class="n">min_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a column definition string for a floating‑point number (REAL).</span>
+
+<span class="sd">        This method returns a SQLite column definition for a REAL (8‑byte float)</span>
+<span class="sd">        column, optionally with CHECK constraints for range and/or unsigned</span>
+<span class="sd">        values. The placeholder ``my_saulted_x`` in the returned string will</span>
+<span class="sd">        be replaced by the actual column name when used in table creation or</span>
+<span class="sd">        alteration.</span>
+
+<span class="sd">        If ``unsigned`` is ``True``, a constraint ``my_saulted_x &gt;= 0`` is</span>
+<span class="sd">        added. If ``min_val`` and/or ``max_val`` are provided, additional</span>
+<span class="sd">        range constraints are generated. All constraints are combined with</span>
+<span class="sd">        AND.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_val (float, optional): The minimum allowed value (inclusive).</span>
+<span class="sd">                If provided, a ``&gt;=`` constraint is added.</span>
+<span class="sd">            max_val (float, optional): The maximum allowed value (inclusive).</span>
+<span class="sd">                If provided, a ``&lt;=`` constraint is added.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, restricts values to</span>
+<span class="sd">                non‑negative (``&gt;= 0``). Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A SQL column definition string, e.g.,</span>
+<span class="sd">            ``&quot;my_saulted_x REAL CHECK(my_saulted_x &gt;= 0 AND my_saulted_x &lt;= 100)&quot;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using the method in a table structure::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                table = TableStructure(&#39;products&#39;)</span>
+<span class="sd">                table.add_column(&#39;price&#39;, DataTypes.REAL(min_val=0.0, max_val=999.99))</span>
+<span class="sd">                # The column definition will be:</span>
+<span class="sd">                # my_saulted_x REAL CHECK(my_saulted_x &gt;= 0.0 AND my_saulted_x &lt;= 999.99)</span>
+<span class="sd">                # which is then replaced with the column name &#39;price&#39; to produce:</span>
+<span class="sd">                # [price] REAL CHECK([price] &gt;= 0.0 AND [price] &lt;= 999.99)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">checks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">unsigned</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;my_saulted_x &gt;= 0&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x &gt;= </span><span class="si">{</span><span class="n">min_val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x &lt;= </span><span class="si">{</span><span class="n">max_val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">checks</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x REAL CHECK(</span><span class="si">{</span><span class="s1">&#39; AND &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">checks</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x REAL&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.FLOAT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.FLOAT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">FLOAT</span><span class="p">(</span><span class="n">min_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Define a floating-point column with optional range and unsigned constraints.</span>
+
+<span class="sd">        This method is a synonym for :meth:`REAL` and generates a SQL column</span>
+<span class="sd">        definition of type ``REAL`` (8‑byte floating‑point number). It supports</span>
+<span class="sd">        the same validation options: an ``unsigned`` flag to enforce non‑negative</span>
+<span class="sd">        values, and optional ``min_val``/``max_val`` to enforce a value range.</span>
+
+<span class="sd">        The placeholder ``my_saulted_x`` in the generated SQL will be replaced</span>
+<span class="sd">        with the actual column name by the :class:`TableStructure` builder.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_val (float, optional): Minimum allowed value (inclusive). If</span>
+<span class="sd">                provided, adds a ``CHECK(my_saulted_x &gt;= min_val)`` constraint.</span>
+<span class="sd">            max_val (float, optional): Maximum allowed value (inclusive). If</span>
+<span class="sd">                provided, adds a ``CHECK(my_saulted_x &lt;= max_val)`` constraint.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, enforces that the value is</span>
+<span class="sd">                non‑negative by adding ``CHECK(my_saulted_x &gt;= 0)``. Defaults</span>
+<span class="sd">                to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A SQL column definition string with the appropriate ``REAL``</span>
+<span class="sd">            type and optional ``CHECK`` constraints. The placeholder</span>
+<span class="sd">            ``my_saulted_x`` is used for the column name.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Creating a table with a floating‑point price column that must be</span>
+<span class="sd">            between 0 and 999.99::</span>
+
+<span class="sd">                from ormophine.Sqlite import TableStructure, DataTypes</span>
+
+<span class="sd">                table = TableStructure(&#39;products&#39;)</span>
+<span class="sd">                table.add_column(</span>
+<span class="sd">                    column_name=&#39;price&#39;,</span>
+<span class="sd">                    datatype=DataTypes.FLOAT(min_val=0.0, max_val=999.99)</span>
+<span class="sd">                )</span>
+<span class="sd">                # The generated column definition will be:</span>
+<span class="sd">                # my_saulted_x REAL CHECK(my_saulted_x &gt;= 0.0 AND my_saulted_x &lt;= 999.99)</span>
+<span class="sd">                # (after replacing my_saulted_x with [price])</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">REAL</span><span class="p">(</span><span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.DOUBLE">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.DOUBLE">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">DOUBLE</span><span class="p">(</span><span class="n">min_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Synonym for :meth:`REAL` for compatibility with other databases.</span>
+
+<span class="sd">        This method is an alias for the :meth:`REAL` data type, providing a</span>
+<span class="sd">        name that is commonly used in other SQL databases (e.g., MySQL,</span>
+<span class="sd">        PostgreSQL). It returns the same column definition string, including</span>
+<span class="sd">        optional range and unsigned checks, as the REAL type.</span>
+
+<span class="sd">        The returned string uses the placeholder ``my_saulted_x``, which</span>
+<span class="sd">        will be replaced by the actual column name when used in</span>
+<span class="sd">        :meth:`TableStructure.add_column` or :meth:`Table.add_column`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_val (float, optional): Minimum allowed value for the column.</span>
+<span class="sd">                If provided, a ``CHECK(my_saulted_x &gt;= min_val)`` constraint</span>
+<span class="sd">                is added. Defaults to ``None``.</span>
+<span class="sd">            max_val (float, optional): Maximum allowed value for the column.</span>
+<span class="sd">                If provided, a ``CHECK(my_saulted_x &lt;= max_val)`` constraint</span>
+<span class="sd">                is added. Defaults to ``None``.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, adds a</span>
+<span class="sd">                ``CHECK(my_saulted_x &gt;= 0)`` constraint (unless a custom</span>
+<span class="sd">                ``min_val`` is also given). Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition string in the format</span>
+<span class="sd">            ``&quot;my_saulted_x REAL&quot;`` with optional ``CHECK`` constraints.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Creating a table with a DOUBLE column::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;measurements&#39;)</span>
+<span class="sd">                structure.add_column(&#39;temperature&#39;, DataTypes.DOUBLE(</span>
+<span class="sd">                    min_val=-273.15, max_val=1000.0</span>
+<span class="sd">                ))</span>
+<span class="sd">                # Adds column: my_saulted_x REAL CHECK(my_saulted_x &gt;= -273.15 AND my_saulted_x &lt;= 1000.0)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">REAL</span><span class="p">(</span><span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.DECIMAL">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.DECIMAL">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">DECIMAL</span><span class="p">(</span><span class="n">precision</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">scale</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">min_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a column definition string for a fixed‑point decimal type.</span>
+
+<span class="sd">        This method returns a SQLite column definition for a decimal number,</span>
+<span class="sd">        stored as a ``REAL`` type, with optional ``CHECK`` constraints for</span>
+<span class="sd">        range validation. The placeholder ``my_saulted_x`` will be replaced</span>
+<span class="sd">        by the actual column name when the definition is used in a table</span>
+<span class="sd">        creation or addition.</span>
+
+<span class="sd">        The method infers default minimum and maximum values from the</span>
+<span class="sd">        ``precision`` and ``scale`` parameters if they are provided.</span>
+<span class="sd">        - If both ``precision`` and ``scale`` are given, the default range</span>
+<span class="sd">        is ``[0, 10^(precision-scale) - 10^(-scale)]`` for unsigned,</span>
+<span class="sd">        or ``[-default_max, default_max]`` for signed.</span>
+<span class="sd">        - If only ``precision`` is given, the default range is</span>
+<span class="sd">        ``[0, 10^precision - 1]`` for unsigned, or symmetric around zero</span>
+<span class="sd">        for signed.</span>
+<span class="sd">        - If neither is given, no default range is applied, but custom</span>
+<span class="sd">        ``min_val`` and ``max_val`` are still respected.</span>
+
+<span class="sd">        The generated string can be used directly in a ``CREATE TABLE`` or</span>
+<span class="sd">        ``ALTER TABLE ADD COLUMN`` statement.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            precision (int, optional): The total number of digits (including</span>
+<span class="sd">                fractional part). Used only to compute default range bounds.</span>
+<span class="sd">            scale (int, optional): The number of digits after the decimal</span>
+<span class="sd">                point. Used together with ``precision`` to compute the</span>
+<span class="sd">                default maximum value. If not given, default range is</span>
+<span class="sd">                computed as if scale = 0.</span>
+<span class="sd">            min_val (float, optional): Custom minimum allowed value.</span>
+<span class="sd">                Overrides any default inferred from precision/scale.</span>
+<span class="sd">            max_val (float, optional): Custom maximum allowed value.</span>
+<span class="sd">                Overrides any default inferred from precision/scale.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, the default range is</span>
+<span class="sd">                non‑negative (minimum = 0). This is ignored if a custom</span>
+<span class="sd">                ``min_val`` is provided. Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A complete column definition string, e.g.,</span>
+<span class="sd">            ``&quot;my_saulted_x REAL CHECK(my_saulted_x BETWEEN 0 AND 99.99)&quot;``.</span>
+<span class="sd">            The placeholder ``my_saulted_x`` must be replaced with the actual</span>
+<span class="sd">            column name before use.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If both ``precision`` and ``scale`` are provided and</span>
+<span class="sd">                ``scale`` is greater than ``precision`` (impossible to represent).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``DECIMAL`` in a table definition::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                ts = TableStructure(&#39;products&#39;)</span>
+<span class="sd">                ts.add_column(&#39;price&#39;, DataTypes.DECIMAL(precision=10, scale=2))</span>
+<span class="sd">                # Produces: &quot;my_saulted_x REAL CHECK(my_saulted_x BETWEEN -99999999.99 AND 99999999.99)&quot;</span>
+
+<span class="sd">                # Custom constraints</span>
+<span class="sd">                ts.add_column(&#39;rating&#39;, DataTypes.DECIMAL(min_val=0, max_val=5))</span>
+<span class="sd">                # Produces: &quot;my_saulted_x REAL CHECK(my_saulted_x &gt;= 0 AND my_saulted_x &lt;= 5)&quot;</span>
+
+<span class="sd">                # Unsigned with precision/scale</span>
+<span class="sd">                ts.add_column(&#39;score&#39;, DataTypes.DECIMAL(precision=5, scale=2, unsigned=True))</span>
+<span class="sd">                # Produces: &quot;my_saulted_x REAL CHECK(my_saulted_x &gt;= 0 AND my_saulted_x BETWEEN 0 AND 999.99)&quot;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">checks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">unsigned</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;my_saulted_x &gt;= 0&quot;</span><span class="p">)</span>
+        <span class="c1"># Compute default range from precision/scale if provided and no custom bounds</span>
+        <span class="k">if</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">default_max</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="n">precision</span> <span class="o">-</span> <span class="n">scale</span><span class="p">)</span> <span class="o">-</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">scale</span><span class="p">)</span>
+            <span class="n">default_min</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">unsigned</span> <span class="k">else</span> <span class="o">-</span><span class="n">default_max</span>
+            <span class="n">actual_min</span> <span class="o">=</span> <span class="n">min_val</span> <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_min</span>
+            <span class="n">actual_max</span> <span class="o">=</span> <span class="n">max_val</span> <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_max</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x BETWEEN </span><span class="si">{</span><span class="n">actual_min</span><span class="si">}</span><span class="s2"> AND </span><span class="si">{</span><span class="n">actual_max</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">scale</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">default_max</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">**</span> <span class="n">precision</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="n">default_min</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">unsigned</span> <span class="k">else</span> <span class="o">-</span><span class="n">default_max</span>
+            <span class="n">actual_min</span> <span class="o">=</span> <span class="n">min_val</span> <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_min</span>
+            <span class="n">actual_max</span> <span class="o">=</span> <span class="n">max_val</span> <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_max</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x BETWEEN </span><span class="si">{</span><span class="n">actual_min</span><span class="si">}</span><span class="s2"> AND </span><span class="si">{</span><span class="n">actual_max</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># No precision/scale: apply custom min/max if given</span>
+            <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x &gt;= </span><span class="si">{</span><span class="n">min_val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x &lt;= </span><span class="si">{</span><span class="n">max_val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">checks</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x REAL CHECK(</span><span class="si">{</span><span class="s1">&#39; AND &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">checks</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x REAL&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.NUMERIC">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.NUMERIC">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">NUMERIC</span><span class="p">(</span><span class="n">precision</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">scale</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">min_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Synonym for :meth:`DECIMAL`.</span>
+
+<span class="sd">        This method is an alias for :meth:`DECIMAL` and returns a fixed-point</span>
+<span class="sd">        decimal column definition for SQLite. The generated SQL uses the</span>
+<span class="sd">        placeholder ``my_saulted_x`` and is later replaced with the actual</span>
+<span class="sd">        column name during table creation.</span>
+
+<span class="sd">        When both ``precision`` and ``scale`` are provided, a default numeric</span>
+<span class="sd">        range is inferred from those values. If only ``precision`` is given,</span>
+<span class="sd">        the default maximum becomes ``10^precision - 1``. Custom bounds supplied</span>
+<span class="sd">        through ``min_val`` and ``max_val`` override the inferred defaults.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            precision (int, optional): Total number of digits, including the</span>
+<span class="sd">                fractional part.</span>
+<span class="sd">            scale (int, optional): Number of digits after the decimal point.</span>
+<span class="sd">            min_val (float, optional): Minimum allowed value.</span>
+<span class="sd">            max_val (float, optional): Maximum allowed value.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, add a non-negative check.</span>
+<span class="sd">                Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment such as</span>
+<span class="sd">            ``&#39;my_saulted_x REAL CHECK(...)&#39;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``NUMERIC`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from Ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;products&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;price&#39;,</span>
+<span class="sd">                    datatype=DataTypes.NUMERIC(precision=10, scale=2, unsigned=True)</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">DECIMAL</span><span class="p">(</span><span class="n">precision</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.TEXT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.TEXT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">TEXT</span><span class="p">(</span><span class="n">min_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a column definition for a TEXT type with optional length constraints.</span>
+
+<span class="sd">        This method returns a SQLite column definition string for a ``TEXT`` column.</span>
+<span class="sd">        If ``min_length`` and/or ``max_length`` are provided, the definition includes</span>
+<span class="sd">        a ``CHECK`` constraint that enforces the length range using the SQLite</span>
+<span class="sd">        ``LENGTH()`` function. The placeholder ``my_saulted_x`` in the returned</span>
+<span class="sd">        string is replaced with the actual column name when the table is created.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_length (int, optional): Minimum allowed length (in characters) for</span>
+<span class="sd">                the text value. If provided, adds a check like</span>
+<span class="sd">                ``LENGTH(my_saulted_x) &gt;= min_length``.</span>
+<span class="sd">            max_length (int, optional): Maximum allowed length (in characters) for</span>
+<span class="sd">                the text value. If provided, adds a check like</span>
+<span class="sd">                ``LENGTH(my_saulted_x) &lt;= max_length``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment that can be used inside a</span>
+<span class="sd">            :class:`TableStructure` definition. For example:</span>
+<span class="sd">            ``&#39;my_saulted_x TEXT CHECK(LENGTH(my_saulted_x) &gt;= 1 AND LENGTH(my_saulted_x) &lt;= 100)&#39;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``TEXT`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;username&#39;,</span>
+<span class="sd">                    datatype=DataTypes.TEXT(min_length=3, max_length=20)</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated SQL fragment:</span>
+<span class="sd">                # my_saulted_x TEXT CHECK(LENGTH(my_saulted_x) &gt;= 3 AND LENGTH(my_saulted_x) &lt;= 20)</span>
+
+<span class="sd">                # No length constraints:</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;bio&#39;,</span>
+<span class="sd">                    datatype=DataTypes.TEXT()</span>
+<span class="sd">                )</span>
+<span class="sd">                # Returns: my_saulted_x TEXT</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">checks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">min_length</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;LENGTH(my_saulted_x) &gt;= </span><span class="si">{</span><span class="n">min_length</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">max_length</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;LENGTH(my_saulted_x) &lt;= </span><span class="si">{</span><span class="n">max_length</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">checks</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x TEXT CHECK(</span><span class="si">{</span><span class="s1">&#39; AND &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">checks</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x TEXT&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.BLOB">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.BLOB">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">BLOB</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a column definition for binary large object (BLOB) data.</span>
+
+<span class="sd">        This method returns a column definition string for storing binary data</span>
+<span class="sd">        (e.g., images, files, serialized objects) in SQLite. The generated</span>
+<span class="sd">        string contains the placeholder ``&#39;my_saulted_x&#39;`` which is replaced</span>
+<span class="sd">        with the actual column name when used in a :class:`TableStructure`</span>
+<span class="sd">        definition.</span>
+
+<span class="sd">        SQLite&#39;s ``BLOB`` type stores data exactly as provided, without any</span>
+<span class="sd">        character set conversion. It is suitable for any binary content.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment (e.g., ``&#39;my_saulted_x BLOB&#39;``).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``BLOB`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;files&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;file_data&#39;,</span>
+<span class="sd">                    datatype=DataTypes.BLOB()</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated column: my_saulted_x BLOB</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x BLOB&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.NULL">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.NULL">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">NULL</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a column definition for a NULL‑type column.</span>
+
+<span class="sd">        This method returns a SQL column definition fragment using SQLite&#39;s</span>
+<span class="sd">        ``NULL`` type. In SQLite, ``NULL`` is a valid type affinity, but it is</span>
+<span class="sd">        rarely used explicitly; columns without a specified type affinity</span>
+<span class="sd">        default to ``NUMERIC``. This method is provided primarily for</span>
+<span class="sd">        completeness and compatibility.</span>
+
+<span class="sd">        The returned string contains the placeholder ``&#39;my_saulted_x&#39;``, which</span>
+<span class="sd">        is replaced with the actual column name at table creation time (e.g.,</span>
+<span class="sd">        by :class:`TableStructure.add_column`).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment in the form</span>
+<span class="sd">            ``&#39;my_saulted_x NULL&#39;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``NULL`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;example&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;nullable_col&#39;,</span>
+<span class="sd">                    datatype=DataTypes.NULL()</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated column: my_saulted_x NULL</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This type is rarely needed; consider using other affinities</span>
+<span class="sd">            (e.g., ``TEXT``, ``INTEGER``) for most use cases.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x NULL&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.VARCHAR">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.VARCHAR">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">VARCHAR</span><span class="p">(</span><span class="n">min_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a column definition for a variable-length string (VARCHAR).</span>
+
+<span class="sd">        This method is a synonym for :meth:`TEXT`. It generates a column</span>
+<span class="sd">        definition fragment for a string column with optional length</span>
+<span class="sd">        constraints, enforced by ``CHECK`` clauses using the ``LENGTH()``</span>
+<span class="sd">        function. The placeholder ``&#39;my_saulted_x&#39;`` is used in the generated</span>
+<span class="sd">        string and is replaced by the actual column name at table creation time.</span>
+
+<span class="sd">        If ``min_length`` is provided, a constraint ``LENGTH(my_saulted_x) &gt;= min_length``</span>
+<span class="sd">        is added. If ``max_length`` is provided, a constraint</span>
+<span class="sd">        ``LENGTH(my_saulted_x) &lt;= max_length`` is added. If neither is given,</span>
+<span class="sd">        no constraints are imposed and the column is simply of type ``TEXT``.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_length (int, optional): Minimum allowed number of characters.</span>
+<span class="sd">            max_length (int, optional): Maximum allowed number of characters.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment (e.g.,</span>
+<span class="sd">            ``&#39;my_saulted_x TEXT CHECK(LENGTH(my_saulted_x) &lt;= 255)&#39;``) that</span>
+<span class="sd">            can be used in a :class:`TableStructure` definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``VARCHAR`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;username&#39;,</span>
+<span class="sd">                    datatype=DataTypes.VARCHAR(max_length=50)</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated column: my_saulted_x TEXT CHECK(LENGTH(my_saulted_x) &lt;= 50)</span>
+
+<span class="sd">                # With both min and max length</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;code&#39;,</span>
+<span class="sd">                    datatype=DataTypes.VARCHAR(min_length=3, max_length=10)</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">TEXT</span><span class="p">(</span><span class="n">min_length</span><span class="p">,</span> <span class="n">max_length</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.TINYINT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.TINYINT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">TINYINT</span><span class="p">(</span><span class="n">min_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a column definition for a tiny integer with optional range checks.</span>
+
+<span class="sd">        SQLite does not have a native TINYINT type, but this method returns an</span>
+<span class="sd">        ``INTEGER`` column definition with a ``CHECK`` constraint that enforces</span>
+<span class="sd">        the range typical for a tiny integer. By default, the signed range is</span>
+<span class="sd">        -128 to 127, and the unsigned range is 0 to 255. These defaults can be</span>
+<span class="sd">        overridden by providing custom ``min_val`` and/or ``max_val``.</span>
+
+<span class="sd">        The generated string contains the placeholder ``&#39;my_saulted_x&#39;``, which</span>
+<span class="sd">        will be replaced by the actual column name when used in a</span>
+<span class="sd">        :class:`TableStructure` definition.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_val (int, optional): The minimum allowed value. If not provided,</span>
+<span class="sd">                uses the default for the chosen signed/unsigned mode.</span>
+<span class="sd">            max_val (int, optional): The maximum allowed value. If not provided,</span>
+<span class="sd">                uses the default for the chosen signed/unsigned mode.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, the default range is 0–255;</span>
+<span class="sd">                otherwise, the default range is -128–127. Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment, e.g.,</span>
+<span class="sd">            ``&#39;my_saulted_x INTEGER CHECK(my_saulted_x BETWEEN -128 AND 127)&#39;``.</span>
+<span class="sd">            If no constraints are needed, returns ``&#39;my_saulted_x INTEGER&#39;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Creating a table with a TINYINT column::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;age&#39;,</span>
+<span class="sd">                    datatype=DataTypes.TINYINT(unsigned=True)  # 0–255</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated fragment: my_saulted_x INTEGER CHECK(my_saulted_x BETWEEN 0 AND 255)</span>
+
+<span class="sd">                # Custom range: values between 10 and 20</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;score&#39;,</span>
+<span class="sd">                    datatype=DataTypes.TINYINT(min_val=10, max_val=20)</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated fragment: my_saulted_x INTEGER CHECK(my_saulted_x BETWEEN 10 AND 20)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">unsigned</span><span class="p">:</span>
+            <span class="n">default_min</span><span class="p">,</span> <span class="n">default_max</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">255</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">default_min</span><span class="p">,</span> <span class="n">default_max</span> <span class="o">=</span> <span class="o">-</span><span class="mi">128</span><span class="p">,</span> <span class="mi">127</span>
+        <span class="n">actual_min</span> <span class="o">=</span> <span class="n">min_val</span> <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_min</span>
+        <span class="n">actual_max</span> <span class="o">=</span> <span class="n">max_val</span> <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_max</span>
+        <span class="k">if</span> <span class="n">actual_min</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">actual_max</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER CHECK(my_saulted_x BETWEEN </span><span class="si">{</span><span class="n">actual_min</span><span class="si">}</span><span class="s2"> AND </span><span class="si">{</span><span class="n">actual_max</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.SMALLINT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.SMALLINT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">SMALLINT</span><span class="p">(</span><span class="n">min_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a column definition for a SMALLINT with optional CHECK constraints.</span>
+
+<span class="sd">        This method returns a SQLite column definition string suitable for a</span>
+<span class="sd">        small integer type. The default range is -32,768 to 32,767 when</span>
+<span class="sd">        ``unsigned=False``, and 0 to 65,535 when ``unsigned=True``.</span>
+<span class="sd">        Custom minimum and maximum values can be specified to override the</span>
+<span class="sd">        defaults, and the resulting ``CHECK`` clause ensures that the column</span>
+<span class="sd">        values stay within the defined bounds.</span>
+
+<span class="sd">        The placeholder ``&#39;my_saulted_x&#39;`` in the returned string is replaced</span>
+<span class="sd">        with the actual column name during table creation (typically by the</span>
+<span class="sd">        :meth:`TableStructure.add_column` method).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_val (int, optional): The minimum allowed value. If provided,</span>
+<span class="sd">                overrides the default minimum for the chosen signed/unsigned</span>
+<span class="sd">                mode.</span>
+<span class="sd">            max_val (int, optional): The maximum allowed value. If provided,</span>
+<span class="sd">                overrides the default maximum for the chosen signed/unsigned</span>
+<span class="sd">                mode.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, the default range is</span>
+<span class="sd">                0 to 65,535. If ``False`` (the default), the default range is</span>
+<span class="sd">                -32,768 to 32,767.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment like</span>
+<span class="sd">            ``&#39;my_saulted_x INTEGER CHECK(my_saulted_x BETWEEN -32768 AND 32767)&#39;``</span>
+<span class="sd">            or a plain ``&#39;my_saulted_x INTEGER&#39;`` if no constraints apply.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``SMALLINT`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;scores&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;score&#39;,</span>
+<span class="sd">                    datatype=DataTypes.SMALLINT(unsigned=True)  # 0..65535</span>
+<span class="sd">                )</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;temperature&#39;,</span>
+<span class="sd">                    datatype=DataTypes.SMALLINT(min_val=-100, max_val=100)</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">unsigned</span><span class="p">:</span>
+            <span class="n">default_min</span><span class="p">,</span> <span class="n">default_max</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">65535</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">default_min</span><span class="p">,</span> <span class="n">default_max</span> <span class="o">=</span> <span class="o">-</span><span class="mi">32768</span><span class="p">,</span> <span class="mi">32767</span>
+        <span class="n">actual_min</span> <span class="o">=</span> <span class="n">min_val</span> <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_min</span>
+        <span class="n">actual_max</span> <span class="o">=</span> <span class="n">max_val</span> <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_max</span>
+        <span class="k">if</span> <span class="n">actual_min</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">actual_max</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER CHECK(my_saulted_x BETWEEN </span><span class="si">{</span><span class="n">actual_min</span><span class="si">}</span><span class="s2"> AND </span><span class="si">{</span><span class="n">actual_max</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.MEDIUMINT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.MEDIUMINT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">MEDIUMINT</span><span class="p">(</span><span class="n">min_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a column definition for a MEDIUMINT with optional CHECK constraints.</span>
+
+<span class="sd">        This method returns a SQLite column definition string for a medium‑sized</span>
+<span class="sd">        integer type. The default range is -8,388,608 to 8,388,607 when</span>
+<span class="sd">        ``unsigned=False``, and 0 to 16,777,215 when ``unsigned=True``.</span>
+<span class="sd">        Custom minimum and maximum values can be specified to override the</span>
+<span class="sd">        defaults, and the resulting ``CHECK`` clause ensures that the column</span>
+<span class="sd">        values stay within the defined bounds.</span>
+
+<span class="sd">        The placeholder ``&#39;my_saulted_x&#39;`` in the returned string is replaced</span>
+<span class="sd">        with the actual column name during table creation (typically by the</span>
+<span class="sd">        :meth:`TableStructure.add_column` method).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_val (int, optional): The minimum allowed value. If provided,</span>
+<span class="sd">                overrides the default minimum for the chosen signed/unsigned</span>
+<span class="sd">                mode.</span>
+<span class="sd">            max_val (int, optional): The maximum allowed value. If provided,</span>
+<span class="sd">                overrides the default maximum for the chosen signed/unsigned</span>
+<span class="sd">                mode.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, the default range is</span>
+<span class="sd">                0 to 16,777,215. If ``False`` (the default), the default range</span>
+<span class="sd">                is -8,388,608 to 8,388,607.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment like</span>
+<span class="sd">            ``&#39;my_saulted_x INTEGER CHECK(my_saulted_x BETWEEN -8388608 AND 8388607)&#39;``</span>
+<span class="sd">            or a plain ``&#39;my_saulted_x INTEGER&#39;`` if no constraints apply.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``MEDIUMINT`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;events&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;counter&#39;,</span>
+<span class="sd">                    datatype=DataTypes.MEDIUMINT(unsigned=True)  # 0..16777215</span>
+<span class="sd">                )</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;temperature&#39;,</span>
+<span class="sd">                    datatype=DataTypes.MEDIUMINT(min_val=-1000, max_val=1000)</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">unsigned</span><span class="p">:</span>
+            <span class="n">default_min</span><span class="p">,</span> <span class="n">default_max</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">16777215</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">default_min</span><span class="p">,</span> <span class="n">default_max</span> <span class="o">=</span> <span class="o">-</span><span class="mi">8388608</span><span class="p">,</span> <span class="mi">8388607</span>
+        <span class="n">actual_min</span> <span class="o">=</span> <span class="n">min_val</span> <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_min</span>
+        <span class="n">actual_max</span> <span class="o">=</span> <span class="n">max_val</span> <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_max</span>
+        <span class="k">if</span> <span class="n">actual_min</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">actual_max</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER CHECK(my_saulted_x BETWEEN </span><span class="si">{</span><span class="n">actual_min</span><span class="si">}</span><span class="s2"> AND </span><span class="si">{</span><span class="n">actual_max</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.INT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.INT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">INT</span><span class="p">(</span><span class="n">min_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a column definition for an integer with optional CHECK constraints.</span>
+
+<span class="sd">        This method returns a SQLite column definition string for an ``INTEGER``</span>
+<span class="sd">        type (64‑bit signed). It supports optional range constraints via</span>
+<span class="sd">        ``min_val`` and ``max_val``, and an ``unsigned`` flag that adds a</span>
+<span class="sd">        ``CHECK(my_saulted_x &gt;= 0)`` unless a custom ``min_val`` is explicitly</span>
+<span class="sd">        provided. All constraints are combined into a single ``CHECK`` clause.</span>
+
+<span class="sd">        The placeholder ``&#39;my_saulted_x&#39;`` in the returned string is replaced</span>
+<span class="sd">        with the actual column name during table creation (typically by the</span>
+<span class="sd">        :meth:`TableStructure.add_column` method).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_val (int, optional): Minimum allowed value. If provided, adds</span>
+<span class="sd">                ``CHECK(my_saulted_x &gt;= min_val)``.</span>
+<span class="sd">            max_val (int, optional): Maximum allowed value. If provided, adds</span>
+<span class="sd">                ``CHECK(my_saulted_x &lt;= max_val)``.</span>
+<span class="sd">            unsigned (bool, optional): If ``True`` and no explicit ``min_val``</span>
+<span class="sd">                is given, adds ``CHECK(my_saulted_x &gt;= 0)``. Defaults to</span>
+<span class="sd">                ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment. If constraints are present, the</span>
+<span class="sd">            string includes a ``CHECK`` clause, e.g.:</span>
+<span class="sd">            ``&#39;my_saulted_x INTEGER CHECK(my_saulted_x &gt;= 0 AND my_saulted_x &lt;= 100)&#39;``.</span>
+<span class="sd">            If no constraints, returns ``&#39;my_saulted_x INTEGER&#39;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``INT`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;products&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;quantity&#39;,</span>
+<span class="sd">                    datatype=DataTypes.INT(min_val=0, max_val=9999)</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated column: my_saulted_x INTEGER CHECK(my_saulted_x &gt;= 0 AND my_saulted_x &lt;= 9999)</span>
+
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;score&#39;,</span>
+<span class="sd">                    datatype=DataTypes.INT(unsigned=True)</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated column: my_saulted_x INTEGER CHECK(my_saulted_x &gt;= 0)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">checks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">unsigned</span> <span class="ow">and</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;my_saulted_x &gt;= 0&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x &gt;= </span><span class="si">{</span><span class="n">min_val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;my_saulted_x &lt;= </span><span class="si">{</span><span class="n">max_val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">checks</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER CHECK(</span><span class="si">{</span><span class="s1">&#39; AND &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">checks</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.BIGINT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.BIGINT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">BIGINT</span><span class="p">(</span><span class="n">min_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_val</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a column definition for a BIGINT (64‑bit integer) with optional constraints.</span>
+
+<span class="sd">        This method is an alias for :meth:`INT` and returns a column definition</span>
+<span class="sd">        string for a 64‑bit integer. In SQLite, all integer types are stored</span>
+<span class="sd">        as 64‑bit, so this is functionally identical to ``INT``. It provides</span>
+<span class="sd">        the same optional range and unsigned checks via ``CHECK`` constraints.</span>
+
+<span class="sd">        The placeholder ``&#39;my_saulted_x&#39;`` in the returned string is replaced</span>
+<span class="sd">        with the actual column name during table creation (typically by the</span>
+<span class="sd">        :meth:`TableStructure.add_column` method).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_val (int, optional): The minimum allowed value. If provided,</span>
+<span class="sd">                adds a ``CHECK(my_saulted_x &gt;= min_val)`` constraint.</span>
+<span class="sd">            max_val (int, optional): The maximum allowed value. If provided,</span>
+<span class="sd">                adds a ``CHECK(my_saulted_x &lt;= max_val)`` constraint.</span>
+<span class="sd">            unsigned (bool, optional): If ``True``, adds a ``CHECK`` that the</span>
+<span class="sd">                value is &gt;= 0 (unless a custom ``min_val`` overrides it).</span>
+<span class="sd">                Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment like</span>
+<span class="sd">            ``&#39;my_saulted_x INTEGER CHECK(...)&#39;`` or a plain</span>
+<span class="sd">            ``&#39;my_saulted_x INTEGER&#39;`` if no constraints are needed.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``BIGINT`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;logs&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;timestamp&#39;,</span>
+<span class="sd">                    datatype=DataTypes.BIGINT(unsigned=True)  # only non‑negative timestamps</span>
+<span class="sd">                )</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;score&#39;,</span>
+<span class="sd">                    datatype=DataTypes.BIGINT(min_val=-1000, max_val=1000)</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">INT</span><span class="p">(</span><span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span><span class="p">,</span> <span class="n">unsigned</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.CHAR">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.CHAR">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">CHAR</span><span class="p">(</span><span class="n">min_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a column definition for a fixed‑length character type.</span>
+
+<span class="sd">        This method is a synonym for :meth:`TEXT` and returns a SQLite column</span>
+<span class="sd">        definition string of type ``TEXT`` with optional length constraints</span>
+<span class="sd">        enforced via ``CHECK``. It is named ``CHAR`` to mirror SQL fixed‑length</span>
+<span class="sd">        semantics, but SQLite does not natively support fixed‑length storage;</span>
+<span class="sd">        the constraints are implemented using ``LENGTH()`` checks.</span>
+
+<span class="sd">        If both ``min_length`` and ``max_length`` are provided, the column</span>
+<span class="sd">        will have a ``CHECK`` that the length is between them. If only one is</span>
+<span class="sd">        given, only that bound is enforced. To enforce an exact length, pass</span>
+<span class="sd">        the same value for both.</span>
+
+<span class="sd">        The placeholder ``&#39;my_saulted_x&#39;`` in the returned string is replaced</span>
+<span class="sd">        with the actual column name during table creation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_length (int, optional): The minimum allowed length (inclusive).</span>
+<span class="sd">                If provided, adds a ``CHECK(LENGTH(my_saulted_x) &gt;= min_length)``.</span>
+<span class="sd">            max_length (int, optional): The maximum allowed length (inclusive).</span>
+<span class="sd">                If provided, adds a ``CHECK(LENGTH(my_saulted_x) &lt;= max_length)``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment such as</span>
+<span class="sd">            ``&#39;my_saulted_x TEXT CHECK(LENGTH(my_saulted_x) BETWEEN 5 AND 10)&#39;``</span>
+<span class="sd">            or ``&#39;my_saulted_x TEXT&#39;`` if no constraints are specified.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``CHAR`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;country_code&#39;,</span>
+<span class="sd">                    datatype=DataTypes.CHAR(min_length=2, max_length=2)  # exactly 2 chars</span>
+<span class="sd">                )</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;status&#39;,</span>
+<span class="sd">                    datatype=DataTypes.CHAR(max_length=20)  # at most 20 chars</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataTypes</span><span class="o">.</span><span class="n">TEXT</span><span class="p">(</span><span class="n">min_length</span><span class="p">,</span> <span class="n">max_length</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.ENUM">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.ENUM">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ENUM</span><span class="p">(</span><span class="o">*</span><span class="n">values</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a column definition for an enumeration of allowed string values.</span>
+
+<span class="sd">        This method returns a SQLite column definition string that restricts</span>
+<span class="sd">        the column&#39;s values to a predefined list of strings. The constraint</span>
+<span class="sd">        is enforced by a ``CHECK`` clause using the ``IN`` operator, and the</span>
+<span class="sd">        column is defined as type ``TEXT``.</span>
+
+<span class="sd">        The placeholder ``&#39;my_saulted_x&#39;`` in the returned string is replaced</span>
+<span class="sd">        with the actual column name when the column is added to a table (e.g.,</span>
+<span class="sd">        by :meth:`TableStructure.add_column`).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            *values (str): A variable number of string values that are</span>
+<span class="sd">                permitted in the column. Each value will be quoted in the</span>
+<span class="sd">                resulting SQL.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment like</span>
+<span class="sd">            ``&#39;my_saulted_x TEXT CHECK(my_saulted_x IN (&#39;value1&#39;, &#39;value2&#39;))&#39;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``ENUM`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;status&#39;,</span>
+<span class="sd">                    datatype=DataTypes.ENUM(&#39;active&#39;, &#39;inactive&#39;, &#39;pending&#39;)</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generates:</span>
+<span class="sd">                # my_saulted_x TEXT CHECK(my_saulted_x IN (&#39;active&#39;, &#39;inactive&#39;, &#39;pending&#39;))</span>
+
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;role&#39;,</span>
+<span class="sd">                    datatype=DataTypes.ENUM(&#39;admin&#39;, &#39;user&#39;, &#39;guest&#39;)</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generates a separate CHECK constraint for the role column.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">quoted</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x TEXT CHECK(my_saulted_x IN (</span><span class="si">{</span><span class="n">quoted</span><span class="si">}</span><span class="s2">))&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.BOOLEAN">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.BOOLEAN">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">BOOLEAN</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a column definition for a boolean type stored as INTEGER 0/1.</span>
+
+<span class="sd">        This method returns a SQLite column definition string that enforces</span>
+<span class="sd">        boolean values (0 for false, 1 for true) using a ``CHECK`` constraint.</span>
+<span class="sd">        The placeholder ``&#39;my_saulted_x&#39;`` in the returned string is replaced</span>
+<span class="sd">        with the actual column name during table creation (e.g., by</span>
+<span class="sd">        :meth:`TableStructure.add_column`).</span>
+
+<span class="sd">        The generated definition ensures that only the integers 0 or 1 can be</span>
+<span class="sd">        inserted into the column, providing a simple boolean representation.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment like</span>
+<span class="sd">            ``&#39;my_saulted_x INTEGER CHECK(my_saulted_x IN (0, 1))&#39;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``BOOLEAN`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;is_active&#39;,</span>
+<span class="sd">                    datatype=DataTypes.BOOLEAN()</span>
+<span class="sd">                )</span>
+<span class="sd">                # Creates a column definition:</span>
+<span class="sd">                # my_saulted_x INTEGER CHECK(my_saulted_x IN (0, 1))</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x INTEGER CHECK(my_saulted_x IN (0, 1))&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.CUSTOM">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.DataTypes.CUSTOM">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">CUSTOM</span><span class="p">(</span><span class="n">type_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">check</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a custom column definition with an optional CHECK constraint.</span>
+
+<span class="sd">        This method allows you to define a column with a custom SQLite data type</span>
+<span class="sd">        name (e.g., when strict mode is disabled) and optionally add a CHECK</span>
+<span class="sd">        constraint. The placeholder ``&#39;my_saulted_x&#39;`` in the returned string</span>
+<span class="sd">        is replaced with the actual column name during table creation (e.g., by</span>
+<span class="sd">        :meth:`TableStructure.add_column`).</span>
+
+<span class="sd">        This is useful for using database‑specific types (like ``GEOMETRY``,</span>
+<span class="sd">        ``JSON``, or user‑defined types) that are not standard in SQLite, or for</span>
+<span class="sd">        adding custom validation logic.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            type_name (str): The custom SQLite type name to use for the column.</span>
+<span class="sd">                This will be inserted directly into the column definition.</span>
+<span class="sd">            check (str, optional): A CHECK constraint expression to enforce on</span>
+<span class="sd">                the column. The expression should use the placeholder</span>
+<span class="sd">                ``&#39;my_saulted_x&#39;`` to refer to the column&#39;s value. If provided,</span>
+<span class="sd">                it is wrapped in a ``CHECK(...)`` clause. Defaults to ``None``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A column definition fragment like</span>
+<span class="sd">            ``&#39;my_saulted_x GEOMETRY CHECK(my_saulted_x IS NOT NULL)&#39;``, or</span>
+<span class="sd">            ``&#39;my_saulted_x JSON&#39;`` if no check is given.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``CUSTOM`` in a :class:`TableStructure`::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;shapes&#39;)</span>
+<span class="sd">                # Add a geometry column with a NOT NULL check</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;shape&#39;,</span>
+<span class="sd">                    datatype=DataTypes.CUSTOM(</span>
+<span class="sd">                        &#39;GEOMETRY&#39;,</span>
+<span class="sd">                        check=&#39;my_saulted_x IS NOT NULL&#39;</span>
+<span class="sd">                    )</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated column: my_saulted_x GEOMETRY CHECK(my_saulted_x IS NOT NULL)</span>
+
+<span class="sd">                # Add a JSON column without any check</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    column_name=&#39;metadata&#39;,</span>
+<span class="sd">                    datatype=DataTypes.CUSTOM(&#39;JSON&#39;)</span>
+<span class="sd">                )</span>
+<span class="sd">                # Generated column: my_saulted_x JSON</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">check</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x </span><span class="si">{</span><span class="n">type_name</span><span class="si">}</span><span class="s2"> CHECK(</span><span class="si">{</span><span class="n">check</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;my_saulted_x </span><span class="si">{</span><span class="n">type_name</span><span class="si">}</span><span class="s2">&quot;</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="TableStructure">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.TableStructure">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TableStructure</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A builder for defining SQLite table schemas programmatically.</span>
+
+<span class="sd">    This class provides a fluent interface for constructing a table</span>
+<span class="sd">    definition, including columns, data types with constraints, primary</span>
+<span class="sd">    keys, foreign keys, and the optional ``STRICT`` mode. The final</span>
+<span class="sd">    ``CREATE TABLE`` SQL statement is generated by calling</span>
+<span class="sd">    :meth:`get_structure` and can be executed via</span>
+<span class="sd">    :meth:`Driver.create_table`.</span>
+
+<span class="sd">    The class maintains an internal representation of the table schema,</span>
+<span class="sd">    storing column definitions (with their types, defaults, uniqueness,</span>
+<span class="sd">    nullability, and primary key status), foreign key constraints, and</span>
+<span class="sd">    primary key configuration. It supports adding and removing columns</span>
+<span class="sd">    before the table is created.</span>
+
+<span class="sd">    **Usage pattern:**</span>
+
+<span class="sd">    1. Instantiate ``TableStructure`` with the desired table name and</span>
+<span class="sd">       optional ``STRICT`` mode.</span>
+<span class="sd">    2. Add columns using :meth:`add_column` (each call returns ``self``</span>
+<span class="sd">       for chaining).</span>
+<span class="sd">    3. Optionally add foreign keys using :meth:`foreign_key`.</span>
+<span class="sd">    4. Call :meth:`get_structure` to obtain the SQL string.</span>
+<span class="sd">    5. Pass the structure to :meth:`Driver.create_table` to create the</span>
+<span class="sd">       actual table in the database.</span>
+
+<span class="sd">    **Placeholder replacement:**</span>
+
+<span class="sd">    The class relies on the placeholder ``&#39;my_saulted_x&#39;`` in data type</span>
+<span class="sd">    definitions (from :class:`DataTypes`). When a column is added, the</span>
+<span class="sd">    placeholder is automatically replaced with the actual column name</span>
+<span class="sd">    (wrapped in square brackets) to generate the correct column definition.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        ON_CONFLICT (Literal): Type alias for conflict resolution options</span>
+<span class="sd">            (``&#39;ABORT&#39;``, ``&#39;ROLLBACK&#39;``, ``&#39;FAIL&#39;``, ``&#39;IGNORE&#39;``,</span>
+<span class="sd">            ``&#39;REPLACE&#39;``).</span>
+<span class="sd">        ON_ACTION (Literal): Type alias for foreign key actions</span>
+<span class="sd">            (``&#39;CASCADE&#39;``, ``&#39;SET NULL&#39;``, ``&#39;SET DEFAULT&#39;``,</span>
+<span class="sd">            ``&#39;RESTRICT&#39;``, ``&#39;NO ACTION&#39;``).</span>
+<span class="sd">        ON_INIT (Literal): Type alias for deferral initialization</span>
+<span class="sd">            (``&#39;DEFERRED&#39;``, ``&#39;IMMEDIATE&#39;``).</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        Defining a simple table with primary key and foreign key::</span>
+
+<span class="sd">            from ormophine.Sqlite import TableStructure, DataTypes, Driver</span>
+
+<span class="sd">            # Build the structure</span>
+<span class="sd">            structure = TableStructure(&#39;orders&#39;, strict=True)</span>
+<span class="sd">            structure.add_column(&#39;id&#39;, DataTypes.INTEGER(), primary_key=True)</span>
+<span class="sd">            structure.add_column(&#39;customer_id&#39;, DataTypes.INTEGER(), not_null=True)</span>
+<span class="sd">            structure.add_column(&#39;total&#39;, DataTypes.DECIMAL(precision=10, scale=2))</span>
+<span class="sd">            structure.add_column(&#39;status&#39;, DataTypes.ENUM(&#39;pending&#39;, &#39;shipped&#39;, &#39;delivered&#39;))</span>
+
+<span class="sd">            # Assume customers table already exists</span>
+<span class="sd">            customers = db.table_object(&#39;customers&#39;)</span>
+<span class="sd">            structure.foreign_key(</span>
+<span class="sd">                column=&#39;customer_id&#39;,</span>
+<span class="sd">                refrences_table=customers,</span>
+<span class="sd">                refrences_column=customers.id,</span>
+<span class="sd">                on_delete=&#39;CASCADE&#39;,</span>
+<span class="sd">                on_update=&#39;RESTRICT&#39;</span>
+<span class="sd">            )</span>
+
+<span class="sd">            # Create the table</span>
+<span class="sd">            db = Driver(&#39;store.db&#39;)</span>
+<span class="sd">            orders_table = db.create_table(structure)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ON_CONFLICT</span><span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;ABORT&#39;</span><span class="p">,</span> <span class="s1">&#39;ROLLBACK&#39;</span><span class="p">,</span> <span class="s1">&#39;FAIL&#39;</span><span class="p">,</span> <span class="s1">&#39;IGNORE&#39;</span><span class="p">,</span> <span class="s1">&#39;REPLACE&#39;</span><span class="p">]</span>
+    <span class="n">ON_ACTION</span><span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;CASCADE&#39;</span><span class="p">,</span> <span class="s1">&#39;SET NULL&#39;</span><span class="p">,</span> <span class="s1">&#39;SET DEFAULT&#39;</span><span class="p">,</span> <span class="s1">&#39;RESTRICT&#39;</span><span class="p">,</span> <span class="s1">&#39;NO ACTION&#39;</span><span class="p">]</span>
+    <span class="n">ON_INIT</span><span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;DEFERRED&#39;</span><span class="p">,</span> <span class="s1">&#39;IMMEDIATE&#39;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="TableStructure.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.TableStructure.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">strict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">primarykey_on_conflict</span><span class="p">:</span> <span class="n">ON_CONFLICT</span> <span class="o">=</span> <span class="s1">&#39;ABORT&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize a new table structure definition.</span>
+
+<span class="sd">        This class is used to build the complete definition of a database table</span>
+<span class="sd">        before creation. It collects column definitions, primary keys, and foreign</span>
+<span class="sd">        key constraints, and can generate the final ``CREATE TABLE`` SQL statement.</span>
+<span class="sd">        The definition is mutable and supports adding/removing columns.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            table_name (str): The name of the table to be created.</span>
+<span class="sd">            strict (bool, optional): If ``True``, adds the ``STRICT`` keyword to</span>
+<span class="sd">                the table definition, enforcing strict type checking in SQLite.</span>
+<span class="sd">                Defaults to ``False``.</span>
+<span class="sd">            primarykey_on_conflict (ON_CONFLICT, optional): The conflict resolution</span>
+<span class="sd">                algorithm to use for the primary key when a constraint violation</span>
+<span class="sd">                occurs. Must be one of ``&#39;ABORT&#39;``, ``&#39;ROLLBACK&#39;``, ``&#39;FAIL&#39;``,</span>
+<span class="sd">                ``&#39;IGNORE&#39;``, or ``&#39;REPLACE&#39;``. Defaults to ``&#39;ABORT&#39;``.</span>
+
+<span class="sd">        Attributes:</span>
+<span class="sd">            strict (bool): Whether strict mode is enabled.</span>
+<span class="sd">            table_query (str): The accumulated column definition string.</span>
+<span class="sd">            primary_keys (list): List of column names that are part of the primary key.</span>
+<span class="sd">            items (dict): Internal dictionary storing column metadata.</span>
+<span class="sd">            name (str): The table name.</span>
+<span class="sd">            foreigns (list): List of foreign key constraint strings.</span>
+<span class="sd">            pkonc (str): The primary key conflict resolution.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Defining a table structure::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                # Create a new table structure for &#39;users&#39;</span>
+<span class="sd">                structure = TableStructure(&#39;users&#39;, strict=True)</span>
+
+<span class="sd">                # Add columns</span>
+<span class="sd">                structure.add_column(&#39;id&#39;, DataTypes.INTEGER(primary_key=True))</span>
+<span class="sd">                structure.add_column(&#39;username&#39;, DataTypes.VARCHAR(max_length=50))</span>
+<span class="sd">                structure.add_column(&#39;age&#39;, DataTypes.TINYINT(unsigned=True))</span>
+
+<span class="sd">                # Generate the CREATE TABLE statement</span>
+<span class="sd">                create_sql = structure.get_structure()</span>
+<span class="sd">                # CREATE TABLE [users] ( [id] INTEGER, [username] TEXT CHECK(LENGTH([username]) &lt;= 50), [age] INTEGER CHECK([age] BETWEEN 0 AND 255), PRIMARY KEY([id]) ON CONFLICT ABORT ) STRICT;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strict</span><span class="o">=</span> <span class="n">strict</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span><span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">primary_keys</span><span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="o">=</span> <span class="n">table_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">foreigns</span><span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pkonc</span> <span class="o">=</span> <span class="n">primarykey_on_conflict</span></div>
+
+
+<div class="viewcode-block" id="TableStructure.add_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.TableStructure.add_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">datatype</span><span class="p">:</span> <span class="n">DataTypes</span><span class="p">,</span>
+                <span class="n">default_value</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">unique_on_conflict</span><span class="p">:</span> <span class="n">ON_CONFLICT</span> <span class="o">=</span> <span class="s1">&#39;ABORT&#39;</span><span class="p">,</span>
+                <span class="n">not_null</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">not_null_on_conflict</span><span class="p">:</span> <span class="n">ON_CONFLICT</span> <span class="o">=</span> <span class="s1">&#39;ABORT&#39;</span><span class="p">,</span>
+                <span class="n">primary_key</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a column definition to the table structure.</span>
+
+<span class="sd">        This method appends a column definition to the internal query string</span>
+<span class="sd">        used to generate the final ``CREATE TABLE`` statement. It validates</span>
+<span class="sd">        that the column name is not already defined, and raises an exception</span>
+<span class="sd">        if a duplicate is found. The method also stores column metadata in</span>
+<span class="sd">        the ``items`` dictionary for later retrieval (e.g., via</span>
+<span class="sd">        :meth:`get_columns`).</span>
+
+<span class="sd">        The ``datatype`` parameter should be one of the type strings returned</span>
+<span class="sd">        by the :class:`DataTypes` factory methods (e.g.,</span>
+<span class="sd">        ``DataTypes.INTEGER()``, ``DataTypes.TEXT(max_length=50)``, etc.).</span>
+<span class="sd">        These strings contain the placeholder ``&#39;my_saulted_x&#39;`` which is</span>
+<span class="sd">        replaced with the actual column name (properly bracketed) in this</span>
+<span class="sd">        method.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column_name (str): The name of the column to add.</span>
+<span class="sd">            datatype (DataTypes): A column definition string from</span>
+<span class="sd">                :class:`DataTypes` (e.g., ``DataTypes.INTEGER()``). The</span>
+<span class="sd">                placeholder ``&#39;my_saulted_x&#39;`` will be replaced with the</span>
+<span class="sd">                column name.</span>
+<span class="sd">            default_value (optional): The default value for the column.</span>
+<span class="sd">                Cannot be a ``bytes`` object. If provided, it is added as</span>
+<span class="sd">                ``DEFAULT &lt;value&gt;``; strings are quoted, others are used</span>
+<span class="sd">                as‑is.</span>
+<span class="sd">            unique (bool, optional): If ``True``, adds a ``UNIQUE``</span>
+<span class="sd">                constraint. Defaults to ``None``.</span>
+<span class="sd">            unique_on_conflict (ON_CONFLICT, optional): Conflict resolution</span>
+<span class="sd">                for the UNIQUE constraint (e.g., ``&#39;ABORT&#39;``, ``&#39;IGNORE&#39;``,</span>
+<span class="sd">                ``&#39;REPLACE&#39;``). Defaults to ``&#39;ABORT&#39;``.</span>
+<span class="sd">            not_null (bool, optional): If ``True``, adds a ``NOT NULL``</span>
+<span class="sd">                constraint. Defaults to ``None``.</span>
+<span class="sd">            not_null_on_conflict (ON_CONFLICT, optional): Conflict resolution</span>
+<span class="sd">                for the NOT NULL constraint. Defaults to ``&#39;ABORT&#39;``.</span>
+<span class="sd">            primary_key (bool, optional): If ``True``, marks this column as</span>
+<span class="sd">                part of the primary key. The column name is added to the</span>
+<span class="sd">                ``primary_keys`` list. Defaults to ``None``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            TableStructure: The current instance, allowing method chaining.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If a column with the same name has already been added.</span>
+<span class="sd">            Exception: If ``default_value`` is of type ``bytes`` (not</span>
+<span class="sd">                supported).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Building a table structure::</span>
+
+<span class="sd">                from ormophine.Sqlite import TableStructure, DataTypes</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;)</span>
+<span class="sd">                structure.add_column(</span>
+<span class="sd">                    &#39;id&#39;,</span>
+<span class="sd">                    DataTypes.INTEGER(unsigned=True),</span>
+<span class="sd">                    primary_key=True</span>
+<span class="sd">                ).add_column(</span>
+<span class="sd">                    &#39;username&#39;,</span>
+<span class="sd">                    DataTypes.VARCHAR(max_length=50),</span>
+<span class="sd">                    unique=True,</span>
+<span class="sd">                    not_null=True</span>
+<span class="sd">                ).add_column(</span>
+<span class="sd">                    &#39;age&#39;,</span>
+<span class="sd">                    DataTypes.TINYINT(min_val=0, max_val=150),</span>
+<span class="sd">                    default_value=18</span>
+<span class="sd">                )</span>
+
+<span class="sd">                # The structure can then be used to create a table:</span>
+<span class="sd">                # db.create_table(structure)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">column_name</span> <span class="ow">in</span> <span class="n">item</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;You have added this column befor</span><span class="se">\n</span><span class="s1">if you wanna modify this column , delete this column and then add a new one with desired options&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">column_name</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span> <span class="o">==</span> <span class="nb">bytes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Cant set bytes object as default value&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">primary_keys</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span> <span class="k">if</span> <span class="n">primary_key</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">[</span><span class="n">column_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">datatype</span><span class="p">,</span> <span class="n">default_value</span><span class="p">,</span> <span class="n">unique</span><span class="p">,</span> <span class="n">unique_on_conflict</span><span class="p">,</span> <span class="n">not_null</span><span class="p">,</span> <span class="n">not_null_on_conflict</span><span class="p">,</span> <span class="n">primary_key</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span> <span class="o">+</span> <span class="sa">f</span><span class="s1">&#39; </span><span class="si">{</span><span class="n">datatype</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;my_saulted_x&#39;</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;[</span><span class="si">{</span><span class="n">column_name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s1">]&#39;</span><span class="p">)</span><span class="si">}{</span><span class="sa">f</span><span class="s1">&#39; UNIQUE ON CONFLICT </span><span class="si">{</span><span class="n">unique_on_conflict</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">unique</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="sa">f</span><span class="s1">&#39; NOT NULL ON CONFLICT </span><span class="si">{</span><span class="n">not_null_on_conflict</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">not_null</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="sa">f</span><span class="s1">&#39; DEFAULT </span><span class="si">{</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">default_value</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">type</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">str</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">default_value</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">default_value</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">,&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="TableStructure.delete_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.TableStructure.delete_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove a column from the table structure definition.</span>
+
+<span class="sd">        This method deletes a column that was previously added via</span>
+<span class="sd">        :meth:`add_column`. It updates the internal SQL query fragment and</span>
+<span class="sd">        the column metadata dictionary. If the column does not exist, an</span>
+<span class="sd">        exception is raised.</span>
+
+<span class="sd">        The method is typically used when building a table structure</span>
+<span class="sd">        dynamically before creation. After deletion, the column will not</span>
+<span class="sd">        appear in the generated ``CREATE TABLE`` statement.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column_name (str): The name of the column to remove.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            TableStructure: The current instance, allowing method chaining.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If no column with the given name exists in the</span>
+<span class="sd">                structure.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Building a table structure and removing a column::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;)</span>
+<span class="sd">                structure.add_column(&#39;id&#39;, DataTypes.INTEGER())</span>
+<span class="sd">                structure.add_column(&#39;name&#39;, DataTypes.VARCHAR(50))</span>
+<span class="sd">                structure.add_column(&#39;age&#39;, DataTypes.TINYINT())</span>
+
+<span class="sd">                # Remove the &#39;age&#39; column</span>
+<span class="sd">                structure.delete_column(&#39;age&#39;)</span>
+<span class="sd">                # The &#39;age&#39; column will not appear in the final CREATE TABLE.</span>
+
+<span class="sd">                # Create the table without the &#39;age&#39; column</span>
+<span class="sd">                db.create_table(structure)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">query_list</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">column_name</span><span class="p">):</span>
+                <span class="n">query_list</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">query_list</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No column found with name (</span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s1">)&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TableStructure.get_columns">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.TableStructure.get_columns">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_columns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieve metadata for all columns defined in the table structure.</span>
+
+<span class="sd">        This method returns a list of dictionaries, each containing detailed</span>
+<span class="sd">        information about a column that has been added to this table structure</span>
+<span class="sd">        via :meth:`add_column`. The metadata includes the column name, data type,</span>
+<span class="sd">        default value, uniqueness constraints, nullability, conflict handling</span>
+<span class="sd">        settings, and primary key status.</span>
+
+<span class="sd">        The returned dictionaries have the following keys:</span>
+
+<span class="sd">        * ``name`` (str): The column name.</span>
+<span class="sd">        * ``datatype`` (str): The column definition string (including CHECK</span>
+<span class="sd">        constraints) as returned by a :class:`DataTypes` method.</span>
+<span class="sd">        * ``default_value`` (Any): The default value for the column, or ``None``.</span>
+<span class="sd">        * ``unique`` (bool): Whether the column has a UNIQUE constraint.</span>
+<span class="sd">        * ``unique_on_conflict`` (str): The ON CONFLICT clause for the UNIQUE</span>
+<span class="sd">        constraint (e.g., &#39;ABORT&#39;, &#39;REPLACE&#39;).</span>
+<span class="sd">        * ``not_null`` (bool): Whether the column has a NOT NULL constraint.</span>
+<span class="sd">        * ``not_null_on_conflict`` (str): The ON CONFLICT clause for the NOT NULL</span>
+<span class="sd">        constraint.</span>
+<span class="sd">        * ``primary_key`` (bool): Whether the column is part of the primary key.</span>
+<span class="sd">        (Note: the key is intentionally misspelled to match the implementation.)</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[dict]: A list of dictionaries, one per column, in the order</span>
+<span class="sd">            they were added. The list is empty if no columns have been defined.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Using ``get_columns`` to inspect a table structure::</span>
+
+<span class="sd">                from ormophine.Sqlite import DataTypes, TableStructure</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;)</span>
+<span class="sd">                structure.add_column(&#39;id&#39;, DataTypes.INTEGER(), primary_key=True)</span>
+<span class="sd">                structure.add_column(&#39;name&#39;, DataTypes.VARCHAR(max_length=50), unique=True)</span>
+<span class="sd">                structure.add_column(&#39;age&#39;, DataTypes.TINYINT(min_val=0, max_val=150))</span>
+
+<span class="sd">                columns = structure.get_columns()</span>
+<span class="sd">                for col in columns:</span>
+<span class="sd">                    print(f&quot;{col[&#39;name&#39;]}: unique={col[&#39;unique&#39;]}, pk={col[&#39;primari_key&#39;]}&quot;)</span>
+<span class="sd">                # Output:</span>
+<span class="sd">                # id: unique=False, pk=True</span>
+<span class="sd">                # name: unique=True, pk=False</span>
+<span class="sd">                # age: unique=False, pk=False</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">items_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">:</span>
+            <span class="n">items_dict</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">[</span><span class="n">item</span><span class="p">]</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">item</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;default_value&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;unique&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">else</span> <span class="kc">False</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;unique_on_conflict&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;not_null&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="k">else</span> <span class="kc">False</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;not_null_on_conflict&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;primary_key&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span> <span class="k">else</span> <span class="kc">False</span>
+            <span class="n">items_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">items_dict</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">items_list</span></div>
+
+
+<div class="viewcode-block" id="TableStructure.foreign_key">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.TableStructure.foreign_key">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">foreign_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">refrences_table</span><span class="p">:</span> <span class="s1">&#39;Table&#39;</span><span class="p">,</span>
+                    <span class="n">refrences_column</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span><span class="p">,</span> <span class="n">on_delete</span><span class="p">:</span> <span class="n">ON_ACTION</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="n">on_update</span><span class="p">:</span> <span class="n">ON_ACTION</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">deferrable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                    <span class="n">initially</span><span class="p">:</span> <span class="n">ON_INIT</span> <span class="o">=</span> <span class="s1">&#39;DEFERRED&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a foreign key constraint to the table structure.</span>
+
+<span class="sd">        This method appends a ``FOREIGN KEY`` definition to the internal list</span>
+<span class="sd">        of foreign keys, which will be included in the final ``CREATE TABLE``</span>
+<span class="sd">        statement. The method supports specifying actions for ``ON DELETE``</span>
+<span class="sd">        and ``ON UPDATE``, as well as deferrability and initialization timing.</span>
+
+<span class="sd">        The foreign key references a column in another table, enforcing</span>
+<span class="sd">        referential integrity at the database level.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column (str): The name of the column in the current table that</span>
+<span class="sd">                acts as the foreign key.</span>
+<span class="sd">            refrences_table (Table): The referenced table object (the parent</span>
+<span class="sd">                table). Note: This is a forward reference to a :class:`Table`</span>
+<span class="sd">                instance.</span>
+<span class="sd">            refrences_column (Column): The referenced column object in the</span>
+<span class="sd">                parent table.</span>
+<span class="sd">            on_delete (ON_ACTION, optional): Action to take when the referenced</span>
+<span class="sd">                row is deleted. Valid values are from the ``ON_ACTION`` type:</span>
+<span class="sd">                ``&#39;CASCADE&#39;``, ``&#39;SET NULL&#39;``, ``&#39;SET DEFAULT&#39;``,</span>
+<span class="sd">                ``&#39;RESTRICT&#39;``, or ``&#39;NO ACTION&#39;``. Defaults to ``None``</span>
+<span class="sd">                (no action specified).</span>
+<span class="sd">            on_update (ON_ACTION, optional): Action to take when the referenced</span>
+<span class="sd">                column is updated. Same options as ``on_delete``. Defaults to</span>
+<span class="sd">                ``None``.</span>
+<span class="sd">            deferrable (bool, optional): If ``True``, the constraint can be</span>
+<span class="sd">                deferred until the transaction commits. If ``False``, it is</span>
+<span class="sd">                checked immediately. Defaults to ``True``.</span>
+<span class="sd">            initially (ON_INIT, optional): Defines the initial deferral state.</span>
+<span class="sd">                Can be ``&#39;DEFERRED&#39;`` (default) or ``&#39;IMMEDIATE&#39;``. Only</span>
+<span class="sd">                relevant if ``deferrable`` is ``True``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            TableStructure: The current instance (``self``), allowing method</span>
+<span class="sd">            chaining for building the table structure.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming two tables ``orders`` and ``customers``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver, Table, TableStructure, DataTypes</span>
+
+<span class="sd">                db = Driver(&#39;store.db&#39;)</span>
+
+<span class="sd">                # Build customers table first</span>
+<span class="sd">                customers_structure = TableStructure(&#39;customers&#39;)</span>
+<span class="sd">                customers_structure.add_column(&#39;id&#39;, DataTypes.INTEGER(primary_key=True))</span>
+<span class="sd">                customers_structure.add_column(&#39;name&#39;, DataTypes.VARCHAR(max_length=50))</span>
+
+<span class="sd">                # Build orders table with a foreign key</span>
+<span class="sd">                orders_structure = TableStructure(&#39;orders&#39;)</span>
+<span class="sd">                orders_structure.add_column(&#39;id&#39;, DataTypes.INTEGER(primary_key=True))</span>
+<span class="sd">                orders_structure.add_column(&#39;customer_id&#39;, DataTypes.INTEGER())</span>
+<span class="sd">                orders_structure.add_column(&#39;total&#39;, DataTypes.DECIMAL(10,2))</span>
+
+<span class="sd">                # Add foreign key referencing customers.id</span>
+<span class="sd">                # First create the Table objects (or use existing ones)</span>
+<span class="sd">                customers_table = db.create_table(customers_structure)</span>
+
+<span class="sd">                # Add foreign key to orders_structure before creation</span>
+<span class="sd">                orders_structure.foreign_key(</span>
+<span class="sd">                    column=&#39;customer_id&#39;,</span>
+<span class="sd">                    refrences_table=customers_table,</span>
+<span class="sd">                    refrences_column=customers_table.id,</span>
+<span class="sd">                    on_delete=&#39;CASCADE&#39;,</span>
+<span class="sd">                    on_update=&#39;RESTRICT&#39;,</span>
+<span class="sd">                    deferrable=False</span>
+<span class="sd">                )</span>
+
+<span class="sd">                # Then create orders table</span>
+<span class="sd">                db.create_table(orders_structure)</span>
+<span class="sd">                # This ensures referential integrity between orders and customers.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">foreigns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;FOREIGN KEY (</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s1">) REFERENCES </span><span class="si">{</span><span class="n">refrences_table</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="n">refrences_column</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">)</span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39; ON DELETE </span><span class="si">{</span><span class="n">on_delete</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">on_delete</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="sa">f</span><span class="s1">&#39; ON UPDATE </span><span class="si">{</span><span class="n">on_update</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">on_update</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="s1">&#39; DEFERRABLE&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">deferrable</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39; NOT DEFERRABLE&#39;</span><span class="si">}{</span><span class="sa">f</span><span class="s1">&#39; INITIALLY </span><span class="si">{</span><span class="n">initially</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">initially</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="TableStructure.get_structure">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.TableStructure.get_structure">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate the complete SQL `CREATE TABLE` statement for the table structure.</span>
+
+<span class="sd">        This method constructs and returns the full SQL `CREATE TABLE` command</span>
+<span class="sd">        based on the columns, constraints, foreign keys, primary keys, and</span>
+<span class="sd">        strict mode settings that have been added to this `TableStructure`</span>
+<span class="sd">        instance. The returned string includes column definitions with data</span>
+<span class="sd">        types, `CHECK` constraints, `UNIQUE`, `NOT NULL`, `DEFAULT` values,</span>
+<span class="sd">        primary key definitions, foreign key constraints, and the optional</span>
+<span class="sd">        `STRICT` mode.</span>
+
+<span class="sd">        The generated SQL uses the table name as provided in the constructor,</span>
+<span class="sd">        and wraps column names in square brackets (`[]`) for safety.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A complete SQL `CREATE TABLE` statement that can be executed</span>
+<span class="sd">            to create the table in the database.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Creating a `TableStructure` and getting its SQL::</span>
+
+<span class="sd">                from ormophine.Sqlite import TableStructure, DataTypes</span>
+
+<span class="sd">                structure = TableStructure(&#39;users&#39;, strict=True)</span>
+<span class="sd">                structure.add_column(&#39;id&#39;, DataTypes.INTEGER(), primary_key=True)</span>
+<span class="sd">                structure.add_column(&#39;name&#39;, DataTypes.VARCHAR(max_length=50), not_null=True)</span>
+<span class="sd">                structure.add_column(&#39;age&#39;, DataTypes.TINYINT(min_val=0, max_val=150))</span>
+
+<span class="sd">                sql = structure.get_structure()</span>
+<span class="sd">                # sql will be something like:</span>
+<span class="sd">                # CREATE TABLE [users] (</span>
+<span class="sd">                #   [id] INTEGER,</span>
+<span class="sd">                #   [name] TEXT CHECK(LENGTH([name]) &lt;= 50) NOT NULL ON CONFLICT ABORT,</span>
+<span class="sd">                #   [age] INTEGER CHECK([age] BETWEEN 0 AND 150),</span>
+<span class="sd">                #   PRIMARY KEY([id]) ON CONFLICT ABORT</span>
+<span class="sd">                # ) STRICT;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;CREATE TABLE [</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">] (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">table_query</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}{</span><span class="s1">&#39;,&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">primary_keys</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="sa">f</span><span class="s1">&#39;PRIMARY KEY(</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">primary_keys</span><span class="p">)</span><span class="si">}</span><span class="s1">) ON CONFLICT </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">pkonc</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">primary_keys</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="s1">&#39;,&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">foreigns</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">foreigns</span><span class="p">)</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">foreigns</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">) </span><span class="si">{</span><span class="s1">&#39;STRICT&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">strict</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">;&#39;</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

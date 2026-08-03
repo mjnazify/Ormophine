@@ -1,0 +1,1423 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ormophine.Postgresql.Core.table &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">Ormophine.Postgresql.Core.table</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for Ormophine.Postgresql.Core.table</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">Column</span><span class="p">,</span> <span class="n">ColumnsOperation</span><span class="p">,</span> <span class="n">BatchOperation</span><span class="p">,</span> <span class="n">Join</span><span class="p">,</span> <span class="n">Any</span>
+
+<div class="viewcode-block" id="Table">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Table</span><span class="p">:</span>
+    <span class="n">PLACE_HOLDER</span> <span class="o">=</span> <span class="s1">&#39;_MY_S4ULT3D_PL4C3_H0LD3R_</span><span class="si">%s</span><span class="s1">_&#39;</span>
+<div class="viewcode-block" id="Table.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Driver</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize a Table instance representing an existing database table.</span>
+
+<span class="sd">        This constructor retrieves the table&#39;s schema from the database using</span>
+<span class="sd">        `get_table_info()` and dynamically creates `Column` attributes for each</span>
+<span class="sd">        column, allowing direct access via attribute names (e.g., `table.id`).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            obj (Driver): The Driver instance managing the database connection pool.</span>
+<span class="sd">            table_name (str): The name of the existing table in the database.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the table does not exist or the schema cannot be retrieved.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Driver, Table</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(host=&#39;localhost&#39;, port=5432, username=&#39;user&#39;,</span>
+<span class="sd">            ...                 password=&#39;pass&#39;, db_name=&#39;mydb&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; users = Table(driver, &#39;users&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; # Access columns as attributes</span>
+<span class="sd">            &gt;&gt;&gt; users.id, users.name, users.age</span>
+<span class="sd">            (&lt;Column &#39;users&#39;.&quot;id&quot;&gt;, &lt;Column &#39;users&#39;.&quot;name&quot;&gt;, &lt;Column &#39;users&#39;.&quot;age&quot;&gt;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name_</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s1">&quot;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span> <span class="o">=</span> <span class="n">obj</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span> <span class="o">=</span> <span class="s1">&#39;_MY_S4ULT3D_PL4C3_H0LD3R_</span><span class="si">%s</span><span class="s1">_&#39;</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_table_info</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">Column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">i</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]))</span></div>
+
+
+<div class="viewcode-block" id="Table.get_table_info">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.get_table_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_table_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieve detailed schema information for all columns of the current table.</span>
+
+<span class="sd">        This method queries PostgreSQL&#39;s information_schema and related system</span>
+<span class="sd">        catalogs to obtain comprehensive metadata for each column, including data</span>
+<span class="sd">        type, nullability, default value, primary key status, auto-increment,</span>
+<span class="sd">        foreign key references, and more. The returned data is used internally to</span>
+<span class="sd">        construct `Column` objects and is also useful for introspection.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[dict]: A list of dictionaries, each containing the following keys:</span>
+
+<span class="sd">                - cid (int): Column ordinal position (1-based).</span>
+<span class="sd">                - name (str): Column name.</span>
+<span class="sd">                - type (str): SQL data type name as reported by PostgreSQL.</span>
+<span class="sd">                - datatype (type): Python type mapping (int, float, str, bytes, or bool)</span>
+<span class="sd">                inferred from the SQL type.</span>
+<span class="sd">                - notnull (bool): True if the column is NOT NULL.</span>
+<span class="sd">                - dflt_value (str or None): Column default value expression, if any.</span>
+<span class="sd">                - pk (bool): True if the column is part of the primary key.</span>
+<span class="sd">                - full_type (str): The full user-defined data type name (or the</span>
+<span class="sd">                base type if not available).</span>
+<span class="sd">                - auto_increment (bool): True if the column is an identity column</span>
+<span class="sd">                (GENERATED AS IDENTITY).</span>
+<span class="sd">                - num_precision (int or None): Numeric precision for numeric/decimal</span>
+<span class="sd">                columns.</span>
+<span class="sd">                - num_scale (int or None): Numeric scale for numeric/decimal columns.</span>
+<span class="sd">                - datetime_precision (int or None): Precision for date/time columns.</span>
+<span class="sd">                - fk_name (str or None): Name of the foreign key constraint, if any.</span>
+<span class="sd">                - fk_table (str or None): Referenced table name for a foreign key.</span>
+<span class="sd">                - fk_column (str or None): Referenced column name for a foreign key.</span>
+<span class="sd">                - fk_on_update (str or None): ON UPDATE action for foreign key.</span>
+<span class="sd">                - fk_on_delete (str or None): ON DELETE action for foreign key.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ProgrammingError: If the query has a syntax error or the table does not exist.</span>
+<span class="sd">            OperationalError: If a connection issue occurs during execution.</span>
+<span class="sd">            Exception: Wrapped exceptions from the underlying driver&#39;s `_excfp` method.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Driver</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(host=&#39;localhost&#39;, port=5432, username=&#39;user&#39;,</span>
+<span class="sd">            ...             password=&#39;pass&#39;, db_name=&#39;test&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; employees = db.employees  # Table object</span>
+<span class="sd">            &gt;&gt;&gt; info = employees.get_table_info()</span>
+<span class="sd">            &gt;&gt;&gt; for col in info:</span>
+<span class="sd">            ...     print(f&quot;{col[&#39;name&#39;]}: {col[&#39;datatype&#39;]} (PK: {col[&#39;pk&#39;]})&quot;)</span>
+<span class="sd">            id: &lt;class &#39;int&#39;&gt; (PK: True)</span>
+<span class="sd">            name: &lt;class &#39;str&#39;&gt; (PK: False)</span>
+<span class="sd">            salary: &lt;class &#39;float&#39;&gt; (PK: False)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">            SELECT</span>
+<span class="s2">                c.ordinal_position AS cid,</span>
+<span class="s2">                c.column_name AS name,</span>
+<span class="s2">                c.data_type AS type,</span>
+<span class="s2">                CASE WHEN c.is_nullable = &#39;NO&#39; THEN 1 ELSE 0 END AS notnull,</span>
+<span class="s2">                c.column_default AS dflt_value,</span>
+<span class="s2">                CASE WHEN tc.constraint_type = &#39;PRIMARY KEY&#39; THEN 1 ELSE 0 END AS pk,</span>
+<span class="s2">                c.udt_name AS full_type,</span>
+<span class="s2">                CASE WHEN c.is_identity = &#39;YES&#39; THEN 1 ELSE 0 END AS auto_increment,</span>
+<span class="s2">                c.numeric_precision AS num_precision,</span>
+<span class="s2">                c.numeric_scale AS num_scale,</span>
+<span class="s2">                c.datetime_precision AS datetime_precision,</span>
+<span class="s2">                rc.unique_constraint_name AS fk_name,</span>
+<span class="s2">                ccu.table_name AS fk_table,</span>
+<span class="s2">                ccu.column_name AS fk_column,</span>
+<span class="s2">                rc.update_rule AS fk_on_update,</span>
+<span class="s2">                rc.delete_rule AS fk_on_delete</span>
+<span class="s2">            FROM information_schema.columns c</span>
+<span class="s2">            LEFT JOIN information_schema.key_column_usage kcu</span>
+<span class="s2">                ON c.table_schema = kcu.table_schema</span>
+<span class="s2">                AND c.table_name = kcu.table_name</span>
+<span class="s2">                AND c.column_name = kcu.column_name</span>
+<span class="s2">                AND kcu.position_in_unique_constraint IS NOT NULL</span>
+<span class="s2">            LEFT JOIN information_schema.referential_constraints rc</span>
+<span class="s2">                ON kcu.constraint_schema = rc.constraint_schema</span>
+<span class="s2">                AND kcu.constraint_name = rc.constraint_name</span>
+<span class="s2">            LEFT JOIN information_schema.constraint_column_usage ccu</span>
+<span class="s2">                ON rc.constraint_schema = ccu.constraint_schema</span>
+<span class="s2">                AND rc.constraint_name = ccu.constraint_name</span>
+<span class="s2">            LEFT JOIN information_schema.table_constraints tc</span>
+<span class="s2">                ON c.table_schema = tc.table_schema</span>
+<span class="s2">                AND c.table_name = tc.table_name</span>
+<span class="s2">                AND tc.constraint_type = &#39;PRIMARY KEY&#39;</span>
+<span class="s2">                AND EXISTS (</span>
+<span class="s2">                    SELECT 1 FROM information_schema.constraint_column_usage ccu2</span>
+<span class="s2">                    WHERE tc.constraint_name = ccu2.constraint_name</span>
+<span class="s2">                    AND ccu2.column_name = c.column_name</span>
+<span class="s2">                )</span>
+<span class="s2">            WHERE c.table_schema = current_schema()</span>
+<span class="s2">                AND c.table_name = </span><span class="si">%s</span>
+<span class="s2">            ORDER BY c.ordinal_position;</span>
+<span class="s2">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[{</span><span class="s1">&#39;cid&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="s1">&#39;datatype&#39;</span><span class="p">:</span> <span class="p">(</span><span class="nb">int</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;smallint&#39;</span><span class="p">,</span> <span class="s1">&#39;integer&#39;</span><span class="p">,</span> <span class="s1">&#39;bigint&#39;</span><span class="p">,</span> <span class="s1">&#39;serial&#39;</span><span class="p">,</span> <span class="s1">&#39;smallserial&#39;</span><span class="p">,</span> <span class="s1">&#39;bigserial&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="nb">float</span><span class="p">)</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;smallint&#39;</span><span class="p">,</span> <span class="s1">&#39;integer&#39;</span><span class="p">,</span> <span class="s1">&#39;bigint&#39;</span><span class="p">,</span> <span class="s1">&#39;serial&#39;</span><span class="p">,</span> <span class="s1">&#39;smallserial&#39;</span><span class="p">,</span> <span class="s1">&#39;bigserial&#39;</span><span class="p">,</span> <span class="s1">&#39;bit&#39;</span><span class="p">,</span> <span class="s1">&#39;numeric&#39;</span><span class="p">,</span> <span class="s1">&#39;decimal&#39;</span><span class="p">,</span> <span class="s1">&#39;real&#39;</span><span class="p">,</span> <span class="s1">&#39;double precision&#39;</span><span class="p">,</span> <span class="s1">&#39;money&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;character varying&#39;</span><span class="p">,</span> <span class="s1">&#39;character&#39;</span><span class="p">,</span> <span class="s1">&#39;text&#39;</span><span class="p">,</span> <span class="s1">&#39;json&#39;</span><span class="p">,</span> <span class="s1">&#39;jsonb&#39;</span><span class="p">,</span> <span class="s1">&#39;uuid&#39;</span><span class="p">,</span> <span class="s1">&#39;date&#39;</span><span class="p">,</span> <span class="s1">&#39;time without time zone&#39;</span><span class="p">,</span> <span class="s1">&#39;time with time zone&#39;</span><span class="p">,</span> <span class="s1">&#39;timestamp without time zone&#39;</span><span class="p">,</span> <span class="s1">&#39;timestamp with time zone&#39;</span><span class="p">,</span> <span class="s1">&#39;interval&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="nb">bytes</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;bytea&#39;</span> <span class="k">else</span> <span class="nb">bool</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;boolean&#39;</span> <span class="k">else</span> <span class="nb">str</span><span class="p">,</span><span class="s1">&#39;notnull&#39;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span><span class="s1">&#39;dflt_value&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span><span class="s1">&#39;pk&#39;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">5</span><span class="p">]),</span><span class="s1">&#39;full_type&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span> <span class="k">else</span> <span class="n">row</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="s1">&#39;auto_increment&#39;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">7</span><span class="p">]),</span><span class="s1">&#39;num_precision&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">8</span><span class="p">],</span><span class="s1">&#39;num_scale&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">9</span><span class="p">],</span><span class="s1">&#39;datetime_precision&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">10</span><span class="p">],</span><span class="s1">&#39;fk_name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">11</span><span class="p">],</span><span class="s1">&#39;fk_table&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">12</span><span class="p">],</span><span class="s1">&#39;fk_column&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">13</span><span class="p">],</span><span class="s1">&#39;fk_on_update&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">14</span><span class="p">],</span><span class="s1">&#39;fk_on_delete&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="mi">15</span><span class="p">]}</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">),))]</span></div>
+
+        
+    <span class="k">def</span><span class="w"> </span><span class="nf">_exc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a SQL query with no parameters.</span>
+
+<span class="sd">        This is an internal wrapper that delegates the execution to the underlying</span>
+<span class="sd">        :class:`Driver` instance. It is used for statements that do not require</span>
+<span class="sd">        parameter substitution (e.g., DDL statements, queries with no placeholders).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string to execute.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any exceptions raised by the underlying driver,</span>
+<span class="sd">                such as :exc:`psycopg.OperationalError` or :exc:`psycopg.ProgrammingError`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; table._exc(&#39;DROP INDEX IF EXISTS idx_name;&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a parameterized SQL query without fetching results.</span>
+
+<span class="sd">        This is a low-level wrapper method that delegates execution to the</span>
+<span class="sd">        underlying :class:`Driver` instance&#39;s ``_excp`` method. It is used</span>
+<span class="sd">        internally for queries that modify data (INSERT, UPDATE, DELETE, etc.)</span>
+<span class="sd">        and do not return result sets. The method handles parameter binding</span>
+<span class="sd">        and transaction management through the driver&#39;s connection pool.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string with ``%s`` placeholders for</span>
+<span class="sd">                parameters.</span>
+<span class="sd">            params (list or tuple): The parameter values to bind to the query</span>
+<span class="sd">                placeholders. The number of items must match the number of</span>
+<span class="sd">                placeholders.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return any value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database-related exceptions (e.g.,</span>
+<span class="sd">                :class:`psycopg.OperationalError`, :class:`psycopg.ProgrammingError`)</span>
+<span class="sd">                raised by the underlying driver. The exception message will</span>
+<span class="sd">                include the query and parameters for debugging.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; # Assuming `table` is an instance of Table</span>
+<span class="sd">            &gt;&gt;&gt; table._excp(&quot;UPDATE users SET age = %s WHERE id = %s&quot;, [30, 1])</span>
+<span class="sd">            # The query is executed with the provided parameters.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This method is intended for internal use. For most operations,</span>
+<span class="sd">            prefer using higher-level methods like :meth:`Table.update`,</span>
+<span class="sd">            :meth:`Table.insert`, or :meth:`Table.delete_row`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">_excp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a query and fetch all resulting rows.</span>
+
+<span class="sd">        This is a convenience wrapper that delegates to the underlying</span>
+<span class="sd">        :class:`Driver` object&#39;s `_excf` method. It is used internally for</span>
+<span class="sd">        SELECT queries where all results are needed.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string to execute.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[tuple]: A list of tuples representing the fetched rows.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (OperationalError,</span>
+<span class="sd">                ProgrammingError, etc.) raised by the driver, with additional</span>
+<span class="sd">                context about the query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; table = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; rows = table._excf(&quot;SELECT * FROM \&quot;employees\&quot; WHERE id &gt; 10&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; for row in rows:</span>
+<span class="sd">            ...     print(row)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">_excf</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excfp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a parameterized query and fetch all resulting rows.</span>
+
+<span class="sd">        This is a convenience wrapper that delegates to the underlying</span>
+<span class="sd">        :class:`Driver` object&#39;s `_excfp` method. It is used internally for</span>
+<span class="sd">        SELECT queries that require parameter substitution and return a full</span>
+<span class="sd">        result set.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string containing placeholder markers</span>
+<span class="sd">                (e.g., ``%s``) for parameters.</span>
+<span class="sd">            params (list or tuple): The parameter values to substitute into the</span>
+<span class="sd">                query placeholders.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[tuple]: A list of tuples, each representing a row from the</span>
+<span class="sd">            query result.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (OperationalError,</span>
+<span class="sd">                ProgrammingError, etc.) raised by the driver, with additional</span>
+<span class="sd">                context about the query and parameters.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; table = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; rows = table._excfp(</span>
+<span class="sd">            ...     &quot;SELECT name, salary FROM \&quot;employees\&quot; WHERE dept_id = %s&quot;,</span>
+<span class="sd">            ...     [10]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; for name, salary in rows:</span>
+<span class="sd">            ...     print(f&quot;{name}: {salary}&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a query with multiple parameter sets using executemany.</span>
+
+<span class="sd">        This is a convenience wrapper that delegates to the underlying</span>
+<span class="sd">        :class:`Driver` object&#39;s `_excm` method. It is used for bulk operations</span>
+<span class="sd">        such as inserting or updating multiple rows with a single query, where</span>
+<span class="sd">        each set of parameters corresponds to one row.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string with placeholders (e.g., %s).</span>
+<span class="sd">            params (list[tuple]): A list of parameter tuples, one for each</span>
+<span class="sd">                execution. Each tuple contains the values to substitute into</span>
+<span class="sd">                the query placeholders.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return any value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (OperationalError,</span>
+<span class="sd">                ProgrammingError, etc.) raised by the driver, with additional</span>
+<span class="sd">                context about the query and parameters.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Driver, Table</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(...)</span>
+<span class="sd">            &gt;&gt;&gt; table = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # Bulk insert two rows</span>
+<span class="sd">            &gt;&gt;&gt; query = &quot;INSERT INTO \&quot;employees\&quot; (name, age) VALUES (%s, %s)&quot;</span>
+<span class="sd">            &gt;&gt;&gt; params = [(&quot;Alice&quot;, 30), (&quot;Bob&quot;, 25)]</span>
+<span class="sd">            &gt;&gt;&gt; table._excm(query, params)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">_excm</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute multiple SQL statements as a batch in a single transaction.</span>
+
+<span class="sd">        This internal method delegates to the underlying :class:`Driver` object&#39;s</span>
+<span class="sd">        `_excs` method. It is used to run a list of SQL queries (optionally with</span>
+<span class="sd">        parameters) together, ensuring atomicity: either all succeed or the entire</span>
+<span class="sd">        batch is rolled back. This is primarily utilized by :class:`BatchOperation`</span>
+<span class="sd">        when executing a script.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query_params (list): A list of queries to execute. Each item can be:</span>
+<span class="sd">                - A string representing a query without parameters.</span>
+<span class="sd">                - A list or tuple of two elements: ``[query, params]``, where</span>
+<span class="sd">                ``params`` is a sequence of parameter values.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (e.g., OperationalError,</span>
+<span class="sd">                ProgrammingError) raised by the driver. The exception message</span>
+<span class="sd">                includes details about the failing query and its parameters.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; table = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; queries = [</span>
+<span class="sd">            ...     [&quot;UPDATE employees SET salary = salary * 1.1 WHERE id = %s&quot;, [1]],</span>
+<span class="sd">            ...     &quot;UPDATE employees SET salary = salary * 1.05 WHERE id = 2&quot;</span>
+<span class="sd">            ... ]</span>
+<span class="sd">            &gt;&gt;&gt; table._excs(queries)  # Both updates run in a single transaction</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">_excs</span><span class="p">(</span><span class="n">query_params</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Table.get_columns_name">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.get_columns_name">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_columns_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieve the names of all columns in the table.</span>
+
+<span class="sd">        This method fetches the current table schema information and returns</span>
+<span class="sd">        a list containing the name of each column.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[str]: A list of column names as strings.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; table = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; columns = table.get_columns_name()</span>
+<span class="sd">            &gt;&gt;&gt; print(columns)</span>
+<span class="sd">            [&#39;id&#39;, &#39;name&#39;, &#39;department_id&#39;, &#39;salary&#39;]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_table_info</span><span class="p">()]</span></div>
+
+      
+<div class="viewcode-block" id="Table.batch">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.batch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">batch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;BatchOperation&#39;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a new batch operation builder for this table.</span>
+
+<span class="sd">        Batch operations allow multiple SQL statements (INSERT and UPDATE) to be</span>
+<span class="sd">        grouped together and executed in a single transaction, improving performance</span>
+<span class="sd">        when performing multiple modifications. This method returns a</span>
+<span class="sd">        :class:`BatchOperation` instance that can be used to chain multiple</span>
+<span class="sd">        operations before executing them with :meth:`BatchOperation.run`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            BatchOperation: A new batch operation builder associated with this table.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple batch with an INSERT and an UPDATE:</span>
+
+<span class="sd">            &gt;&gt;&gt; employees = driver.employees</span>
+<span class="sd">            &gt;&gt;&gt; batch_op = employees.batch()</span>
+<span class="sd">            &gt;&gt;&gt; batch_op.insert({employees.name: &quot;Alice&quot;, employees.salary: 60000})</span>
+<span class="sd">            &gt;&gt;&gt; batch_op.update(</span>
+<span class="sd">            ...     {employees.salary: 55000},</span>
+<span class="sd">            ...     employees.department == &quot;Marketing&quot;</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; batch_op.run()</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Complex batch using ColumnsOperation for computed values and conditions:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import ColumnsOperation</span>
+<span class="sd">            &gt;&gt;&gt; # Increase salary by 10% for managers with more than 5 years experience,</span>
+<span class="sd">            &gt;&gt;&gt; # and give a bonus to senior engineers.</span>
+<span class="sd">            &gt;&gt;&gt; batch_op = employees.batch()</span>
+<span class="sd">            &gt;&gt;&gt; batch_op.update(</span>
+<span class="sd">            ...     {</span>
+<span class="sd">            ...         employees.salary: employees.salary * 1.10,</span>
+<span class="sd">            ...         employees.title: employees.title + &quot; (Senior)&quot;</span>
+<span class="sd">            ...     },</span>
+<span class="sd">            ...     (employees.title == &quot;Manager&quot;) &amp; (employees.years &gt; 5)</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; batch_op.update(</span>
+<span class="sd">            ...     {employees.bonus: employees.salary * 0.05},</span>
+<span class="sd">            ...     employees.title.contains(&quot;Engineer&quot;) &amp; (employees.level &gt;= 3)</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; batch_op.insert({employees.name: &quot;Bob&quot;, employees.salary: 70000})</span>
+<span class="sd">            &gt;&gt;&gt; batch_op.run()</span>
+<span class="sd">            # This executes all statements in a single transaction.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">BatchOperation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.update">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.update">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Column</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update rows in the table that match a condition.</span>
+
+<span class="sd">        This method constructs and executes an UPDATE SQL statement, setting</span>
+<span class="sd">        specified columns to new values for all rows that satisfy the given</span>
+<span class="sd">        condition. It safely handles parameterized values to prevent SQL injection.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            update (dict[Column, Any]): A dictionary mapping :class:`Column` objects</span>
+<span class="sd">                to their new values. Values can be literals, other :class:`Column`</span>
+<span class="sd">                objects (for column-to-column assignment), or</span>
+<span class="sd">                :class:`ColumnsOperation` objects (for computed expressions).</span>
+<span class="sd">            where (ColumnsOperation): A :class:`ColumnsOperation` object representing</span>
+<span class="sd">                the condition that determines which rows to update.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method executes the update and does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors raised during execution,</span>
+<span class="sd">                including parameter binding or SQL syntax issues.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple update with literal values:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Driver, Table, Column, DataTypes</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&quot;localhost&quot;, 5432, &quot;user&quot;, &quot;pass&quot;, &quot;mydb&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees = driver.employees</span>
+<span class="sd">            &gt;&gt;&gt; # Assuming columns exist: id, name, salary, department</span>
+<span class="sd">            &gt;&gt;&gt; employees.update(</span>
+<span class="sd">            ...     {employees.salary: 50000},</span>
+<span class="sd">            ...     employees.department == &quot;Engineering&quot;</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # All engineers now have salary 50000.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Complex update using ColumnsOperation for computed values and</span>
+<span class="sd">            a compound condition:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import ColumnsOperation</span>
+<span class="sd">            &gt;&gt;&gt; # Increase salary by 10% for managers with experience &gt; 5 years</span>
+<span class="sd">            &gt;&gt;&gt; employees.update(</span>
+<span class="sd">            ...     {</span>
+<span class="sd">            ...         employees.salary: employees.salary * 1.1,  # ColumnOperation</span>
+<span class="sd">            ...         employees.title: employees.title + &quot; (Senior)&quot;  # string concatenation</span>
+<span class="sd">            ...     },</span>
+<span class="sd">            ...     (employees.title == &quot;Manager&quot;) &amp; (employees.years &gt; 5)</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # This produces: UPDATE &quot;employees&quot; SET &quot;salary&quot; = (&quot;salary&quot; * 1.1),</span>
+<span class="sd">            &gt;&gt;&gt; # &quot;title&quot; = (&quot;title&quot; || &#39; (Senior)&#39;) WHERE (&quot;title&quot; = &#39;Manager&#39; AND &quot;years&quot; &gt; 5);</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">temp_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="p">[</span><span class="kc">None</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span> <span class="p">,</span> <span class="n">Column</span><span class="p">)</span> <span class="k">else</span> <span class="n">temp_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">ColumnsOperation</span><span class="p">)</span> <span class="k">else</span> <span class="n">temp_list</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">update</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;UPDATE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> SET </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1"> = </span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">Column</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">=%s&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">ColumnsOperation</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">=</span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">list</span><span class="p">(</span><span class="n">update</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span><span class="si">}</span><span class="s1"> WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span> <span class="n">temp_list</span><span class="o">+</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+        
+<div class="viewcode-block" id="Table.get_row">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.get_row">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_row</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">which_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span> <span class="o">|</span> <span class="s1">&#39;ColumnsOperation&#39;</span><span class="p">],</span> <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">order_by</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Fetch rows from the table with selected columns, optional filtering and ordering.</span>
+
+<span class="sd">        This method builds and executes a SELECT query. The columns can be plain</span>
+<span class="sd">        :class:`Column` objects or computed :class:`ColumnsOperation` expressions.</span>
+<span class="sd">        If only one column is requested, the method returns a flat list of values</span>
+<span class="sd">        from that column; otherwise, it returns a list of tuples representing the</span>
+<span class="sd">        full rows.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            which_columns (list[Column | ColumnsOperation]): A list of columns or</span>
+<span class="sd">                expressions to select. Each element can be a :class:`Column` object</span>
+<span class="sd">                or a :class:`ColumnsOperation` (e.g., arithmetic, string functions).</span>
+<span class="sd">            where (ColumnsOperation, optional): A condition object for filtering</span>
+<span class="sd">                rows. Defaults to None (no filter).</span>
+<span class="sd">            order_by (Column, optional): A :class:`Column` object to order the</span>
+<span class="sd">                results by. Defaults to None (no ordering).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list: If only one column is specified in `which_columns`, returns a list</span>
+<span class="sd">                of the values from that column (one per row). If multiple columns</span>
+<span class="sd">                are specified, returns a list of tuples, each tuple representing a</span>
+<span class="sd">                row with values in the order of the selected columns.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (OperationalError,</span>
+<span class="sd">                ProgrammingError, etc.) with additional context about the query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple selection with a condition and ordering:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Driver, Table, Column</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&quot;localhost&quot;, 5432, &quot;user&quot;, &quot;pass&quot;, &quot;mydb&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees = driver.employees</span>
+<span class="sd">            &gt;&gt;&gt; # Assume columns: id, name, salary, department</span>
+<span class="sd">            &gt;&gt;&gt; # Get names of all engineers, ordered by salary</span>
+<span class="sd">            &gt;&gt;&gt; names = employees.get_row(</span>
+<span class="sd">            ...     [employees.name],</span>
+<span class="sd">            ...     where=employees.department == &quot;Engineering&quot;,</span>
+<span class="sd">            ...     order_by=employees.salary</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # names is a list like [&#39;Alice&#39;, &#39;Bob&#39;, ...]</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Complex query with computed columns using :class:`ColumnsOperation`:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import ColumnsOperation</span>
+<span class="sd">            &gt;&gt;&gt; # Get employee id and full name (concatenated) for those with</span>
+<span class="sd">            &gt;&gt;&gt; # salary greater than average (using arithmetic and string ops)</span>
+<span class="sd">            &gt;&gt;&gt; employees.get_row(</span>
+<span class="sd">            ...     [</span>
+<span class="sd">            ...         employees.id,</span>
+<span class="sd">            ...         employees.first_name + &quot; &quot; + employees.last_name  # string concat</span>
+<span class="sd">            ...     ],</span>
+<span class="sd">            ...     where=employees.salary &gt; (employees.salary * 0.5 + 30000)  # complex condition</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # Returns list of tuples like [(1, &#39;John Doe&#39;), (2, &#39;Jane Smith&#39;)]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tl</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">wc</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="p">[</span><span class="n">wc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">Column</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">wc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">tl</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">which_columns</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">wc</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span> <span class="n">tl</span><span class="o">+</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="n">where</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">wc</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span><span class="n">tl</span><span class="p">)</span> <span class="k">if</span> <span class="n">tl</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excf</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">wc</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,))]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">which_columns</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">wc</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span> <span class="n">tl</span><span class="o">+</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="n">where</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">wc</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span><span class="n">tl</span><span class="p">)</span> <span class="k">if</span> <span class="n">tl</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excf</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">wc</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,)</span></div>
+
+        
+<div class="viewcode-block" id="Table.insert">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.insert">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">insert</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Insert a single row into the table.</span>
+
+<span class="sd">        This method constructs and executes an INSERT statement, adding a new row</span>
+<span class="sd">        with the specified column values. It safely parameterizes values to prevent</span>
+<span class="sd">        SQL injection.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            insert (dict[Column, Any]): A dictionary mapping :class:`Column` objects</span>
+<span class="sd">                to the values to insert. Keys must be :class:`Column` instances</span>
+<span class="sd">                belonging to this table, and values can be any Python type that</span>
+<span class="sd">                is compatible with the column&#39;s SQL data type.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method executes the insert and does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (OperationalError,</span>
+<span class="sd">                ProgrammingError, etc.) raised during execution, with additional</span>
+<span class="sd">                context about the query and parameters.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple insert with literal values:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Driver, Table</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&quot;localhost&quot;, 5432, &quot;user&quot;, &quot;pass&quot;, &quot;mydb&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees.insert({</span>
+<span class="sd">            ...     employees.name: &quot;Alice&quot;,</span>
+<span class="sd">            ...     employees.salary: 60000,</span>
+<span class="sd">            ...     employees.department: &quot;Engineering&quot;</span>
+<span class="sd">            ... })</span>
+<span class="sd">            # Inserts a new row with the given values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;INSERT INTO </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">list</span><span class="p">(</span><span class="n">insert</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span><span class="si">}</span><span class="s1">) VALUES (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;%s&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">insert</span><span class="p">)</span><span class="si">}</span><span class="s1">)&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">insert</span><span class="o">.</span><span class="n">values</span><span class="p">())])</span></div>
+
+
+<div class="viewcode-block" id="Table.custom_execute">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.custom_execute">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a custom SQL query with optional parameters.</span>
+
+<span class="sd">        This method provides a flexible way to execute arbitrary SQL statements</span>
+<span class="sd">        (e.g., DDL, DML) that are not covered by the ORM&#39;s built-in methods.</span>
+<span class="sd">        It automatically handles parameter binding and connection management</span>
+<span class="sd">        through the underlying driver.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string to execute.</span>
+<span class="sd">            params (list, optional): A list of parameter values to bind to the query.</span>
+<span class="sd">                If provided, the query will be executed using parameterized execution</span>
+<span class="sd">                to prevent SQL injection. Defaults to None.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method executes the query and does not return any data.</span>
+<span class="sd">                For queries that return results, use :meth:`custom_execute_with_fetch`.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (OperationalError,</span>
+<span class="sd">                ProgrammingError, etc.) raised during execution, with additional</span>
+<span class="sd">                context about the query and parameters.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple DDL execution:</span>
+
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees.custom_execute(</span>
+<span class="sd">            ...     &quot;ALTER TABLE employees ADD COLUMN bonus DECIMAL(10,2)&quot;</span>
+<span class="sd">            ... )</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Parameterized query for bulk operations:</span>
+
+<span class="sd">            &gt;&gt;&gt; employees.custom_execute(</span>
+<span class="sd">            ...     &quot;UPDATE employees SET salary = salary * 1.05 WHERE department = %s&quot;,</span>
+<span class="sd">            ...     [&quot;Engineering&quot;]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            # All engineers get a 5% salary increase.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.custom_execute_many">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.custom_execute_many">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute_many</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a parameterized SQL statement multiple times with different parameter sets.</span>
+
+<span class="sd">        This method is a convenience wrapper around :meth:`_excm` that allows bulk</span>
+<span class="sd">        execution of the same SQL statement (e.g., INSERT, UPDATE, DELETE) with</span>
+<span class="sd">        multiple parameter lists. It is useful for batch operations where many rows</span>
+<span class="sd">        need to be inserted or updated efficiently.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string with placeholders (``%s``) for parameters.</span>
+<span class="sd">            params (list, optional): A list of parameter tuples or lists, each</span>
+<span class="sd">                corresponding to one execution of the query. Defaults to None.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method executes the queries and does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (OperationalError,</span>
+<span class="sd">                ProgrammingError, etc.) raised by the underlying driver, with</span>
+<span class="sd">                additional context about the query and parameters.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple bulk insert of multiple employee records:</span>
+
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; query = &quot;INSERT INTO \&quot;employees\&quot; (name, salary) VALUES (%s, %s)&quot;</span>
+<span class="sd">            &gt;&gt;&gt; params = [(&quot;Alice&quot;, 60000), (&quot;Bob&quot;, 55000), (&quot;Charlie&quot;, 70000)]</span>
+<span class="sd">            &gt;&gt;&gt; employees.custom_execute_many(query, params)</span>
+<span class="sd">            # All three rows are inserted in a single executemany call.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Bulk update with varying conditions:</span>
+
+<span class="sd">            &gt;&gt;&gt; query = &quot;UPDATE \&quot;employees\&quot; SET salary = salary * 1.1 WHERE id = %s&quot;</span>
+<span class="sd">            &gt;&gt;&gt; params = [(1,), (2,), (3,)]</span>
+<span class="sd">            &gt;&gt;&gt; employees.custom_execute_many(query, params)</span>
+<span class="sd">            # This updates salaries for employees with IDs 1, 2, and 3.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excm</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.custom_execute_with_fetch">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.custom_execute_with_fetch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute_with_fetch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a custom SQL query and return the fetched results.</span>
+
+<span class="sd">        This method provides a flexible way to run arbitrary SELECT queries against</span>
+<span class="sd">        the table&#39;s database connection. It supports both parameterized and</span>
+<span class="sd">        non‑parameterized queries and returns the full result set.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string to execute. For parameterized queries,</span>
+<span class="sd">                use `%s` placeholders.</span>
+<span class="sd">            params (list, optional): A list of parameter values to bind to the query.</span>
+<span class="sd">                Defaults to None, which executes the query without parameters.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Any: The query result. Typically this is a list of tuples representing</span>
+<span class="sd">                the fetched rows, but the exact return type depends on the underlying</span>
+<span class="sd">                driver&#39;s fetchall() implementation.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (OperationalError,</span>
+<span class="sd">                ProgrammingError, etc.) with additional context about the query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple query without parameters:</span>
+
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; rows = employees.custom_execute_with_fetch(</span>
+<span class="sd">            ...     &quot;SELECT * FROM \&quot;employees\&quot; WHERE salary &gt; 50000&quot;</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; for row in rows:</span>
+<span class="sd">            ...     print(row)</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Parameterized query with placeholders:</span>
+
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; rows = employees.custom_execute_with_fetch(</span>
+<span class="sd">            ...     &quot;SELECT name, salary FROM \&quot;employees\&quot; WHERE department = %s&quot;,</span>
+<span class="sd">            ...     [&quot;Engineering&quot;]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; for name, salary in rows:</span>
+<span class="sd">            ...     print(f&quot;{name}: {salary}&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excf</span><span class="p">(</span><span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.delete_row">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.delete_row">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_row</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Delete rows from the table that match a condition.</span>
+
+<span class="sd">        This method constructs and executes a DELETE SQL statement, removing all</span>
+<span class="sd">        rows from the table that satisfy the given condition. The condition is</span>
+<span class="sd">        represented by a :class:`ColumnsOperation` object, which can include</span>
+<span class="sd">        comparisons, logical operators, and function calls.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            where (ColumnsOperation): A :class:`ColumnsOperation` object representing</span>
+<span class="sd">                the condition that determines which rows to delete.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method executes the deletion and does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors raised during execution,</span>
+<span class="sd">                including parameter binding or SQL syntax issues.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple deletion by a single condition:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Driver, Table</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&quot;localhost&quot;, 5432, &quot;user&quot;, &quot;pass&quot;, &quot;mydb&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # Delete all employees in the &quot;Intern&quot; department</span>
+<span class="sd">            &gt;&gt;&gt; employees.delete_row(employees.department == &quot;Intern&quot;)</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Deletion using a compound condition with ColumnsOperation:</span>
+
+<span class="sd">            &gt;&gt;&gt; # Delete employees with salary less than 30000 and years &gt; 10</span>
+<span class="sd">            &gt;&gt;&gt; employees.delete_row(</span>
+<span class="sd">            ...     (employees.salary &lt; 30000) &amp; (employees.years &gt; 10)</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # This produces: DELETE FROM &quot;employees&quot; WHERE (&quot;salary&quot; &lt; 30000 AND &quot;years&quot; &gt; 10);</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;DELETE FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span> <span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Table.delete_table">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.delete_table">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">are_you_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">are_you_really_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">for_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Permanently drop the current table from the database.</span>
+
+<span class="sd">        This method executes a DROP TABLE statement to remove the table and all its</span>
+<span class="sd">        data from the database. It also deletes the corresponding :class:`Table`</span>
+<span class="sd">        attribute from the parent :class:`Driver` instance. To prevent accidental</span>
+<span class="sd">        deletion, three separate confirmation flags must all be `True`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            are_you_sure (bool): First confirmation flag.</span>
+<span class="sd">            are_you_really_sure (bool): Second confirmation flag.</span>
+<span class="sd">            for_sure (bool): Third confirmation flag.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors from the underlying driver</span>
+<span class="sd">                if the DROP TABLE statement fails.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # Permanently delete the employees table</span>
+<span class="sd">            &gt;&gt;&gt; employees.delete_table(True, True, True)</span>
+<span class="sd">            &gt;&gt;&gt; # After deletion, the table is no longer accessible via driver.employees</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This operation is irreversible. Use the confirmation flags as a safeguard</span>
+<span class="sd">            against accidental data loss.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">are_you_sure</span> <span class="ow">and</span> <span class="n">are_you_really_sure</span> <span class="ow">and</span> <span class="n">for_sure</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;DROP TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="fm">__delattr__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Table.delete_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.delete_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_column</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">column</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span><span class="p">,</span>
+        <span class="n">are_you_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">are_you_really_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">for_sure</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Permanently drop a column from the table.</span>
+
+<span class="sd">        This method executes an ALTER TABLE DROP COLUMN statement to remove the</span>
+<span class="sd">        specified column and all its data from the table. To prevent accidental</span>
+<span class="sd">        deletion, three separate confirmation flags must all be `True`. After</span>
+<span class="sd">        successful execution, the corresponding attribute is also removed from the</span>
+<span class="sd">        Table instance.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column (Column): The :class:`Column` object representing the column to</span>
+<span class="sd">                drop.</span>
+<span class="sd">            are_you_sure (bool): First confirmation flag.</span>
+<span class="sd">            are_you_really_sure (bool): Second confirmation flag.</span>
+<span class="sd">            for_sure (bool): Third confirmation flag.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors from the underlying driver</span>
+<span class="sd">                if the ALTER TABLE statement fails.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # Permanently delete the &quot;temp&quot; column</span>
+<span class="sd">            &gt;&gt;&gt; employees.delete_column(employees.temp, True, True, True)</span>
+<span class="sd">            &gt;&gt;&gt; # The attribute is removed; accessing it later raises AttributeError</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This operation is irreversible. Use the confirmation flags as a safeguard</span>
+<span class="sd">            against accidental data loss.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">are_you_sure</span> <span class="ow">and</span> <span class="n">are_you_really_sure</span> <span class="ow">and</span> <span class="n">for_sure</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;ALTER TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> DROP COLUMN </span><span class="si">{</span><span class="n">column</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__delattr__</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Table.add_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.add_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">nullable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="n">default</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">auto_increment</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="n">primary_key</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a new column to the table.</span>
+
+<span class="sd">        This method executes an ``ALTER TABLE ADD COLUMN`` statement and,</span>
+<span class="sd">        if ``primary_key`` is `True`, also adds a primary key constraint.</span>
+<span class="sd">        After the column is created, a corresponding :class:`Column` attribute</span>
+<span class="sd">        is dynamically added to the :class:`Table` instance, allowing it to be</span>
+<span class="sd">        referenced in future queries (e.g., in ``update()``, ``insert()``, etc.).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column_name (str): The name of the new column.</span>
+<span class="sd">            data_type (str): The SQL data type string (e.g., from :class:`DataTypes`).</span>
+<span class="sd">            nullable (bool, optional): Whether the column can contain NULL values.</span>
+<span class="sd">                Defaults to `True`.</span>
+<span class="sd">            default (Any, optional): Default value for the column. If a string is</span>
+<span class="sd">                provided, it will be quoted; otherwise, it is used as-is. Defaults</span>
+<span class="sd">                to `None`.</span>
+<span class="sd">            auto_increment (bool, optional): If `True`, makes the column an identity</span>
+<span class="sd">                column (``GENERATED BY DEFAULT AS IDENTITY``). Only valid for numeric</span>
+<span class="sd">                or serial types. Defaults to `False`.</span>
+<span class="sd">            primary_key (bool, optional): If `True`, adds a primary key constraint</span>
+<span class="sd">                on this column. Note that a primary key column is implicitly ``NOT NULL``.</span>
+<span class="sd">                Defaults to `False`.</span>
+<span class="sd">            unique (bool, optional): If `True`, adds a unique constraint to the column.</span>
+<span class="sd">                Defaults to `False`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method mutates the table structure and does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates database errors if the ALTER TABLE statement fails,</span>
+<span class="sd">                or if the column addition violates constraints (e.g., duplicate column</span>
+<span class="sd">                name, invalid data type, etc.).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple addition of a non-nullable text column with a default:</span>
+
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees.add_column(</span>
+<span class="sd">            ...     column_name=&quot;department&quot;,</span>
+<span class="sd">            ...     data_type=DataTypes.VARCHAR(50),</span>
+<span class="sd">            ...     nullable=False,</span>
+<span class="sd">            ...     default=&quot;Engineering&quot;</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # Now employees.department is available as a Column object.</span>
+<span class="sd">            &gt;&gt;&gt; employees.update({employees.department: &quot;Marketing&quot;}, employees.id == 1)</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Adding an auto-increment primary key column (SERIAL type) and a unique</span>
+<span class="sd">            constraint:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes</span>
+<span class="sd">            &gt;&gt;&gt; employees.add_column(</span>
+<span class="sd">            ...     column_name=&quot;employee_id&quot;,</span>
+<span class="sd">            ...     data_type=DataTypes.SERIAL(),</span>
+<span class="sd">            ...     primary_key=True,</span>
+<span class="sd">            ...     auto_increment=True,</span>
+<span class="sd">            ...     nullable=False  # SERIAL is implicitly NOT NULL</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # The column &quot;employee_id&quot; is now the primary key and auto-increments.</span>
+<span class="sd">            &gt;&gt;&gt; employees.add_column(</span>
+<span class="sd">            ...     column_name=&quot;email&quot;,</span>
+<span class="sd">            ...     data_type=DataTypes.VARCHAR(100),</span>
+<span class="sd">            ...     unique=True</span>
+<span class="sd">            ... )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">col_def</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s1">&quot; </span><span class="si">{</span><span class="n">data_type</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="n">col_def</span> <span class="o">+=</span> <span class="s1">&#39; NOT NULL&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">nullable</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">col_def</span> <span class="o">+=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot; DEFAULT &#39;</span><span class="si">{</span><span class="n">default</span><span class="si">}</span><span class="s2">&#39;&quot;</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot; DEFAULT </span><span class="si">{</span><span class="n">default</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">col_def</span> <span class="o">+=</span> <span class="s2">&quot; GENERATED BY DEFAULT AS IDENTITY&quot;</span> <span class="k">if</span> <span class="n">auto_increment</span> <span class="ow">and</span> <span class="n">data_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;SMALLSERIAL&quot;</span><span class="p">,</span> <span class="s2">&quot;SERIAL&quot;</span><span class="p">,</span> <span class="s2">&quot;BIGSERIAL&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">col_def</span> <span class="o">+=</span> <span class="s2">&quot; UNIQUE&quot;</span> <span class="k">if</span> <span class="n">unique</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ALTER TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s2"> ADD COLUMN </span><span class="si">{</span><span class="n">col_def</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;ALTER TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ADD PRIMARY KEY (&quot;</span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s1">&quot;);&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">primary_key</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">type_lower</span> <span class="o">=</span> <span class="n">data_type</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;(&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="n">Column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">,</span> <span class="nb">int</span> <span class="k">if</span> <span class="n">type_lower</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;smallint&quot;</span><span class="p">,</span> <span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="s2">&quot;bigint&quot;</span><span class="p">,</span> <span class="s2">&quot;smallserial&quot;</span><span class="p">,</span> <span class="s2">&quot;serial&quot;</span><span class="p">,</span> <span class="s2">&quot;bigserial&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="nb">float</span> <span class="k">if</span> <span class="n">type_lower</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;real&quot;</span><span class="p">,</span> <span class="s2">&quot;double precision&quot;</span><span class="p">,</span> <span class="s2">&quot;numeric&quot;</span><span class="p">,</span> <span class="s2">&quot;decimal&quot;</span><span class="p">,</span> <span class="s2">&quot;money&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span> <span class="k">if</span> <span class="n">type_lower</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;character varying&quot;</span><span class="p">,</span> <span class="s2">&quot;character&quot;</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">,</span> <span class="s2">&quot;json&quot;</span><span class="p">,</span> <span class="s2">&quot;jsonb&quot;</span><span class="p">,</span> <span class="s2">&quot;uuid&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;time without time zone&quot;</span><span class="p">,</span> <span class="s2">&quot;time with time zone&quot;</span><span class="p">,</span> <span class="s2">&quot;timestamp without time zone&quot;</span><span class="p">,</span> <span class="s2">&quot;timestamp with time zone&quot;</span><span class="p">,</span> <span class="s2">&quot;interval&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="nb">bytes</span> <span class="k">if</span> <span class="n">type_lower</span> <span class="o">==</span> <span class="s2">&quot;bytea&quot;</span> <span class="k">else</span> <span class="nb">bool</span> <span class="k">if</span> <span class="n">type_lower</span> <span class="o">==</span> <span class="s2">&quot;boolean&quot;</span> <span class="k">else</span> <span class="nb">str</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Table.rename_table">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.rename_table">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rename_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Rename the current table to a new name.</span>
+
+<span class="sd">        This method executes an `ALTER TABLE ... RENAME TO` SQL statement to change</span>
+<span class="sd">        the table name in the database. It also updates the corresponding :class:`Table`</span>
+<span class="sd">        attribute on the parent :class:`Driver` instance by removing the old attribute</span>
+<span class="sd">        and creating a new one with the updated name.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            new_name (str): The new name for the table.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors from the underlying driver</span>
+<span class="sd">                if the `ALTER TABLE` statement fails.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Driver</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&quot;localhost&quot;, 5432, &quot;user&quot;, &quot;pass&quot;, &quot;mydb&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # Rename the table from &quot;employees&quot; to &quot;staff&quot;</span>
+<span class="sd">            &gt;&gt;&gt; employees.rename_table(&quot;staff&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # The table is now accessible as driver.staff</span>
+<span class="sd">            &gt;&gt;&gt; staff = driver.staff</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;ALTER TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> RENAME TO &quot;</span><span class="si">{</span><span class="n">new_name</span><span class="si">}</span><span class="s1">&quot;;&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="fm">__delattr__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">new_name</span><span class="p">,</span> <span class="n">Table</span><span class="p">(</span><span class="n">obj</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="n">new_name</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name_</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">new_name</span><span class="si">}</span><span class="s1">&quot;&#39;</span></div>
+
+
+<div class="viewcode-block" id="Table.rename_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.rename_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rename_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span><span class="p">,</span> <span class="n">new_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Rename an existing column in the table.</span>
+
+<span class="sd">        This method executes an ALTER TABLE statement to rename a column in the</span>
+<span class="sd">        database and updates the :class:`Table` instance&#39;s attributes accordingly.</span>
+<span class="sd">        The old attribute is removed and a new attribute with the new column name</span>
+<span class="sd">        is added, preserving the column&#39;s data type.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column (Column): The column object to rename.</span>
+<span class="sd">            new_name (str): The new name for the column. Must be a valid PostgreSQL</span>
+<span class="sd">                identifier.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors from the underlying driver,</span>
+<span class="sd">                such as if the column does not exist or the new name is invalid.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # Rename the &#39;emp_name&#39; column to &#39;full_name&#39;</span>
+<span class="sd">            &gt;&gt;&gt; employees.rename_column(employees.emp_name, &quot;full_name&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # The attribute is now accessible as employees.full_name</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;ALTER TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> RENAME COLUMN </span><span class="si">{</span><span class="n">column</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1"> TO &quot;</span><span class="si">{</span><span class="n">new_name</span><span class="si">}</span><span class="s1">&quot;;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__delattr__</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">first_name</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">new_name</span><span class="p">,</span> <span class="n">Column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_name</span><span class="p">,</span> <span class="n">column</span><span class="o">.</span><span class="n">datatype</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Table.create_index">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.create_index">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_index</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">index_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">],</span>
+        <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create an index on one or more columns of the table.</span>
+
+<span class="sd">        This method constructs and executes a CREATE INDEX statement to improve</span>
+<span class="sd">        query performance on the specified columns. It supports unique indexes,</span>
+<span class="sd">        multi-column indexes, and partial indexes with a WHERE condition.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index_name (str): The name of the index to create.</span>
+<span class="sd">            columns (list[Column]): A list of :class:`Column` objects to include</span>
+<span class="sd">                in the index.</span>
+<span class="sd">            unique (bool, optional): If `True`, creates a UNIQUE index to enforce</span>
+<span class="sd">                uniqueness of the indexed columns. Defaults to `False`.</span>
+<span class="sd">            where (ColumnsOperation, optional): A :class:`ColumnsOperation`</span>
+<span class="sd">                condition to create a partial index. Only rows satisfying this</span>
+<span class="sd">                condition are indexed. Defaults to `None`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method executes the index creation and does not return</span>
+<span class="sd">            a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors (e.g., duplicate index name,</span>
+<span class="sd">                column not found, etc.) from the underlying driver.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple index on a single column:</span>
+
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees.create_index(&quot;idx_employees_name&quot;, [employees.name])</span>
+<span class="sd">            # Creates: CREATE INDEX idx_employees_name ON &quot;employees&quot; (&quot;name&quot;);</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Unique composite index with a partial condition:</span>
+
+<span class="sd">            &gt;&gt;&gt; # Create a unique index on (department, title) for active employees</span>
+<span class="sd">            &gt;&gt;&gt; employees.create_index(</span>
+<span class="sd">            ...     &quot;idx_employees_dept_title_active&quot;,</span>
+<span class="sd">            ...     [employees.department, employees.title],</span>
+<span class="sd">            ...     unique=True,</span>
+<span class="sd">            ...     where=employees.status == &quot;active&quot;</span>
+<span class="sd">            ... )</span>
+<span class="sd">            # Creates: CREATE UNIQUE INDEX idx_employees_dept_title_active</span>
+<span class="sd">            # ON &quot;employees&quot; (&quot;department&quot;, &quot;title&quot;)</span>
+<span class="sd">            # WHERE ((&quot;status&quot; = &#39;active&#39;));</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">where</span><span class="p">:</span>
+            <span class="n">wr</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">wr</span><span class="o">=</span><span class="n">wr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">i</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">),</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;CREATE </span><span class="si">{</span><span class="s1">&#39;UNIQUE &#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">unique</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">INDEX </span><span class="si">{</span><span class="n">index_name</span><span class="si">}</span><span class="s1"> ON </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1">) </span><span class="si">{</span><span class="n">wr</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">where</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,[])</span></div>
+
+
+<div class="viewcode-block" id="Table.delete_index">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.delete_index">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Drop an existing index from the table.</span>
+
+<span class="sd">        This method executes a `DROP INDEX IF EXISTS` statement to remove the</span>
+<span class="sd">        specified index from the database. Using `IF EXISTS` prevents an error</span>
+<span class="sd">        if the index does not exist.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index_name (str): The name of the index to delete.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors from the underlying driver</span>
+<span class="sd">                if the DROP INDEX statement fails for reasons other than</span>
+<span class="sd">                non-existence (e.g., permission issues).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # Create an index on the &#39;last_name&#39; column</span>
+<span class="sd">            &gt;&gt;&gt; employees.create_index(&quot;idx_last_name&quot;, [employees.last_name])</span>
+<span class="sd">            &gt;&gt;&gt; # Delete the index when no longer needed</span>
+<span class="sd">            &gt;&gt;&gt; employees.delete_index(&quot;idx_last_name&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;DROP INDEX IF EXISTS &quot;</span><span class="si">{</span><span class="n">index_name</span><span class="si">}</span><span class="s1">&quot;;&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.get_indexes_info">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.get_indexes_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_indexes_info</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieve detailed information about all indexes defined on the table.</span>
+
+<span class="sd">        This method queries PostgreSQL system catalogs to obtain comprehensive</span>
+<span class="sd">        metadata for each index associated with the table, including the index name,</span>
+<span class="sd">        type, definition SQL, uniqueness flag, and primary key status.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[dict]: A list of dictionaries, each containing the following keys:</span>
+<span class="sd">                - idx_name (str): The name of the index.</span>
+<span class="sd">                - index_type (str): The access method (e.g., &#39;btree&#39;, &#39;hash&#39;).</span>
+<span class="sd">                - definition (str): The full SQL definition of the index</span>
+<span class="sd">                (e.g., &quot;CREATE INDEX idx_name ON table (column)&quot;).</span>
+<span class="sd">                - unique (bool): True if the index enforces uniqueness, else False.</span>
+<span class="sd">                - primary (bool): True if the index is the primary key, else False.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors from the underlying driver</span>
+<span class="sd">                if the query fails.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; indexes = employees.get_indexes_info()</span>
+<span class="sd">            &gt;&gt;&gt; for idx in indexes:</span>
+<span class="sd">            ...     print(f&quot;{idx[&#39;idx_name&#39;]} ({idx[&#39;index_type&#39;]}): unique={idx[&#39;unique&#39;]}&quot;)</span>
+<span class="sd">            ...</span>
+<span class="sd">            employees_pkey (btree): unique=True</span>
+<span class="sd">            idx_employees_last_name (btree): unique=False</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">            SELECT</span>
+<span class="s2">                i.relname AS index_name,</span>
+<span class="s2">                am.amname AS index_type,</span>
+<span class="s2">                pg_get_indexdef(i.oid) AS index_def,</span>
+<span class="s2">                indisunique::int AS is_unique,</span>
+<span class="s2">                indisprimary::int AS is_primary</span>
+<span class="s2">            FROM pg_index x</span>
+<span class="s2">            JOIN pg_class c ON c.oid = x.indrelid</span>
+<span class="s2">            JOIN pg_class i ON i.oid = x.indexrelid</span>
+<span class="s2">            LEFT JOIN pg_am am ON i.relam = am.oid</span>
+<span class="s2">            WHERE c.relname = </span><span class="si">%s</span>
+<span class="s2">            AND c.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = current_schema())</span>
+<span class="s2">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[{</span><span class="s1">&#39;idx_name&#39;</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="s1">&#39;index_type&#39;</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="s1">&#39;definition&#39;</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="s1">&#39;unique&#39;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span><span class="s1">&#39;primary&#39;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="mi">4</span><span class="p">])}</span><span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">),))]</span></div>
+
+
+<div class="viewcode-block" id="Table.bulk_insert">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.bulk_insert">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bulk_insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">],</span> <span class="n">data_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Insert multiple rows into the table in a single efficient operation.</span>
+
+<span class="sd">        This method uses `executemany` to insert many rows at once, which is</span>
+<span class="sd">        significantly faster than calling :meth:`insert` repeatedly, especially</span>
+<span class="sd">        for large datasets. The data is passed as a list of rows, where each row</span>
+<span class="sd">        is a list or tuple of values corresponding to the specified columns.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            columns (list[Column]): A list of :class:`Column` objects specifying</span>
+<span class="sd">                the columns to insert into, in the order that values are provided.</span>
+<span class="sd">            data_list (list): A list of rows, where each row is a sequence (list</span>
+<span class="sd">                or tuple) of values to insert. The length and order of values in</span>
+<span class="sd">                each row must match the `columns` list.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method executes the insert and does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors from the underlying driver,</span>
+<span class="sd">                including parameter binding errors or constraint violations.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; employees = driver.employees</span>
+<span class="sd">            &gt;&gt;&gt; # Bulk insert multiple employee records</span>
+<span class="sd">            &gt;&gt;&gt; employees.bulk_insert(</span>
+<span class="sd">            ...     [employees.name, employees.department, employees.salary],</span>
+<span class="sd">            ...     [</span>
+<span class="sd">            ...         [&quot;Alice&quot;, &quot;Engineering&quot;, 75000],</span>
+<span class="sd">            ...         [&quot;Bob&quot;, &quot;Marketing&quot;, 65000],</span>
+<span class="sd">            ...         [&quot;Charlie&quot;, &quot;Sales&quot;, 70000],</span>
+<span class="sd">            ...     ]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # All three rows are inserted in a single executemany call.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excm</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;INSERT INTO </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1">) VALUES (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1">);&#39;</span><span class="p">,</span><span class="n">data_list</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.bulk_update">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.bulk_update">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bulk_update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span><span class="p">,</span> <span class="n">data_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a bulk UPDATE operation with parameterized placeholders.</span>
+
+<span class="sd">        This method performs a single UPDATE statement for multiple rows by using</span>
+<span class="sd">        placeholders (`PLACE_HOLDER`) that are replaced with values from each row</span>
+<span class="sd">        in `data_list`. It is designed for efficient batch updates where the same</span>
+<span class="sd">        update structure applies to many rows, but the specific values differ per row.</span>
+
+<span class="sd">        The `update` dictionary and the `where` condition can contain the special</span>
+<span class="sd">        placeholder `self.PLACE_HOLDER` (or `db.PLACE_HOLDER`) to indicate that the</span>
+<span class="sd">        actual value should be taken from the corresponding position in each row of</span>
+<span class="sd">        `data_list`. The method constructs the final SQL by replacing `%s` placeholders</span>
+<span class="sd">        with `PLACE_HOLDER`, builds a parameterized query, and then executes it using</span>
+<span class="sd">        `executemany` with the `data_list`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            update (dict[Column, Any]): A dictionary mapping :class:`Column` objects</span>
+<span class="sd">                to new values. Values can be literals, :class:`Column` objects (for</span>
+<span class="sd">                column-to-column assignment), or :class:`ColumnsOperation` objects.</span>
+<span class="sd">                Use `PLACE_HOLDER` for values that should come from `data_list`.</span>
+<span class="sd">            where (ColumnsOperation): A :class:`ColumnsOperation` object representing</span>
+<span class="sd">                the condition that determines which rows to update. Can also contain</span>
+<span class="sd">                `PLACE_HOLDER` to be substituted from `data_list`.</span>
+<span class="sd">            data_list (list): A list of rows, where each row is a list/tuple of values</span>
+<span class="sd">                corresponding to the `PLACE_HOLDER` occurrences in the `update` and</span>
+<span class="sd">                `where` clauses (in order of appearance).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method executes the bulk update and does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the number of `PLACE_HOLDER` occurrences does not match the</span>
+<span class="sd">                number of items in each row of `data_list`. Also propagates other</span>
+<span class="sd">                database errors.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple bulk update using placeholders for column values:</span>
+
+<span class="sd">            &gt;&gt;&gt; # Increase salary by a variable amount for each department</span>
+<span class="sd">            &gt;&gt;&gt; employees = Table(driver, &quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees.bulk_update(</span>
+<span class="sd">            ...     {employees.salary: employees.salary + employees.PLACE_HOLDER},</span>
+<span class="sd">            ...     employees.department == employees.PLACE_HOLDER,</span>
+<span class="sd">            ...     data_list=[[5000, &quot;Engineering&quot;], [3000, &quot;Marketing&quot;], [4000, &quot;Sales&quot;]]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # This generates: UPDATE &quot;employees&quot; SET &quot;salary&quot; = (&quot;salary&quot; + %s)</span>
+<span class="sd">            &gt;&gt;&gt; # WHERE &quot;department&quot; = %s; and executes with the given data.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Complex bulk update with computed expressions and multiple placeholders:</span>
+
+<span class="sd">            &gt;&gt;&gt; # Set bonus as a percentage of salary and update title for managers</span>
+<span class="sd">            &gt;&gt;&gt; employees.bulk_update(</span>
+<span class="sd">            ...     {</span>
+<span class="sd">            ...         employees.bonus: employees.salary * employees.PLACE_HOLDER / 100,</span>
+<span class="sd">            ...         employees.title: employees.title + &quot; (Senior)&quot;</span>
+<span class="sd">            ...     },</span>
+<span class="sd">            ...     (employees.title == &quot;Manager&quot;) &amp; (employees.years &gt; employees.PLACE_HOLDER),</span>
+<span class="sd">            ...     data_list=[[10, 5], [15, 8], [12, 6]]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # The PLACE_HOLDER in the update (for percentage) and in the where condition</span>
+<span class="sd">            &gt;&gt;&gt; # (for years threshold) are replaced from data_list rows.</span>
+<span class="sd">            &gt;&gt;&gt; # Each row provides [percentage, years_threshold].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">temp_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="p">[</span><span class="kc">None</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span> <span class="p">,</span> <span class="n">Column</span><span class="p">)</span> <span class="k">else</span> <span class="n">temp_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">ColumnsOperation</span><span class="p">)</span> <span class="k">else</span> <span class="n">temp_list</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">update</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="n">query_splited</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;UPDATE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> SET </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1"> = </span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="n">Column</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">ColumnsOperation</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">=</span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">list</span><span class="p">(</span><span class="n">update</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span><span class="si">}</span><span class="s1"> WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="p">)</span><span class="si">}</span><span class="s1">;&#39;</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="p">)</span>
+        <span class="n">query</span><span class="o">=</span> <span class="n">query_splited</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">a</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">temp_list</span><span class="o">+</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="n">query</span> <span class="o">+</span><span class="p">(</span> <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">&quot;&#39;</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">i</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span><span class="o">+</span> <span class="n">query_splited</span><span class="p">[</span><span class="n">a</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="c1">#All &quot;? || &#39;%&#39;&quot; thing are because of Column.contain() method and .startswith() and .endswith() that have &quot;%&quot; in output value</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_excm</span><span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">),</span> <span class="n">data_list</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;Incorrect number of bindings&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;number of `PLACE_HOLDERS` must be equals to number of items in each of `data_list` items.</span><span class="se">\n</span><span class="s1"> if it is so, make sure that there is no &quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="si">}</span><span class="s1">&quot; literal string in your query because it is reserved for this orm. you can change it on you own need with `mytable.PLACE_HOLDER = &quot;you own idea&quot;`&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span></div>
+
+        
+<div class="viewcode-block" id="Table.join">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Table.join">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">join</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">],</span>
+        <span class="n">joins_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Join.Inner | Join.Left | Join.Right&#39;</span><span class="p">],</span>
+        <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">order_by</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Perform a JOIN query on this table with other tables.</span>
+
+<span class="sd">        This method constructs and executes a SELECT statement that joins the current</span>
+<span class="sd">        table with one or more other tables using the specified join types</span>
+<span class="sd">        (INNER, LEFT, RIGHT). The result set can be filtered with a WHERE clause</span>
+<span class="sd">        and ordered by a column. Columns are automatically aliased using the format</span>
+<span class="sd">        ``&lt;table_name&gt;_&lt;column_name&gt;`` to avoid name conflicts.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            columns (list[Column]): A list of :class:`Column` objects or</span>
+<span class="sd">                :class:`ColumnsOperation` expressions to select. Each item will be</span>
+<span class="sd">                included in the SELECT clause.</span>
+<span class="sd">            joins_list (list[Union[Join.Inner, Join.Left, Join.Right]]): A list of</span>
+<span class="sd">                join definitions created using the :class:`Join` inner classes.</span>
+<span class="sd">                Each join specifies a table and the join condition.</span>
+<span class="sd">            where (ColumnsOperation, optional): A :class:`ColumnsOperation`</span>
+<span class="sd">                expression for filtering rows. Defaults to None (no filter).</span>
+<span class="sd">            order_by (Column, optional): A :class:`Column` to order the results by.</span>
+<span class="sd">                Defaults to None (no ordering).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[tuple]: A list of tuples where each tuple represents a row in the</span>
+<span class="sd">                result set. The values correspond to the selected columns in the</span>
+<span class="sd">                order they were specified. If columns include aliases, the result</span>
+<span class="sd">                tuples will have the aliased names (though the return format is</span>
+<span class="sd">                raw tuples).</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagates any database errors from the underlying driver,</span>
+<span class="sd">                including SQL syntax errors or join condition issues.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple join between employees and departments:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Driver, Table, Join</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&quot;localhost&quot;, 5432, &quot;user&quot;, &quot;pass&quot;, &quot;mydb&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; employees = driver.employees</span>
+<span class="sd">            &gt;&gt;&gt; departments = driver.departments</span>
+<span class="sd">            &gt;&gt;&gt;</span>
+<span class="sd">            &gt;&gt;&gt; # Join employees with departments on department_id</span>
+<span class="sd">            &gt;&gt;&gt; results = employees.join(</span>
+<span class="sd">            ...     columns=[employees.id, employees.name, departments.name],</span>
+<span class="sd">            ...     joins_list=[Join.Inner(departments, employees.dept_id == departments.id)],</span>
+<span class="sd">            ...     where=employees.salary &gt; 50000,</span>
+<span class="sd">            ...     order_by=employees.name</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; for row in results:</span>
+<span class="sd">            ...     print(row)  # e.g., (1, &#39;Alice&#39;, &#39;Engineering&#39;)</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Complex join with multiple tables and computed columns:</span>
+
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import Join, ColumnsOperation</span>
+<span class="sd">            &gt;&gt;&gt; # Assume tables: orders, customers, products</span>
+<span class="sd">            &gt;&gt;&gt; orders = driver.orders</span>
+<span class="sd">            &gt;&gt;&gt; customers = driver.customers</span>
+<span class="sd">            &gt;&gt;&gt; products = driver.products</span>
+<span class="sd">            &gt;&gt;&gt;</span>
+<span class="sd">            &gt;&gt;&gt; # Select order details with customer name and product price with tax</span>
+<span class="sd">            &gt;&gt;&gt; results = orders.join(</span>
+<span class="sd">            ...     columns=[</span>
+<span class="sd">            ...         orders.id,</span>
+<span class="sd">            ...         customers.name,</span>
+<span class="sd">            ...         products.name,</span>
+<span class="sd">            ...         orders.quantity * orders.unit_price,  # ColumnsOperation</span>
+<span class="sd">            ...         (orders.quantity * orders.unit_price) * 1.1  # computed total with tax</span>
+<span class="sd">            ...     ],</span>
+<span class="sd">            ...     joins_list=[</span>
+<span class="sd">            ...         Join.Inner(customers, orders.customer_id == customers.id),</span>
+<span class="sd">            ...         Join.Left(products, orders.product_id == products.id)</span>
+<span class="sd">            ...     ],</span>
+<span class="sd">            ...     where=(orders.order_date &gt;= &#39;2024-01-01&#39;) &amp; (orders.status == &#39;completed&#39;),</span>
+<span class="sd">            ...     order_by=orders.order_date</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # Results are returned as tuples with aliased column names</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tl</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="p">[</span><span class="n">tl</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">ColumnsOperation</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+        <span class="p">[</span><span class="n">tl</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">joins_list</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">Column</span><span class="p">)</span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;(&quot;</span><span class="p">)</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;)&quot;</span><span class="p">)</span><span class="k">else</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">joins_list</span><span class="p">)</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="k">if</span><span class="w"> </span><span class="n">where</span><span class="w"> </span><span class="k">else</span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">tl</span><span class="o">+</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="n">where</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">Column</span><span class="p">)</span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;(&quot;</span><span class="p">)</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;)&quot;</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">joins_list</span><span class="p">)</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">tl</span><span class="p">)</span> <span class="k">if</span> <span class="n">tl</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excf</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">Column</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;(&#39;</span><span class="p">)</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;)&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">joins_list</span><span class="p">)</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span></div>
+</div>
+
+        <span class="c1"># The above line is approximately 1381 characters, which is not standard, but it is written this way</span>
+        <span class="c1"># to improve performance in the Driver class and to avoid checking whether the second item in the query</span>
+        <span class="c1"># is an empty list for each input.</span>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

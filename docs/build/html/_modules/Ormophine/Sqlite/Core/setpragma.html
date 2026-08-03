@@ -1,0 +1,757 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ormophine.Sqlite.Core.setpragma &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">Ormophine.Sqlite.Core.setpragma</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for Ormophine.Sqlite.Core.setpragma</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimpleQueue</span>
+
+<div class="viewcode-block" id="SetPragma">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SetPragma</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A wrapper for executing SQLite PRAGMA commands on a database connection.</span>
+
+<span class="sd">    This class provides convenient methods for setting various SQLite</span>
+<span class="sd">    PRAGMA configurations, such as journal mode, synchronous mode, cache</span>
+<span class="sd">    size, WAL settings, foreign key enforcement, and schema write access.</span>
+<span class="sd">    All PRAGMA commands are executed via the main database queue, ensuring</span>
+<span class="sd">    thread‑safe operations.</span>
+
+<span class="sd">    The class is typically accessed through the :attr:`Driver.SetPragma`</span>
+<span class="sd">    attribute, which is automatically created when a :class:`Driver`</span>
+<span class="sd">    instance is initialized.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        queue (SimpleQueue): The main queue of the :class:`Driver`</span>
+<span class="sd">            instance used to send PRAGMA commands to the database thread.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">            from ormophine.Sqlite import Driver</span>
+
+<span class="sd">            db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">            # Set journal mode to WAL for better concurrency</span>
+<span class="sd">            db.SetPragma.journal_mode(&#39;WAL&#39;)</span>
+
+<span class="sd">            # Increase cache size to 10000 pages</span>
+<span class="sd">            db.SetPragma.cache_size(10000)</span>
+
+<span class="sd">            # Enable foreign key constraints</span>
+<span class="sd">            db.SetPragma.foreign_keys(True)</span>
+
+<span class="sd">            # Run a WAL checkpoint</span>
+<span class="sd">            db.SetPragma.wal_checkpoint(&#39;FULL&#39;)</span>
+
+<span class="sd">            # Optimize the database</span>
+<span class="sd">            db.SetPragma.optimize()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+<div class="viewcode-block" id="SetPragma.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">connector_obj</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize a new SetPragma instance.</span>
+
+<span class="sd">        This class provides methods to configure SQLite PRAGMA settings</span>
+<span class="sd">        (e.g., journal mode, synchronous, cache size) for the database</span>
+<span class="sd">        connection. The constructor stores a reference to the connector&#39;s</span>
+<span class="sd">        main queue, which is used to execute PRAGMA statements in a</span>
+<span class="sd">        thread‑safe manner via the database driver thread.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            connector_obj: The parent object (typically an instance of</span>
+<span class="sd">                :class:`Driver`) that holds the main queue used for</span>
+<span class="sd">                sending commands to the database thread. The object must</span>
+<span class="sd">                have a ``main_queue`` attribute of type :class:`queue.SimpleQueue`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+<span class="sd">                pragma = db.SetPragma</span>
+
+<span class="sd">                # Configure the database</span>
+<span class="sd">                pragma.journal_mode(&#39;WAL&#39;)</span>
+<span class="sd">                pragma.synchronous(&#39;NORMAL&#39;)</span>
+<span class="sd">                pragma.cache_size(10000)</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            The ``connector_obj`` is typically the :class:`Driver` instance</span>
+<span class="sd">            that owns this ``SetPragma`` object. It is used internally to</span>
+<span class="sd">            send PRAGMA commands to the database thread.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">queue</span> <span class="o">=</span> <span class="n">connector_obj</span><span class="o">.</span><span class="n">main_queue</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_exc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a database command and return the result.</span>
+
+<span class="sd">        This internal method sends a command (with its query and parameters)</span>
+<span class="sd">        to the database connection queue, blocks until the operation completes,</span>
+<span class="sd">        and returns the result if successful, or raises an exception if the</span>
+<span class="sd">        operation fails.</span>
+
+<span class="sd">        The method is used by all public pragma‑setting methods in</span>
+<span class="sd">        :class:`SetPragma` to centralize queue communication and error handling.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cmd (str): The command type to execute. Expected values are</span>
+<span class="sd">                ``&#39;qcb&#39;`` (execute a single query that does not return rows),</span>
+<span class="sd">                but other command types may be supported depending on the</span>
+<span class="sd">                driver implementation.</span>
+<span class="sd">            query (tuple): A tuple containing the SQL query and optional</span>
+<span class="sd">                parameters. Typically of the form ``(sql_string,)`` or</span>
+<span class="sd">                ``(sql_string, params)``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Any: The result returned by the database operation. For</span>
+<span class="sd">            pragma statements, this is usually ``None`` on success, but</span>
+<span class="sd">            may be a result set for other command types.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the callback indicates failure, the exception</span>
+<span class="sd">                message from the callback is re‑raised.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; sp = SetPragma(driver)</span>
+<span class="sd">            &gt;&gt;&gt; sp._exc(&#39;qcb&#39;, (&#39;PRAGMA journal_mode=WAL;&#39;,))</span>
+<span class="sd">            &gt;&gt;&gt; #OR driver.Setpragma._exc(&#39;qcb&#39;, (&#39;PRAGMA journal_mode=WAL;&#39;,))</span>
+<span class="sd">            None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">queue_call_back</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">cmd</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">queue_call_back</span><span class="p">))</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queue_call_back</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+<div class="viewcode-block" id="SetPragma.journal_mode">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.journal_mode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">journal_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;DELETE&quot;</span><span class="p">,</span> <span class="s2">&quot;TRUNCATE&quot;</span><span class="p">,</span> <span class="s2">&quot;PERSIST&quot;</span><span class="p">,</span> <span class="s2">&quot;MEMORY&quot;</span><span class="p">,</span> <span class="s2">&quot;WAL&quot;</span><span class="p">,</span> <span class="s2">&quot;OFF&quot;</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the journal mode for the database connection.</span>
+
+<span class="sd">        This method executes the SQLite ``PRAGMA journal_mode`` command to</span>
+<span class="sd">        change the way the database handles rollback journals. The journal</span>
+<span class="sd">        mode affects performance, durability, and concurrency behavior.</span>
+
+<span class="sd">        The available modes correspond to SQLite&#39;s standard journal modes:</span>
+
+<span class="sd">        * ``DELETE`` – the default, a rollback journal is deleted after each transaction.</span>
+<span class="sd">        * ``TRUNCATE`` – the journal is truncated to zero length instead of deleted.</span>
+<span class="sd">        * ``PERSIST`` – the journal header is overwritten, avoiding file deletion.</span>
+<span class="sd">        * ``MEMORY`` – the journal is stored in memory (fast but not durable).</span>
+<span class="sd">        * ``WAL`` – Write-Ahead Logging, provides better concurrency.</span>
+<span class="sd">        * ``OFF`` – no journaling (dangerous, can lead to corruption).</span>
+
+<span class="sd">        The PRAGMA is executed synchronously, and the change takes effect</span>
+<span class="sd">        immediately for the current database connection.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            value (Literal[&quot;DELETE&quot;, &quot;TRUNCATE&quot;, &quot;PERSIST&quot;, &quot;MEMORY&quot;, &quot;WAL&quot;, &quot;OFF&quot;]):</span>
+<span class="sd">                The journal mode to set. Must be one of the allowed strings.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the PRAGMA execution fails. The exception message</span>
+<span class="sd">                will contain the underlying SQLite error.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                # Switch to WAL mode for better concurrency</span>
+<span class="sd">                db.SetPragma.journal_mode(&#39;WAL&#39;)</span>
+
+<span class="sd">                # Switch back to DELETE mode</span>
+<span class="sd">                db.SetPragma.journal_mode(&#39;DELETE&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA journal_mode = </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.synchronous">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.synchronous">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">synchronous</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;OFF&quot;</span><span class="p">,</span> <span class="s2">&quot;NORMAL&quot;</span><span class="p">,</span> <span class="s2">&quot;FULL&quot;</span><span class="p">,</span> <span class="s2">&quot;EXTRA&quot;</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the database synchronization mode.</span>
+
+<span class="sd">        This method configures the SQLite ``synchronous`` pragma, which controls</span>
+<span class="sd">        how aggressively the database engine writes data to disk. Higher levels</span>
+<span class="sd">        provide better durability but may reduce performance.</span>
+
+<span class="sd">        The available modes are:</span>
+<span class="sd">            - ``OFF``: No synchronization, fastest but unsafe on power loss.</span>
+<span class="sd">            - ``NORMAL``: Synchronizes at critical moments, a good balance.</span>
+<span class="sd">            - ``FULL``: Maximum safety, ensures all data is written to disk</span>
+<span class="sd">            before continuing.</span>
+<span class="sd">            - ``EXTRA``: Even more synchronous than ``FULL`` (available in</span>
+<span class="sd">            some SQLite versions).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            value (Literal[&quot;OFF&quot;, &quot;NORMAL&quot;, &quot;FULL&quot;, &quot;EXTRA&quot;]): The</span>
+<span class="sd">                synchronization level to set.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the underlying SQLite operation fails, the exception</span>
+<span class="sd">                is propagated from :meth:`_exc`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;app.db&#39;)</span>
+<span class="sd">                # Set to NORMAL for a balance of safety and performance</span>
+<span class="sd">                db.SetPragma.synchronous(&#39;NORMAL&#39;)</span>
+
+<span class="sd">                # Set to OFF for maximum performance (use with caution)</span>
+<span class="sd">                db.SetPragma.synchronous(&#39;OFF&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA synchronous = </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.wal_autocheckpoint">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.wal_autocheckpoint">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">wal_autocheckpoint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pages</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the WAL autocheckpoint threshold.</span>
+
+<span class="sd">        This method configures the number of pages after which SQLite</span>
+<span class="sd">        automatically runs a checkpoint on the Write-Ahead Log (WAL). When</span>
+<span class="sd">        the WAL file reaches the specified number of pages, SQLite will</span>
+<span class="sd">        checkpoint the database, moving pages from the WAL file back into</span>
+<span class="sd">        the main database file.</span>
+
+<span class="sd">        Setting this value to 0 disables automatic checkpoints, leaving</span>
+<span class="sd">        manual checkpointing via :meth:`wal_checkpoint` as the only option.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            pages (int): The number of pages in the WAL file that trigger</span>
+<span class="sd">                an automatic checkpoint. Must be a non-negative integer.</span>
+<span class="sd">                A value of 0 disables automatic checkpointing.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If ``pages`` is not an integer or is negative.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            .. code-block:: python</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+<span class="sd">                # Set autocheckpoint every 1000 pages</span>
+<span class="sd">                db.SetPragma.wal_autocheckpoint(1000)</span>
+
+<span class="sd">                # Disable automatic checkpoints</span>
+<span class="sd">                db.SetPragma.wal_autocheckpoint(0)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pages</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">pages</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;pages must be non-negative integer&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA wal_autocheckpoint = </span><span class="si">{</span><span class="n">pages</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.wal_checkpoint">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.wal_checkpoint">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">wal_checkpoint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;PASSIVE&quot;</span><span class="p">,</span> <span class="s2">&quot;FULL&quot;</span><span class="p">,</span> <span class="s2">&quot;RESTART&quot;</span><span class="p">,</span> <span class="s2">&quot;TRUNCATE&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;PASSIVE&quot;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run a WAL checkpoint on the database.</span>
+
+<span class="sd">        A WAL (Write-Ahead Log) checkpoint ensures that all transactions in</span>
+<span class="sd">        the WAL file are written to the main database file. This can help</span>
+<span class="sd">        reclaim disk space and improve performance. The mode determines how</span>
+<span class="sd">        the checkpoint is performed:</span>
+
+<span class="sd">        * ``PASSIVE`` – Checkpoint as many frames as possible without</span>
+<span class="sd">        blocking other readers or writers. This is the default.</span>
+<span class="sd">        * ``FULL`` – Checkpoint all frames, but may block other operations.</span>
+<span class="sd">        * ``RESTART`` – Like FULL, but also restarts the WAL file so that</span>
+<span class="sd">        future writes use a fresh WAL.</span>
+<span class="sd">        * ``TRUNCATE`` – Like RESTART, but also truncates the WAL file to</span>
+<span class="sd">        zero bytes, freeing disk space.</span>
+
+<span class="sd">        This method sends a ``PRAGMA wal_checkpoint`` command to the database</span>
+<span class="sd">        thread and waits for it to complete.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            mode (Literal[&quot;PASSIVE&quot;, &quot;FULL&quot;, &quot;RESTART&quot;, &quot;TRUNCATE&quot;], optional):</span>
+<span class="sd">                The checkpoint mode. Defaults to ``&quot;PASSIVE&quot;``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the checkpoint fails, an exception is raised with</span>
+<span class="sd">                the underlying SQLite error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">                # Run a full checkpoint</span>
+<span class="sd">                db.SetPragma.wal_checkpoint(&#39;FULL&#39;)</span>
+
+<span class="sd">                # Or use the default passive checkpoint</span>
+<span class="sd">                db.SetPragma.wal_checkpoint()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA wal_checkpoint(</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">);&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.foreign_keys">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.foreign_keys">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">foreign_keys</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">enable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;ON&quot;</span><span class="p">,</span> <span class="s2">&quot;OFF&quot;</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Enable or disable foreign key constraint enforcement.</span>
+
+<span class="sd">        This method sets the ``PRAGMA foreign_keys`` option for the current</span>
+<span class="sd">        database connection. When enabled (``ON``), SQLite will enforce</span>
+<span class="sd">        foreign key constraints, rejecting operations that violate referential</span>
+<span class="sd">        integrity. When disabled (``OFF``), foreign key constraints are</span>
+<span class="sd">        ignored.</span>
+
+<span class="sd">        The setting can be provided as a boolean (``True``/``False``) or as a</span>
+<span class="sd">        string literal (``&quot;ON&quot;``/``&quot;OFF&quot;``). The method sends the appropriate</span>
+<span class="sd">        PRAGMA command to the database thread and waits for execution.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            enable (bool | Literal[&quot;ON&quot;, &quot;OFF&quot;]): Whether to enable foreign</span>
+<span class="sd">                key enforcement. Accepts:</span>
+<span class="sd">                - ``True`` or ``&quot;ON&quot;`` to enable.</span>
+<span class="sd">                - ``False`` or ``&quot;OFF&quot;`` to disable.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the PRAGMA command fails, an exception is raised</span>
+<span class="sd">                with the underlying SQLite error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">                # Enable foreign keys</span>
+<span class="sd">                db.SetPragma.foreign_keys(True)</span>
+
+<span class="sd">                # Disable foreign keys</span>
+<span class="sd">                db.SetPragma.foreign_keys(&#39;OFF&#39;)</span>
+
+<span class="sd">            Foreign key enforcement is often required for maintaining data</span>
+<span class="sd">            integrity across related tables. Use this method to toggle the</span>
+<span class="sd">            setting as needed for your operations.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="s2">&quot;ON&quot;</span> <span class="k">if</span> <span class="n">enable</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">or</span> <span class="n">enable</span> <span class="o">==</span> <span class="s2">&quot;ON&quot;</span> <span class="k">else</span> <span class="s2">&quot;OFF&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA foreign_keys = </span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.defer_foreign_keys">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.defer_foreign_keys">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">defer_foreign_keys</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">enable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;ON&quot;</span><span class="p">,</span> <span class="s2">&quot;OFF&quot;</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Enable or disable deferred foreign key enforcement.</span>
+
+<span class="sd">        This method sets the ``PRAGMA defer_foreign_keys`` option, which controls</span>
+<span class="sd">        whether foreign key constraints are deferred until the transaction is</span>
+<span class="sd">        committed. When enabled (``ON``), foreign key constraints are not checked</span>
+<span class="sd">        immediately after each statement, but only when the transaction is</span>
+<span class="sd">        committed. This can be useful for complex operations that temporarily</span>
+<span class="sd">        violate foreign key constraints during a transaction.</span>
+
+<span class="sd">        The method accepts either a boolean (``True`` for ON, ``False`` for OFF)</span>
+<span class="sd">        or the strings ``&quot;ON&quot;`` or ``&quot;OFF&quot;``.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            enable (bool | Literal[&quot;ON&quot;, &quot;OFF&quot;]): The desired state. If ``True``</span>
+<span class="sd">                or ``&quot;ON&quot;``, defer foreign key enforcement. If ``False`` or</span>
+<span class="sd">                ``&quot;OFF&quot;``, enforce foreign keys immediately (default behavior).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the pragma execution fails, an exception is raised</span>
+<span class="sd">                with the underlying SQLite error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">                # Enable deferred foreign keys</span>
+<span class="sd">                db.SetPragma.defer_foreign_keys(True)</span>
+
+<span class="sd">                # Perform operations that may temporarily violate foreign keys</span>
+<span class="sd">                db.custom_execute(&#39;DELETE FROM orders WHERE customer_id = 1&#39;)</span>
+<span class="sd">                db.custom_execute(&#39;DELETE FROM customers WHERE id = 1&#39;)</span>
+
+<span class="sd">                # Commit automatically when the operation finishes,</span>
+<span class="sd">                # and foreign key constraints are checked at commit time.</span>
+
+<span class="sd">                # Disable deferred foreign keys</span>
+<span class="sd">                db.SetPragma.defer_foreign_keys(&#39;OFF&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="s2">&quot;ON&quot;</span> <span class="k">if</span> <span class="n">enable</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">or</span> <span class="n">enable</span> <span class="o">==</span> <span class="s2">&quot;ON&quot;</span> <span class="k">else</span> <span class="s2">&quot;OFF&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA defer_foreign_keys = </span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.cache_size">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.cache_size">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cache_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pages_or_kb</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the suggested maximum number of database disk pages that SQLite</span>
+<span class="sd">        will hold in memory at one time.</span>
+
+<span class="sd">        This method executes the `PRAGMA cache_size` command, which controls the</span>
+<span class="sd">        number of pages in the page cache. A larger cache can improve performance</span>
+<span class="sd">        for read-heavy workloads by reducing disk I/O, but consumes more memory.</span>
+
+<span class="sd">        The value can be specified as either:</span>
+<span class="sd">        - Positive integer: number of pages (default page size is usually 4096 bytes).</span>
+<span class="sd">        - Negative integer: number of kilobytes of cache memory (e.g., -1024 means 1 MiB).</span>
+
+<span class="sd">        The change is temporary and lasts only for the current database connection;</span>
+<span class="sd">        it is not persisted across restarts.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            pages_or_kb (int): The cache size. Positive values are interpreted as</span>
+<span class="sd">                number of pages; negative values as kilobytes. For example,</span>
+<span class="sd">                ``1000`` sets the cache to 1000 pages, while ``-1024`` sets it to</span>
+<span class="sd">                1 MiB.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the PRAGMA execution fails (e.g., due to a database error),</span>
+<span class="sd">                an exception is raised with the underlying error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">                # Set cache to 5000 pages</span>
+<span class="sd">                db.SetPragma.cache_size(5000)</span>
+
+<span class="sd">                # Set cache to 2 MiB (negative value means kilobytes)</span>
+<span class="sd">                db.SetPragma.cache_size(-2048)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA cache_size = </span><span class="si">{</span><span class="n">pages_or_kb</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.mmap_size">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.mmap_size">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mmap_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bytes_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the maximum number of bytes used for memory-mapped I/O.</span>
+
+<span class="sd">        This method configures the SQLite ``mmap_size`` pragma, which controls</span>
+<span class="sd">        the maximum size of the memory-mapped I/O region for the database.</span>
+<span class="sd">        Memory-mapped I/O can improve performance by allowing the operating</span>
+<span class="sd">        system to cache database pages more efficiently. Setting this value</span>
+<span class="sd">        to 0 disables memory-mapped I/O.</span>
+
+<span class="sd">        The change takes effect immediately and persists until the database</span>
+<span class="sd">        connection is closed or the pragma is set again.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bytes_size (int): The maximum size in bytes for the memory-mapped</span>
+<span class="sd">                I/O region. Must be non-negative. A value of 0 disables</span>
+<span class="sd">                memory-mapped I/O.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If ``bytes_size`` is negative.</span>
+<span class="sd">            Exception: If the underlying SQLite command fails (e.g., due to a</span>
+<span class="sd">                database error), an exception with the error message is raised.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">                # Enable memory-mapped I/O with a 256 MB limit</span>
+<span class="sd">                db.SetPragma.mmap_size(256 * 1024 * 1024)</span>
+
+<span class="sd">                # Disable memory-mapped I/O</span>
+<span class="sd">                db.SetPragma.mmap_size(0)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">bytes_size</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;mmap_size cannot be negative&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA mmap_size = </span><span class="si">{</span><span class="n">bytes_size</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.shrink_memory">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.shrink_memory">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">shrink_memory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Release unused memory back to the operating system.</span>
+
+<span class="sd">        This method executes the SQLite ``PRAGMA shrink_memory`` command,</span>
+<span class="sd">        which attempts to free as much memory as possible from the database</span>
+<span class="sd">        connection&#39;s internal caches and buffers. This can be useful in</span>
+<span class="sd">        long‑running applications to reduce memory footprint after large</span>
+<span class="sd">        operations.</span>
+
+<span class="sd">        The command is non‑blocking and does not affect the database content.</span>
+<span class="sd">        It is a best‑effort operation; the actual amount of memory freed</span>
+<span class="sd">        depends on the system and SQLite&#39;s internal state.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the pragma execution fails, an exception is raised</span>
+<span class="sd">                with the underlying SQLite error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">                # Perform memory‑intensive operations...</span>
+<span class="sd">                # Then release unused memory</span>
+<span class="sd">                db.SetPragma.shrink_memory()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA shrink_memory;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.optimize">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.optimize">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">optimize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mask</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mh">0x10002</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run the SQLite ``PRAGMA optimize`` command to optimize the database.</span>
+
+<span class="sd">        This pragma triggers query planner optimizations and can improve</span>
+<span class="sd">        performance by updating statistics and indexes. The optional</span>
+<span class="sd">        ``mask`` parameter controls which optimizations are applied.</span>
+<span class="sd">        The default value (``0x10002``) is recommended for general use.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            mask (int, optional): A bitmask specifying the optimization</span>
+<span class="sd">                settings. Defaults to ``0x10002``. Refer to SQLite</span>
+<span class="sd">                documentation for valid mask values.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the PRAGMA execution fails, an exception is</span>
+<span class="sd">                raised with the underlying SQLite error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">                # Run optimize with default mask</span>
+<span class="sd">                db.SetPragma.optimize()</span>
+
+<span class="sd">                # Run optimize with a custom mask</span>
+<span class="sd">                db.SetPragma.optimize(mask=0x0001)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA optimize(</span><span class="si">{</span><span class="n">mask</span><span class="si">}</span><span class="s2">);&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.automatic_index">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.automatic_index">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">automatic_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">enable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;ON&quot;</span><span class="p">,</span> <span class="s2">&quot;OFF&quot;</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Enable or disable automatic index creation by the SQLite query planner.</span>
+
+<span class="sd">        This method sets the ``PRAGMA automatic_index``, which controls whether</span>
+<span class="sd">        SQLite automatically creates temporary indexes to speed up queries when</span>
+<span class="sd">        it determines they would be beneficial. Enabling this can improve</span>
+<span class="sd">        performance for complex queries but may add overhead for index creation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            enable (bool | Literal[&quot;ON&quot;, &quot;OFF&quot;]): Whether to enable automatic</span>
+<span class="sd">                indexing. Accepts:</span>
+<span class="sd">                - ``True`` or ``&quot;ON&quot;`` to enable.</span>
+<span class="sd">                - ``False`` or ``&quot;OFF&quot;`` to disable.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the PRAGMA execution fails, an exception is raised</span>
+<span class="sd">                with the underlying SQLite error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">                # Enable automatic indexing</span>
+<span class="sd">                db.SetPragma.automatic_index(True)</span>
+
+<span class="sd">                # Disable it</span>
+<span class="sd">                db.SetPragma.automatic_index(&#39;OFF&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="s2">&quot;ON&quot;</span> <span class="k">if</span> <span class="n">enable</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">or</span> <span class="n">enable</span> <span class="o">==</span> <span class="s2">&quot;ON&quot;</span> <span class="k">else</span> <span class="s2">&quot;OFF&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA automatic_index = </span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="SetPragma.writable_schema">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.SetPragma.writable_schema">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">writable_schema</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;ON&quot;</span><span class="p">,</span> <span class="s2">&quot;OFF&quot;</span><span class="p">,</span> <span class="s2">&quot;RESET&quot;</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Enable, disable, or reset write access to the database schema.</span>
+
+<span class="sd">        This method executes the SQLite ``PRAGMA writable_schema`` command,</span>
+<span class="sd">        which controls whether the ``sqlite_master`` table (the schema table)</span>
+<span class="sd">        can be modified. By default, it is disabled (``OFF``). Enabling it</span>
+<span class="sd">        allows direct modifications to the schema, which is useful for</span>
+<span class="sd">        debugging or recovery but is extremely dangerous and should be used</span>
+<span class="sd">        with caution. The ``RESET`` value reverts the pragma to its default</span>
+<span class="sd">        state.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            value (bool | Literal[&quot;ON&quot;, &quot;OFF&quot;, &quot;RESET&quot;]): The desired state.</span>
+<span class="sd">                - ``True`` or ``&quot;ON&quot;`` – enable writable schema.</span>
+<span class="sd">                - ``False`` or ``&quot;OFF&quot;`` – disable writable schema.</span>
+<span class="sd">                - ``&quot;RESET&quot;`` – reset to the default (effectively OFF).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the PRAGMA execution fails, an exception is raised</span>
+<span class="sd">                with the underlying SQLite error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                from ormophine.Sqlite import Driver</span>
+
+<span class="sd">                db = Driver(&#39;my_database.db&#39;)</span>
+
+<span class="sd">                # Enable writable schema (use with extreme caution!)</span>
+<span class="sd">                db.SetPragma.writable_schema(True)</span>
+
+<span class="sd">                # Perform schema modifications (e.g., manually update sqlite_master)</span>
+<span class="sd">                # ... (dangerous operations)</span>
+
+<span class="sd">                # Disable when done</span>
+<span class="sd">                db.SetPragma.writable_schema(False)</span>
+
+<span class="sd">                # Or reset to default</span>
+<span class="sd">                db.SetPragma.writable_schema(&#39;RESET&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="s2">&quot;RESET&quot;</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="s2">&quot;RESET&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="s2">&quot;ON&quot;</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">or</span> <span class="n">value</span> <span class="o">==</span> <span class="s2">&quot;ON&quot;</span> <span class="k">else</span> <span class="s2">&quot;OFF&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA writable_schema = </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">,))</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

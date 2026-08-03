@@ -1,0 +1,1743 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ormophine.Mysql.driver &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">Ormophine.Mysql.driver</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for Ormophine.Mysql.driver</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">SimpleQueue</span><span class="p">,</span> <span class="n">Empty</span><span class="p">,</span> <span class="n">TableStructure</span><span class="p">,</span> <span class="n">Table</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">MySQLdb</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect</span><span class="p">,</span> <span class="n">OperationalError</span><span class="p">,</span> <span class="n">ProgrammingError</span>
+
+<div class="viewcode-block" id="Driver">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Driver</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    MySQL connection manager with thread-safe connection pooling and ORM capabilities.</span>
+
+<span class="sd">    The ``Driver`` class serves as the main entry point for database interactions.</span>
+<span class="sd">    It manages a pool of MySQL connections (using ``SimpleQueue``) for thread-safe</span>
+<span class="sd">    execution of queries, automatically handles reconnection on connection errors,</span>
+<span class="sd">    and dynamically maps existing tables to :class:`Table` objects as attributes.</span>
+
+<span class="sd">    When instantiated, it establishes an initial connection to validate credentials,</span>
+<span class="sd">    optionally creates the database, sets up a connection pool of the specified size,</span>
+<span class="sd">    and introspects the database to create :class:`Table` instances for every table,</span>
+<span class="sd">    attaching them as attributes (e.g., ``db.users``, ``db.orders``). Each table</span>
+<span class="sd">    attribute provides access to columns, CRUD operations, batch operations, joins,</span>
+<span class="sd">    and schema management.</span>
+
+<span class="sd">    The driver supports MySQL 8.0+ features, including transaction isolation levels,</span>
+<span class="sd">    SQL modes, and InnoDB flush settings. It also provides user management methods</span>
+<span class="sd">    (create, drop, grant, revoke) and administrative utilities.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        host (str): Database server hostname or IP address.</span>
+<span class="sd">        port (int): Database server port number.</span>
+<span class="sd">        username (str): MySQL username for authentication.</span>
+<span class="sd">        password (str): MySQL password.</span>
+<span class="sd">        db_name (str): Name of the default database to connect to.</span>
+<span class="sd">        charset (CHARSET): Character set for the connection (default ``&#39;utf8mb4&#39;``).</span>
+<span class="sd">        collate (COLLATE): Collation for the connection (default ``&#39;utf8mb4_bin&#39;``).</span>
+<span class="sd">        connect_timeout (int): Connection timeout in seconds (default ``10``).</span>
+<span class="sd">        sql_modes (list): List of SQL modes to enable on each connection.</span>
+<span class="sd">        config (dict): Full configuration dictionary passed to MySQLdb connections.</span>
+<span class="sd">        connection_pool (SimpleQueue): Queue holding available (connection, cursor) tuples.</span>
+<span class="sd">        connection_pool_storage (list): List of all connection objects for cleanup.</span>
+<span class="sd">        _connected (bool): Internal flag indicating whether the driver is active.</span>
+<span class="sd">        PLACE_HOLDER (str): String used as a placeholder in bulk operations for</span>
+<span class="sd">            parameter substitution (default ``&#39;_MY_S4ULT3D_PL4C3_H0LD3R_%s_&#39;``).</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        All public database operations are thread-safe because each query acquires</span>
+<span class="sd">        a dedicated connection from the pool and returns it after commit/rollback.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        Create a driver instance and interact with the database::</span>
+
+<span class="sd">            from ormophine.Mysql import Driver, DataTypes, TableStructure</span>
+
+<span class="sd">            # Connect to an existing database</span>
+<span class="sd">            db = Driver(</span>
+<span class="sd">                host=&#39;localhost&#39;,</span>
+<span class="sd">                port=3306,</span>
+<span class="sd">                username=&#39;root&#39;,</span>
+<span class="sd">                password=&#39;secret&#39;,</span>
+<span class="sd">                db_name=&#39;myapp&#39;,</span>
+<span class="sd">                pool_size=10</span>
+<span class="sd">            )</span>
+
+<span class="sd">            # Access a table dynamically</span>
+<span class="sd">            users = db.users</span>
+<span class="sd">            print(users.get_columns_name())</span>
+
+<span class="sd">            # Perform a query</span>
+<span class="sd">            results = users.get_row(</span>
+<span class="sd">                which_columns=[users.id, users.name],</span>
+<span class="sd">                where=users.age &gt; 18</span>
+<span class="sd">            )</span>
+
+<span class="sd">            # Create a new table using TableStructure</span>
+<span class="sd">            new_table = (TableStructure(&#39;products&#39;)</span>
+<span class="sd">                         .add_column(&#39;id&#39;, DataTypes.INT(), primary_key=True,</span>
+<span class="sd">                                     auto_increment=True, not_null=True)</span>
+<span class="sd">                         .add_column(&#39;name&#39;, DataTypes.VARCHAR(100), not_null=True)</span>
+<span class="sd">                         .add_column(&#39;price&#39;, DataTypes.DECIMAL(10,2)))</span>
+<span class="sd">            db.create_table(new_table)</span>
+
+<span class="sd">            # Use the newly created table</span>
+<span class="sd">            db.products.insert({&#39;name&#39;: &#39;Laptop&#39;, &#39;price&#39;: 999.99})</span>
+
+<span class="sd">            # Disconnect when done</span>
+<span class="sd">            db.disconnect()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">PLACE_HOLDER</span> <span class="o">=</span> <span class="s1">&#39;_MY_S4ULT3D_PL4C3_H0LD3R_</span><span class="si">%s</span><span class="s1">_&#39;</span>
+    <span class="n">CHARSET</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span>
+    <span class="s2">&quot;armscii8&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ascii&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;big5&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;binary&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cp1250&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cp1251&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cp1256&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cp1257&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cp850&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cp852&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cp866&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cp932&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;dec8&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;eucjpms&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;euckr&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;gb18030&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;gb2312&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;gbk&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;geostd8&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;greek&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;hebrew&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;hp8&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;keybcs2&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;koi8r&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;koi8u&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;latin1&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;latin2&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;latin5&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;latin7&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;macce&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;macroman&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;sjis&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;swe7&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;tis620&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ucs2&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ujis&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf16&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf16le&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf32&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb3&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4&quot;</span>
+    <span class="p">]</span>
+    <span class="n">COLLATE</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span>
+    <span class="s2">&quot;utf8mb4_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_0900_bin&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_general_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_unicode_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_unicode_520_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_bin&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_persian_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_ar_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_da_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_de_pb_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_en_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_es_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_es_trad_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_fr_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_it_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_nl_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_pt_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_cs_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_hr_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_hu_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_pl_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_ro_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_sk_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_sl_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_sv_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_nb_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_nn_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_is_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_lt_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_lv_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_et_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_bg_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_sr_latn_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_bs_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_mk_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_ja_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_ko_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_zh_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_tr_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_vi_0900_ai_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_da_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_es_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_fr_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_it_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_ja_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_ko_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_zh_0900_as_cs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_croatian_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_czech_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_danish_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_esperanto_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_estonian_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_german2_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_hungarian_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_icelandic_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_latvian_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_lithuanian_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_polish_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_romanian_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_slovak_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_slovenian_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_swedish_ci&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;utf8mb4_turkish_ci&quot;</span>
+    <span class="p">]</span>
+    <span class="n">ISOLATION_LEVEL</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;READ UNCOMMITTED&#39;</span><span class="p">,</span> <span class="s1">&#39;READ COMMITTED&#39;</span><span class="p">,</span> <span class="s1">&#39;REPEATABLE READ&#39;</span><span class="p">,</span> <span class="s1">&#39;SERIALIZABLE&#39;</span><span class="p">]</span>
+    <span class="n">INNODB_FLUSH_LOG</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">PRIVILEGES</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;ALL PRIVILEGES&#39;</span><span class="p">,</span> <span class="s1">&#39;SELECT&#39;</span><span class="p">,</span> <span class="s1">&#39;INSERT&#39;</span><span class="p">,</span> <span class="s1">&#39;UPDATE&#39;</span><span class="p">,</span> <span class="s1">&#39;DELETE&#39;</span><span class="p">,</span> <span class="s1">&#39;DROP&#39;</span><span class="p">,</span> <span class="s1">&#39;ALTER&#39;</span><span class="p">,</span> <span class="s1">&#39;CREATE&#39;</span><span class="p">,</span> <span class="s1">&#39;INDEX&#39;</span><span class="p">,</span> <span class="s1">&#39;REFERENCES&#39;</span><span class="p">,</span> <span class="s1">&#39;EXECUTE&#39;</span><span class="p">,</span> <span class="s1">&#39;GRANT OPTION&#39;</span><span class="p">,</span> <span class="s1">&#39;TRIGGER&#39;</span><span class="p">]</span>
+<div class="viewcode-block" id="Driver.__init__">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">port</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">username</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">password</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">db_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">create_new_db</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">pool_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+        <span class="n">connect_timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+        <span class="n">charset</span><span class="p">:</span> <span class="n">CHARSET</span> <span class="o">=</span> <span class="s2">&quot;utf8mb4&quot;</span><span class="p">,</span>
+        <span class="n">collate</span><span class="p">:</span> <span class="n">COLLATE</span> <span class="o">=</span> <span class="s2">&quot;utf8mb4_bin&quot;</span><span class="p">,</span>
+        <span class="n">sql_modes</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">isolation_level</span><span class="p">:</span> <span class="n">ISOLATION_LEVEL</span> <span class="o">=</span> <span class="s1">&#39;REPEATABLE READ&#39;</span><span class="p">,</span>
+        <span class="n">innodb_flush_log_at_trx_commit</span><span class="p">:</span> <span class="n">INNODB_FLUSH_LOG</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize a new MySQL database driver with connection pooling and table ORM.</span>
+
+<span class="sd">        This constructor establishes a connection pool to the specified MySQL database,</span>
+<span class="sd">        optionally creates the database if it does not exist, and dynamically attaches</span>
+<span class="sd">        `Table` objects for each existing table as attributes of the driver instance.</span>
+<span class="sd">        The driver uses a thread‑safe queue to manage connections and supports custom</span>
+<span class="sd">        SQL modes, transaction isolation levels, and InnoDB flush settings.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            host (str): MySQL server hostname or IP address.</span>
+<span class="sd">            port (int): TCP port number of the MySQL server.</span>
+<span class="sd">            username (str): Username for authentication.</span>
+<span class="sd">            password (str): Password for authentication.</span>
+<span class="sd">            db_name (str): Name of the database to connect to (or create).</span>
+<span class="sd">            create_new_db (bool, optional): If ``True``, create the database if it</span>
+<span class="sd">                does not exist. Defaults to ``False``.</span>
+<span class="sd">            pool_size (int, optional): Number of connections to keep in the pool.</span>
+<span class="sd">                Defaults to 5.</span>
+<span class="sd">            connect_timeout (int, optional): Connection timeout in seconds.</span>
+<span class="sd">                Defaults to 10.</span>
+<span class="sd">            charset (CHARSET, optional): Character set for the connection.</span>
+<span class="sd">                Defaults to ``&quot;utf8mb4&quot;``. Must be a valid MySQL charset literal.</span>
+<span class="sd">            collate (COLLATE, optional): Collation for the connection.</span>
+<span class="sd">                Defaults to ``&quot;utf8mb4_bin&quot;``. Must be a valid MySQL collation literal.</span>
+<span class="sd">            sql_modes (list, optional): List of additional SQL modes to enable</span>
+<span class="sd">                (e.g., ``[&#39;ANSI_QUOTES&#39;]``). Defaults to an empty list.</span>
+<span class="sd">                The session always enables ``PIPES_AS_CONCAT`` automatically.</span>
+<span class="sd">            isolation_level (ISOLATION_LEVEL, optional): Transaction isolation level.</span>
+<span class="sd">                Must be one of ``&#39;READ UNCOMMITTED&#39;``, ``&#39;READ COMMITTED&#39;``,</span>
+<span class="sd">                ``&#39;REPEATABLE READ&#39;``, or ``&#39;SERIALIZABLE&#39;``.</span>
+<span class="sd">                Defaults to ``&#39;REPEATABLE READ&#39;``.</span>
+<span class="sd">            innodb_flush_log_at_trx_commit (INNODB_FLUSH_LOG, optional): InnoDB</span>
+<span class="sd">                flush log setting (0, 1, or 2). Defaults to 1.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            RuntimeError: If the connection pool cannot be created or the database</span>
+<span class="sd">                does not exist and ``create_new_db`` is ``False``.</span>
+<span class="sd">            OperationalError: If connection fails due to network issues, authentication</span>
+<span class="sd">                errors, or other MySQL server problems.</span>
+<span class="sd">            ProgrammingError: If the SQL syntax for creating the database is invalid.</span>
+<span class="sd">            Exception: If the initial connection attempt fails and the pool cannot be</span>
+<span class="sd">                replenished.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Mysql import Driver</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(</span>
+<span class="sd">            ...     host=&#39;localhost&#39;,</span>
+<span class="sd">            ...     port=3306,</span>
+<span class="sd">            ...     username=&#39;root&#39;,</span>
+<span class="sd">            ...     password=&#39;secret&#39;,</span>
+<span class="sd">            ...     db_name=&#39;my_app&#39;,</span>
+<span class="sd">            ...     create_new_db=True,</span>
+<span class="sd">            ...     pool_size=10,</span>
+<span class="sd">            ...     charset=&#39;utf8mb4&#39;,</span>
+<span class="sd">            ...     isolation_level=&#39;READ COMMITTED&#39;</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # Existing tables are now available as attributes, e.g. db.users</span>
+<span class="sd">            &gt;&gt;&gt; users_table = db.users</span>
+<span class="sd">            &gt;&gt;&gt; # Use the driver to execute raw queries</span>
+<span class="sd">            &gt;&gt;&gt; db.custom_execute(&quot;SET SESSION wait_timeout = 28800&quot;)</span>
+
+<span class="sd">        Notes:</span>
+<span class="sd">            - The driver automatically adds `Table` attributes for every table</span>
+<span class="sd">            currently in the database. For example, if a table named `orders`</span>
+<span class="sd">            exists, it can be accessed as ``db.orders``.</span>
+<span class="sd">            - The connection pool is implemented using a :class:`queue.SimpleQueue`</span>
+<span class="sd">            and is thread‑safe. Each connection is wrapped with a cursor.</span>
+<span class="sd">            - The constructor sets the session SQL mode to include ``PIPES_AS_CONCAT``</span>
+<span class="sd">            to allow the ``||`` operator for string concatenation, which is used by</span>
+<span class="sd">            the ORM&#39;s :class:`ColumnsOperation` and :class:`Column` classes.</span>
+<span class="sd">            - When `create_new_db` is ``True``, the database is created with the</span>
+<span class="sd">            given charset and collation. If the database already exists, no error</span>
+<span class="sd">            is raised.</span>
+<span class="sd">            - If a connection breaks during operation, the driver automatically</span>
+<span class="sd">            recreates it and puts it back into the pool.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTION_ERRORS</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2002</span><span class="p">,</span> <span class="mi">2003</span><span class="p">,</span> <span class="mi">2005</span><span class="p">,</span> <span class="mi">2006</span><span class="p">,</span> <span class="mi">2012</span><span class="p">,</span> <span class="mi">2013</span><span class="p">,</span> <span class="mi">2026</span><span class="p">,</span> <span class="mi">2049</span><span class="p">,</span> <span class="mi">2055</span><span class="p">,</span> <span class="mi">2000</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span> <span class="o">=</span> <span class="s1">&#39;_MY_S4ULT3D_PL4C3_H0LD3R_</span><span class="si">%s</span><span class="s1">_&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">host</span> <span class="o">=</span> <span class="n">host</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="n">port</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">username</span> <span class="o">=</span> <span class="n">username</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">=</span> <span class="n">password</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_name</span> <span class="o">=</span> <span class="n">db_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">charset</span> <span class="o">=</span> <span class="n">charset</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">collate</span> <span class="o">=</span> <span class="n">collate</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">connect_timeout</span> <span class="o">=</span> <span class="n">connect_timeout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sql_modes</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">sql_modes</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">sql_modes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;host&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">host</span><span class="p">,</span>
+            <span class="s2">&quot;port&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">,</span>
+            <span class="s2">&quot;user&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">username</span><span class="p">,</span>
+            <span class="s2">&quot;password&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">,</span>
+            <span class="s2">&quot;db&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">db_name</span><span class="p">,</span>
+            <span class="s2">&quot;charset&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">charset</span><span class="p">,</span>
+            <span class="s2">&quot;connect_timeout&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">connect_timeout</span><span class="p">,</span>
+            <span class="s2">&quot;init_command&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;SET SESSION TRANSACTION ISOLATION LEVEL </span><span class="si">{</span><span class="n">isolation_level</span><span class="si">}</span><span class="s1">; SET SESSION innodb_flush_log_at_trx_commit = </span><span class="si">{</span><span class="n">innodb_flush_log_at_trx_commit</span><span class="si">}</span><span class="s1">;&#39;</span>
+        <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool_storage</span> <span class="o">=</span> <span class="p">[]</span>
+        
+        <span class="c1">#To make sure inputs are valid</span>
+        <span class="n">conf</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;host&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">host</span><span class="p">,</span>
+        <span class="s2">&quot;port&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">,</span>
+        <span class="s2">&quot;user&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">username</span><span class="p">,</span>
+        <span class="s2">&quot;password&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">,</span>
+        <span class="s2">&quot;charset&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">charset</span><span class="p">,</span>
+        <span class="s2">&quot;connect_timeout&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">connect_timeout</span>
+        <span class="p">}</span>
+        <span class="n">connection</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="o">**</span><span class="n">conf</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">create_new_db</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">connection</span><span class="o">.</span><span class="n">select_db</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">db_name</span><span class="p">)</span>
+                <span class="n">connection</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="n">connection</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="k">raise</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">cur</span> <span class="o">=</span> <span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+                <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;CREATE DATABASE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">db_name</span><span class="si">}</span><span class="s2"> CHARACTER SET </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">charset</span><span class="si">}</span><span class="s2"> COLLATE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">collate</span><span class="si">}</span><span class="s2">;&quot;</span>
+                <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+                <span class="n">connection</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="n">connection</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+                <span class="k">raise</span>                
+
+        <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_create_connection</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pool_size</span><span class="p">)]</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_tables</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_connection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new database connection and add it to the connection pool.</span>
+
+<span class="sd">        This method establishes a new MySQL connection using the stored configuration</span>
+<span class="sd">        (host, port, username, password, database, charset, etc.) and initializes its</span>
+<span class="sd">        cursor. The connection and cursor are then placed into the pool for later use.</span>
+<span class="sd">        The session is configured to enable the `PIPES_AS_CONCAT` SQL mode and any</span>
+<span class="sd">        additional modes provided during driver initialization.</span>
+
+<span class="sd">        This method is called automatically when the pool is empty and a connection</span>
+<span class="sd">        is requested via :meth:`_get_connection`. It ensures that the pool always has</span>
+<span class="sd">        available connections.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            RuntimeError: If the driver has been disconnected (i.e., :attr:`_connected`</span>
+<span class="sd">                is ``False``), creating new connections is not allowed.</span>
+<span class="sd">            MySQLdb.OperationalError: If the connection attempt fails due to network</span>
+<span class="sd">                issues, invalid credentials, or other operational errors.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            # Internal usage within the driver:</span>
+<span class="sd">            driver = Driver(host=&#39;localhost&#39;, username=&#39;root&#39;, password=&#39;pass&#39;, db_name=&#39;test&#39;)</span>
+<span class="sd">            # If the pool is empty, _get_connection will call _create_connection automatically.</span>
+<span class="sd">            con, cur = driver._get_connection()</span>
+<span class="sd">            # ... use con/cur ...</span>
+<span class="sd">            driver.connection_pool.put((con, cur))</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;You have closed the connection, you can not create new connections&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">con</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
+            <span class="n">cur</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool_storage</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SET SESSION sql_mode = &#39;PIPES_AS_CONCAT&#39;;&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sql_modes</span><span class="p">:</span>
+                <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SET SESSION sql_mode = CONCAT(@@sql_mode, &#39;,</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&#39;);&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">OperationalError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTION_ERRORS</span><span class="p">:</span>  
+                <span class="n">con</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
+                <span class="n">cur</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool_storage</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SET SESSION sql_mode = &#39;PIPES_AS_CONCAT&#39;;&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sql_modes</span><span class="p">:</span>
+                    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SET SESSION sql_mode = CONCAT(@@sql_mode, &#39;,</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&#39;);&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_connection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieve a database connection and its cursor from the connection pool.</span>
+
+<span class="sd">        This method attempts to get a (connection, cursor) pair from the internal</span>
+<span class="sd">        :class:`~queue.SimpleQueue` pool. If the pool is empty, it creates a new</span>
+<span class="sd">        connection (via :meth:`_create_connection`) and retries. If the pool is</span>
+<span class="sd">        still empty after that, an exception is raised.</span>
+
+<span class="sd">        This is an internal helper used by all execution methods</span>
+<span class="sd">        (``_exc``, ``_excp``, ``_excf``, ``_excfp``, ``_excs``, ``_excm``) to</span>
+<span class="sd">        obtain a working connection in a thread‑safe manner.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: A pair ``(connection, cursor)`` where both are active MySQL</span>
+<span class="sd">            connection objects from the pool.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the connection pool remains empty after attempting to</span>
+<span class="sd">                create a new connection. This typically indicates that the pool</span>
+<span class="sd">                size is too small and the timeout (0.5 seconds) is insufficient,</span>
+<span class="sd">                or that the database server is unreachable.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            .. code-block:: python</span>
+
+<span class="sd">                # Internal usage only</span>
+<span class="sd">                con, cur = driver._get_connection()</span>
+<span class="sd">                try:</span>
+<span class="sd">                    cur.execute(&quot;SELECT 1&quot;)</span>
+<span class="sd">                    result = cur.fetchone()</span>
+<span class="sd">                    con.commit()</span>
+<span class="sd">                finally:</span>
+<span class="sd">                    driver.connection_pool.put((con, cur))</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">Empty</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_create_connection</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">Empty</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n\n</span><span class="s1">Empty connection pool, you better increase `pool_size`&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excfp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a parameterized SQL query and return all fetched rows.</span>
+
+<span class="sd">        This method acquires a database connection from the internal connection pool,</span>
+<span class="sd">        executes the given query with the provided parameters, commits the transaction,</span>
+<span class="sd">        and returns the complete result set. It automatically handles connection</span>
+<span class="sd">        failures (e.g., server has gone away) by recreating the connection and</span>
+<span class="sd">        retrying the operation once. In case of any SQL error, the transaction is</span>
+<span class="sd">        rolled back, the connection is returned to the pool, and an exception with</span>
+<span class="sd">        detailed context (including the query and parameters) is raised.</span>
+
+<span class="sd">        This is an internal method primarily used by public methods like</span>
+<span class="sd">        :meth:`Driver.custom_execute_with_fetch` and :meth:`Table.get_table_info`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query to execute. Use ``%s`` placeholders for</span>
+<span class="sd">                parameters (MySQLdb style).</span>
+<span class="sd">            params (list, tuple, or dict): The parameter values to bind to the</span>
+<span class="sd">                query placeholders. The type must be compatible with the MySQLdb</span>
+<span class="sd">                cursor&#39;s ``execute()`` method.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list of tuple: All rows returned by the query. Each row is represented</span>
+<span class="sd">            as a tuple of column values.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Wraps any underlying :class:`MySQLdb.OperationalError` or</span>
+<span class="sd">                :class:`MySQLdb.ProgrammingError`. The raised exception includes the</span>
+<span class="sd">                original error message, the query string, and the parameter values</span>
+<span class="sd">                to aid debugging.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance ``db`` and a table ``users`` with columns</span>
+<span class="sd">            ``id`` and ``name``:</span>
+
+<span class="sd">            &gt;&gt;&gt; result = db._excfp(&quot;SELECT id, name FROM users WHERE age &gt; %s&quot;, (18,))</span>
+<span class="sd">            &gt;&gt;&gt; print(result)</span>
+<span class="sd">            [(1, &#39;Alice&#39;), (3, &#39;Charlie&#39;)]</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This method uses the connection pool. If the pool is empty, it will</span>
+<span class="sd">            create a new connection (up to the pool size limit). It is safe for</span>
+<span class="sd">            concurrent use.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">res</span>
+        <span class="k">except</span> <span class="n">OperationalError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTION_ERRORS</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                    <span class="n">res</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                    <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                    <span class="k">return</span> <span class="n">res</span>
+                <span class="k">except</span> <span class="n">OperationalError</span> <span class="k">as</span> <span class="n">e2</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                    <span class="k">raise</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="se">\n</span><span class="s1">Params:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">params</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">ProgrammingError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="se">\n</span><span class="s1">Params:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">params</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute a read-only SQL query and fetch all results.</span>
+
+<span class="sd">        This internal method retrieves a connection from the pool, executes the</span>
+<span class="sd">        given query without parameters, fetches all rows, and returns them.</span>
+<span class="sd">        It handles connection errors by automatically reconnecting and retrying</span>
+<span class="sd">        once. The method also manages transaction commits and rollbacks, and</span>
+<span class="sd">        returns the connection to the pool after execution.</span>
+
+<span class="sd">        **Note:** This method is intended for internal use by other methods in</span>
+<span class="sd">        the :class:`Driver` class. It is used when no parameter substitution is</span>
+<span class="sd">        required and the query is expected to return result sets (e.g., SELECT).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string to execute. Must not contain</span>
+<span class="sd">                parameter placeholders (use :meth:`_excfp` for parameterized</span>
+<span class="sd">                queries).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: A tuple of rows returned by the query. Each row is a tuple</span>
+<span class="sd">                of column values as returned by the MySQL driver.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If an :class:`MySQLdb.OperationalError` occurs that is not</span>
+<span class="sd">                a connection error, or if a :class:`MySQLdb.ProgrammingError` is</span>
+<span class="sd">                raised. In these cases, the original error message is augmented</span>
+<span class="sd">                with the query text to aid debugging. Connection errors are</span>
+<span class="sd">                handled internally and a retry is attempted.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            .. code-block:: python</span>
+
+<span class="sd">                driver = Driver(...)</span>
+<span class="sd">                # Fetch all table names in the current database</span>
+<span class="sd">                rows = driver._excf(&quot;SHOW TABLES&quot;)</span>
+<span class="sd">                for (table_name,) in rows:</span>
+<span class="sd">                    print(table_name)</span>
+
+<span class="sd">        .. seealso:: :meth:`_excfp` for parameterized queries that return results.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">res</span>
+        <span class="k">except</span> <span class="n">OperationalError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTION_ERRORS</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+                    <span class="n">res</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                    <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                    <span class="k">return</span> <span class="n">res</span>
+                <span class="k">except</span> <span class="n">OperationalError</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                    <span class="k">raise</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">ProgrammingError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute a parameterized SQL query and commit the transaction.</span>
+
+<span class="sd">        This internal method retrieves a connection from the pool, executes the provided</span>
+<span class="sd">        query with the given parameters, commits the transaction, and returns the</span>
+<span class="sd">        connection to the pool. If a connection error occurs (e.g., server gone away),</span>
+<span class="sd">        it attempts to reconnect and retry the execution. On any other SQL error,</span>
+<span class="sd">        it rolls back the transaction and raises an exception with detailed context.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string containing placeholders (``%s``) for</span>
+<span class="sd">                parameters.</span>
+<span class="sd">            params (list or tuple): The parameter values to substitute into the query.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return any value; it only executes the query.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If an operational or programming error occurs. The exception</span>
+<span class="sd">                message includes the original error, the query, and the parameters</span>
+<span class="sd">                to aid debugging.</span>
+<span class="sd">            RuntimeError: If the connection pool is empty and a new connection cannot</span>
+<span class="sd">                be created (indirectly via :meth:`_get_connection`).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance ``db`` and a table ``users``::</span>
+
+<span class="sd">                db._excp(</span>
+<span class="sd">                    &quot;INSERT INTO users (name, age) VALUES (%s, %s)&quot;,</span>
+<span class="sd">                    (&quot;Alice&quot;, 30)</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">OperationalError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTION_ERRORS</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                    <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="k">except</span> <span class="n">OperationalError</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                    <span class="k">raise</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="se">\n</span><span class="s1">Params:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">params</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">ProgrammingError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="se">\n</span><span class="s1">Params:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">params</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_exc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute a SQL query without parameters and commit the transaction.</span>
+
+<span class="sd">        This internal method retrieves a connection from the pool, executes the provided</span>
+<span class="sd">        query (which should contain no placeholders), commits the transaction, and</span>
+<span class="sd">        returns the connection to the pool. If a connection error occurs (e.g., server</span>
+<span class="sd">        gone away), it attempts to reconnect and retry the execution. On any other SQL</span>
+<span class="sd">        error, it rolls back the transaction and raises an exception with detailed</span>
+<span class="sd">        context.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string to execute (no parameters).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return any value; it only executes the query.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If an operational or programming error occurs. The exception</span>
+<span class="sd">                message includes the original error and the query to aid debugging.</span>
+<span class="sd">            RuntimeError: If the connection pool is empty and a new connection cannot</span>
+<span class="sd">                be created (indirectly via :meth:`_get_connection`).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance ``db``::</span>
+
+<span class="sd">                # Create a table</span>
+<span class="sd">                db._exc(&quot;CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(50));&quot;)</span>
+
+<span class="sd">                # Drop a table (use with caution)</span>
+<span class="sd">                db._exc(&quot;DROP TABLE IF EXISTS temp;&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">OperationalError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTION_ERRORS</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+                    <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="k">except</span> <span class="n">OperationalError</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                    <span class="k">raise</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">ProgrammingError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute a script of multiple parameterized SQL queries in a single transaction.</span>
+
+<span class="sd">        This internal method processes a list of query definitions, each of which may</span>
+<span class="sd">        include parameters. It retrieves a connection from the pool, executes each</span>
+<span class="sd">        query in sequence, commits the transaction, and returns the connection to</span>
+<span class="sd">        the pool. If a connection error occurs (e.g., server gone away), it attempts</span>
+<span class="sd">        to reconnect and retry the entire script. On any other SQL error, it rolls</span>
+<span class="sd">        back the transaction and raises an exception with detailed context.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query_params (list): A list of query definitions. Each item can be:</span>
+<span class="sd">                - A list of length 2: ``[query_string, params_list]`` for a</span>
+<span class="sd">                parameterized query.</span>
+<span class="sd">                - A list of length 1: ``[query_string]`` for a query without</span>
+<span class="sd">                parameters.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return any value; it only executes the queries.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If an operational or programming error occurs. The exception</span>
+<span class="sd">                message includes the original error and a formatted list of all</span>
+<span class="sd">                queries and their parameters to aid debugging.</span>
+<span class="sd">            RuntimeError: If the connection pool is empty and a new connection cannot</span>
+<span class="sd">                be created (indirectly via :meth:`_get_connection`).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance ``db`` and a table ``users``::</span>
+
+<span class="sd">                script = [</span>
+<span class="sd">                    [&quot;INSERT INTO users (name, age) VALUES (%s, %s)&quot;, (&quot;Alice&quot;, 30)],</span>
+<span class="sd">                    [&quot;UPDATE users SET age = %s WHERE name = %s&quot;, (31, &quot;Alice&quot;)],</span>
+<span class="sd">                    [&quot;DELETE FROM users WHERE age &lt; %s&quot;, (18,)]</span>
+<span class="sd">                ]</span>
+<span class="sd">                db._excs(script)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">query_params</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">OperationalError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTION_ERRORS</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">query_params</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                    <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="k">except</span> <span class="n">OperationalError</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                    <span class="k">raise</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="n">queries_str</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="sa">f</span><span class="s1">&#39;Query: </span><span class="si">{</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="se">\n</span><span class="s1">Params: </span><span class="si">{</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">1</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">query_params</span><span class="p">])</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">queries_str</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">ProgrammingError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+            <span class="n">queries_str</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="sa">f</span><span class="s1">&#39;Query: </span><span class="si">{</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="se">\n</span><span class="s1">Params: </span><span class="si">{</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">1</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">query_params</span><span class="p">])</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">queries_str</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_excm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute a parameterized query multiple times with different parameter sets.</span>
+
+<span class="sd">        This internal method retrieves a connection from the pool, uses</span>
+<span class="sd">        :meth:`MySQLdb.cursor.executemany` to execute the given query for each</span>
+<span class="sd">        parameter tuple in the list, commits the transaction, and returns the</span>
+<span class="sd">        connection to the pool. It is primarily used for bulk INSERT, UPDATE, or</span>
+<span class="sd">        DELETE operations where many rows are affected with the same query pattern.</span>
+
+<span class="sd">        If a connection error occurs (e.g., server gone away), the method attempts</span>
+<span class="sd">        to handle it by discarding the broken connection, creating a new one, and</span>
+<span class="sd">        retrying the entire operation. On any other SQL error, the transaction is</span>
+<span class="sd">        rolled back and an exception is raised with detailed context.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string containing placeholders (``%s``) for</span>
+<span class="sd">                parameters. The same query is used for all executions.</span>
+<span class="sd">            params (list of tuples or list of lists): A sequence of parameter</span>
+<span class="sd">                sequences, where each inner sequence contains the values to</span>
+<span class="sd">                substitute into the query for one execution.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return any value; it only executes the query.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If an operational or programming error occurs. The exception</span>
+<span class="sd">                message includes the original error, the query, and the parameters</span>
+<span class="sd">                to aid debugging.</span>
+<span class="sd">            RuntimeError: If the connection pool is empty and a new connection cannot</span>
+<span class="sd">                be created (indirectly via :meth:`_get_connection`).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance ``db`` and a table ``users`` with columns</span>
+<span class="sd">            ``name`` and ``age``::</span>
+
+<span class="sd">                db._excm(</span>
+<span class="sd">                    &quot;INSERT INTO users (name, age) VALUES (%s, %s)&quot;,</span>
+<span class="sd">                    [(&quot;Alice&quot;, 30), (&quot;Bob&quot;, 25), (&quot;Charlie&quot;, 35)]</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">OperationalError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTION_ERRORS</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                <span class="n">con</span><span class="p">,</span> <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_connection</span><span class="p">()</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">cur</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                    <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="k">except</span> <span class="n">OperationalError</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_handle_broken_connection</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+                    <span class="k">raise</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="se">\n</span><span class="s1">Params:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">params</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">ProgrammingError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">con</span><span class="p">,</span> <span class="n">cur</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s1">Query:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="se">\n</span><span class="s1">Params:</span><span class="se">\n\t</span><span class="si">{</span><span class="n">params</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_handle_broken_connection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">con</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Handle a broken database connection by cleaning up and creating a replacement.</span>
+
+<span class="sd">        This internal method is called when a connection error (e.g., server gone away)</span>
+<span class="sd">        is detected. It attempts to close the broken connection, removes it from the</span>
+<span class="sd">        internal connection storage list, and creates a new connection via</span>
+<span class="sd">        :meth:`_create_connection` to replenish the pool. This ensures that the</span>
+<span class="sd">        connection pool maintains the configured size even after failures.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            con: The broken MySQL connection object (from `MySQLdb`). This connection</span>
+<span class="sd">                is closed and discarded.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            RuntimeError: If the driver has been disconnected (``_connected`` is</span>
+<span class="sd">                ``False``) and :meth:`_create_connection` is called, this exception</span>
+<span class="sd">                will propagate.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            This method is typically used internally by query execution methods::</span>
+
+<span class="sd">                try:</span>
+<span class="sd">                    cursor.execute(query)</span>
+<span class="sd">                except OperationalError as e:</span>
+<span class="sd">                    if e.args[0] in self.CONNECTION_ERRORS:</span>
+<span class="sd">                        self._handle_broken_connection(connection)</span>
+<span class="sd">                        # Retry the query with a new connection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="c1"># حذف از storage اگر وجود دارد</span>
+        <span class="k">if</span> <span class="n">con</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool_storage</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool_storage</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+        <span class="c1"># ایجاد اتصال جدید برای جایگزینی</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_create_connection</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Driver.delete_table">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.delete_table">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="n">Table</span><span class="p">,</span> <span class="n">are_you_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">are_you_really_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">for_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Permanently drop the specified table from the database.</span>
+
+<span class="sd">        This method executes a ``DROP TABLE`` SQL statement to delete the given table.</span>
+<span class="sd">        To prevent accidental deletion, three separate confirmation flags must all be</span>
+<span class="sd">        ``True``. After successful deletion, the table reference is also removed from</span>
+<span class="sd">        the driver instance&#39;s attributes.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            table (Table): The :class:`Table` object representing the table to delete.</span>
+<span class="sd">            are_you_sure (bool): First confirmation flag; must be ``True`` to proceed.</span>
+<span class="sd">            are_you_really_sure (bool): Second confirmation flag; must be ``True``.</span>
+<span class="sd">            for_sure (bool): Third confirmation flag; must be ``True``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the underlying SQL execution fails (e.g., table does not exist,</span>
+<span class="sd">                permission denied). The exception is propagated from :meth:`Driver._exc`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance ``db`` and a table ``users`` already exists::</span>
+
+<span class="sd">                db.delete_table(db.users, True, True, True)  # Deletes the &#39;users&#39; table.</span>
+
+<span class="sd">            The table reference ``db.users`` will no longer be available.</span>
+
+<span class="sd">        Warning:</span>
+<span class="sd">            This operation is irreversible. Ensure you have a backup or are certain</span>
+<span class="sd">            before calling this method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">are_you_sure</span> <span class="ow">and</span> <span class="n">are_you_really_sure</span> <span class="ow">and</span> <span class="n">for_sure</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;DROP TABLE </span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__delattr__</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Driver.delete_database">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.delete_database">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_database</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">database_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">are_you_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">are_you_really_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">for_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Permanently delete an entire MySQL database.</span>
+
+<span class="sd">        This method executes a ``DROP DATABASE`` statement, which irreversibly removes</span>
+<span class="sd">        the specified database and all its tables, data, and schema objects. To prevent</span>
+<span class="sd">        accidental deletion, three explicit confirmation flags are required. All three</span>
+<span class="sd">        must be ``True`` for the operation to proceed.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            database_name (str): The name of the database to delete.</span>
+<span class="sd">            are_you_sure (bool): First-level confirmation flag.</span>
+<span class="sd">            are_you_really_sure (bool): Second-level confirmation flag.</span>
+<span class="sd">            for_sure (bool): Final confirmation flag.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If any database error occurs (e.g., insufficient privileges,</span>
+<span class="sd">                the database does not exist, or the connection fails). The exception</span>
+<span class="sd">                message will include the original error and the query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance named ``db`` connected to a MySQL server::</span>
+
+<span class="sd">                # Danger: this will delete the database &#39;old_data&#39;</span>
+<span class="sd">                db.delete_database(&#39;old_data&#39;, True, True, True)</span>
+
+<span class="sd">            If any flag is ``False``, nothing happens::</span>
+
+<span class="sd">                db.delete_database(&#39;old_data&#39;, True, True, False)  # No effect</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">are_you_sure</span> <span class="ow">and</span> <span class="n">are_you_really_sure</span> <span class="ow">and</span> <span class="n">for_sure</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;DROP DATABASE </span><span class="si">{</span><span class="n">database_name</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.custom_execute_with_fetch">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.custom_execute_with_fetch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute_with_fetch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute a custom SQL query and return the fetched result set.</span>
+
+<span class="sd">        This method provides a flexible way to run arbitrary SQL queries (e.g., SELECT)</span>
+<span class="sd">        with optional parameter binding. It automatically chooses the appropriate</span>
+<span class="sd">        internal execution method based on whether parameters are provided. If</span>
+<span class="sd">        ``params`` is ``None``, the query is executed without parameters; otherwise,</span>
+<span class="sd">        the query is executed with the given parameters. The method always fetches</span>
+<span class="sd">        all rows and returns them as a list of tuples.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query to execute.</span>
+<span class="sd">            params (list or tuple, optional): Parameter values to substitute into the</span>
+<span class="sd">                query. If provided, the query should contain ``%s`` placeholders.</span>
+<span class="sd">                Defaults to ``None``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[tuple]: The fetched rows, where each row is represented as a tuple</span>
+<span class="sd">                of column values. If the query returns no rows, an empty list is</span>
+<span class="sd">                returned.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If an operational or programming error occurs (e.g., syntax</span>
+<span class="sd">                error, connection failure, or invalid parameters). The exception</span>
+<span class="sd">                message includes the original error, the query, and the parameters</span>
+<span class="sd">                (if any) for debugging.</span>
+<span class="sd">            RuntimeError: If the connection pool is exhausted and a new connection</span>
+<span class="sd">                cannot be created.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance named ``db`` connected to a database</span>
+<span class="sd">            with a table ``users``::</span>
+
+<span class="sd">                # Execute a SELECT query without parameters</span>
+<span class="sd">                rows = db.custom_execute_with_fetch(&quot;SELECT * FROM users&quot;)</span>
+<span class="sd">                for row in rows:</span>
+<span class="sd">                    print(row)</span>
+
+<span class="sd">                # Execute a parameterized query</span>
+<span class="sd">                rows = db.custom_execute_with_fetch(</span>
+<span class="sd">                    &quot;SELECT name FROM users WHERE age &gt; %s&quot;,</span>
+<span class="sd">                    [25]</span>
+<span class="sd">                )</span>
+<span class="sd">                print(rows)  # e.g., [(&#39;Alice&#39;,), (&#39;Bob&#39;,)]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excfp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excf</span><span class="p">(</span><span class="n">query</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="Driver.custom_execute">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.custom_execute">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute a custom SQL query with optional parameters.</span>
+
+<span class="sd">        This method serves as a public wrapper around the internal execution methods</span>
+<span class="sd">        :meth:`_exc` (for queries without parameters) and :meth:`_excp` (for queries</span>
+<span class="sd">        with parameters). It automatically selects the appropriate method based on</span>
+<span class="sd">        whether ``params`` are provided. The query is executed using a connection</span>
+<span class="sd">        from the pool, committed, and the connection is returned to the pool.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string to execute. If using parameters,</span>
+<span class="sd">                use ``%s`` placeholders.</span>
+<span class="sd">            params (list, optional): A list or tuple of parameter values to substitute</span>
+<span class="sd">                into the query. Defaults to ``None``, in which case the query is</span>
+<span class="sd">                executed without parameters.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return any value; it only executes the query</span>
+<span class="sd">            and commits the transaction.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If an operational or programming error occurs. The exception</span>
+<span class="sd">                message includes the original error, the query, and the parameters</span>
+<span class="sd">                (if any) to aid debugging.</span>
+<span class="sd">            RuntimeError: If the connection pool is empty and a new connection cannot</span>
+<span class="sd">                be created (indirectly via :meth:`_get_connection`).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance named ``db`` connected to a MySQL server</span>
+<span class="sd">            with a table ``users``::</span>
+
+<span class="sd">                # Execute a query without parameters</span>
+<span class="sd">                db.custom_execute(&quot;DELETE FROM users WHERE age &lt; 18&quot;)</span>
+
+<span class="sd">                # Execute a parameterized query</span>
+<span class="sd">                db.custom_execute(</span>
+<span class="sd">                    &quot;UPDATE users SET active = %s WHERE id = %s&quot;,</span>
+<span class="sd">                    [False, 42]</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="n">query</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="Driver.custom_execute_many">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.custom_execute_many">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute_many</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute the same parameterized SQL query multiple times with different parameter sets.</span>
+
+<span class="sd">        This method is a wrapper around the internal :meth:`_excm` method, which uses</span>
+<span class="sd">        ``cursor.executemany()`` for efficient bulk execution. It is ideal for batch</span>
+<span class="sd">        inserts, updates, or deletes where the same query structure is repeated with</span>
+<span class="sd">        varying data.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL query string containing placeholders (``%s``) for</span>
+<span class="sd">                parameters. The query must be compatible with ``executemany()``.</span>
+<span class="sd">            params (list of tuple or list of list): A sequence of parameter sets.</span>
+<span class="sd">                Each inner sequence provides values for the placeholders in the query.</span>
+<span class="sd">                For example, ``[(1, &#39;Alice&#39;), (2, &#39;Bob&#39;)]`` for a query like</span>
+<span class="sd">                ``&quot;INSERT INTO users (id, name) VALUES (%s, %s)&quot;``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return a value. It executes the queries and</span>
+<span class="sd">            commits the transaction upon success.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If a database error occurs (e.g., connection issues, syntax</span>
+<span class="sd">                errors, or constraint violations). The exception message includes</span>
+<span class="sd">                the original error, the query, and the parameters to facilitate</span>
+<span class="sd">                debugging.</span>
+<span class="sd">            RuntimeError: If the connection pool is exhausted and a new connection</span>
+<span class="sd">                cannot be established (indirectly via :meth:`_get_connection`).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a ``Driver`` instance named ``db`` and a table ``users``</span>
+<span class="sd">            with columns ``id`` and ``name``::</span>
+
+<span class="sd">                # Bulk insert multiple users</span>
+<span class="sd">                db.custom_execute_many(</span>
+<span class="sd">                    &quot;INSERT INTO users (id, name) VALUES (%s, %s)&quot;,</span>
+<span class="sd">                    [(1, &#39;Alice&#39;), (2, &#39;Bob&#39;), (3, &#39;Charlie&#39;)]</span>
+<span class="sd">                )</span>
+
+<span class="sd">                # Bulk update salaries</span>
+<span class="sd">                db.custom_execute_many(</span>
+<span class="sd">                    &quot;UPDATE employees SET salary = salary * 1.1 WHERE id = %s&quot;,</span>
+<span class="sd">                    [(101,), (102,), (103,)]</span>
+<span class="sd">                )</span>
+
+<span class="sd">            For large datasets, this method is significantly faster than calling</span>
+<span class="sd">            :meth:`custom_execute` in a loop.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excm</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="Driver.get_databases">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.get_databases">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_databases</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieve the list of all databases on the MySQL server.</span>
+
+<span class="sd">        This method executes a ``SHOW DATABASES`` query and returns the names of</span>
+<span class="sd">        all databases accessible by the current connection. The result is a flat</span>
+<span class="sd">        list of database names.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[str]: A list of database names available on the server.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If any database error occurs (e.g., connection lost,</span>
+<span class="sd">                insufficient privileges). The exception message will include the</span>
+<span class="sd">                original error and the executed query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a connected ``Driver`` instance named ``db``::</span>
+
+<span class="sd">                databases = db.get_databases()</span>
+<span class="sd">                print(databases)  # e.g., [&#39;information_schema&#39;, &#39;mysql&#39;, &#39;my_app_db&#39;]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excf</span><span class="p">(</span><span class="s1">&#39;SHOW DATABASES;&#39;</span><span class="p">)]</span></div>
+
+    
+<div class="viewcode-block" id="Driver.get_tables">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.get_tables">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_tables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieve the names of all tables in the currently selected database.</span>
+
+<span class="sd">        This method executes a ``SHOW TABLES`` query and returns a list of table</span>
+<span class="sd">        names as strings. It uses the internal :meth:`_excf` method to fetch the</span>
+<span class="sd">        results.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[str]: A list of table names in the current database. If there are</span>
+<span class="sd">            no tables, an empty list is returned.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If a database error occurs (e.g., connection lost, insufficient</span>
+<span class="sd">                privileges). The exception will include the original error message</span>
+<span class="sd">                and the executed query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db`` connected to a MySQL</span>
+<span class="sd">            server::</span>
+
+<span class="sd">                tables = db.get_tables()</span>
+<span class="sd">                print(tables)  # e.g., [&#39;users&#39;, &#39;orders&#39;, &#39;products&#39;]</span>
+
+<span class="sd">            This method is automatically called during :class:`Driver` initialization</span>
+<span class="sd">            to create :class:`Table` objects for each existing table.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excf</span><span class="p">(</span><span class="s1">&#39;SHOW TABLES;&#39;</span><span class="p">)]</span></div>
+
+    
+<div class="viewcode-block" id="Driver.create_table">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.create_table">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_structure</span><span class="p">:</span> <span class="n">TableStructure</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new database table based on the provided table structure.</span>
+
+<span class="sd">        This method takes a :class:`TableStructure` object, retrieves the complete</span>
+<span class="sd">        ``CREATE TABLE`` SQL statement via its :meth:`~TableStructure.get_structure`</span>
+<span class="sd">        method, executes it on the database, and then dynamically adds the newly</span>
+<span class="sd">        created table as an attribute on the driver instance (so it can be accessed</span>
+<span class="sd">        as ``db.new_table``). The attribute is an instance of :class:`Table`</span>
+<span class="sd">        representing the new table.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            table_structure (TableStructure): A fully configured table structure</span>
+<span class="sd">                object containing column definitions, constraints, foreign keys,</span>
+<span class="sd">                and table options (charset, collate, etc.). Must have at least one</span>
+<span class="sd">                column defined; otherwise, :meth:`~TableStructure.get_structure`</span>
+<span class="sd">                raises an exception.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the table structure has no columns (propagated from</span>
+<span class="sd">                :meth:`~TableStructure.get_structure`).</span>
+<span class="sd">            Exception: If a database error occurs during execution (e.g., table</span>
+<span class="sd">                already exists, invalid data type, permission denied). The original</span>
+<span class="sd">                error message and query are included in the exception.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a configured :class:`Driver` instance ``db`` and a</span>
+<span class="sd">            :class:`TableStructure` object built for a ``users`` table::</span>
+
+<span class="sd">                from ormophine.Mysql import TableStructure, DataTypes</span>
+
+<span class="sd">                # Build the table structure</span>
+<span class="sd">                users_table = (TableStructure(&#39;users&#39;)</span>
+<span class="sd">                            .add_column(&#39;id&#39;, DataTypes.INT(), primary_key=True,</span>
+<span class="sd">                                        auto_increment=True, not_null=True)</span>
+<span class="sd">                            .add_column(&#39;username&#39;, DataTypes.VARCHAR(50),</span>
+<span class="sd">                                        not_null=True, unique=True)</span>
+<span class="sd">                            .add_column(&#39;email&#39;, DataTypes.VARCHAR(255))</span>
+<span class="sd">                            .add_column(&#39;created_at&#39;, DataTypes.DATETIME(),</span>
+<span class="sd">                                        default_value=&#39;CURRENT_TIMESTAMP&#39;))</span>
+
+<span class="sd">                # Create the table in the database</span>
+<span class="sd">                db.create_table(users_table)</span>
+
+<span class="sd">                # Now the table is available as an attribute</span>
+<span class="sd">                db.users.insert({&#39;username&#39;: &#39;alice&#39;, &#39;email&#39;: &#39;alice@example.com&#39;})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="n">table_structure</span><span class="o">.</span><span class="n">get_structure</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">table_structure</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;`&#39;</span><span class="p">),</span> <span class="n">Table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_structure</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;`&#39;</span><span class="p">)))</span></div>
+
+
+<div class="viewcode-block" id="Driver.optimize">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.optimize">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">optimize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Optimize and analyze all tables in the current database.</span>
+
+<span class="sd">        This method iterates over all tables in the database (as returned by</span>
+<span class="sd">        :meth:`get_tables`) and executes both ``OPTIMIZE TABLE`` and ``ANALYZE TABLE``</span>
+<span class="sd">        on each. ``OPTIMIZE TABLE`` reclaims unused space and defragments the table</span>
+<span class="sd">        data and indexes. ``ANALYZE TABLE`` updates table statistics to help the</span>
+<span class="sd">        query optimizer make better execution plans. Running these operations</span>
+<span class="sd">        regularly can improve database performance, especially after large data</span>
+<span class="sd">        modifications.</span>
+
+<span class="sd">        The operations are performed sequentially; if an error occurs on one table,</span>
+<span class="sd">        the method may stop and raise an exception, leaving subsequent tables</span>
+<span class="sd">        unprocessed.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If any database error occurs during the optimization or</span>
+<span class="sd">                analysis of a table (e.g., table does not exist, permission denied,</span>
+<span class="sd">                connection failure). The exception message includes the original</span>
+<span class="sd">                error and the failing query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a configured :class:`Driver` instance ``db`` connected to a</span>
+<span class="sd">            database with tables ``users`` and ``orders``::</span>
+
+<span class="sd">                # Perform maintenance on all tables</span>
+<span class="sd">                db.optimize()</span>
+
+<span class="sd">                # This will execute:</span>
+<span class="sd">                # OPTIMIZE TABLE users;</span>
+<span class="sd">                # ANALYZE TABLE users;</span>
+<span class="sd">                # OPTIMIZE TABLE orders;</span>
+<span class="sd">                # ANALYZE TABLE orders;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_tables</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;OPTIMIZE TABLE </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ANALYZE TABLE </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.create_user">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.create_user">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">password</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;localhost&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new MySQL user account.</span>
+
+<span class="sd">        This method executes a ``CREATE USER`` statement with the specified username,</span>
+<span class="sd">        password, and host. The password is passed as a parameter to prevent SQL</span>
+<span class="sd">        injection. The username and host are escaped by doubling single quotes to</span>
+<span class="sd">        avoid syntax errors. If the user already exists or the current user lacks</span>
+<span class="sd">        sufficient privileges, an exception is raised.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username (str): The username for the new account. Single quotes will be</span>
+<span class="sd">                escaped automatically.</span>
+<span class="sd">            password (str): The password for the new account. This is passed as a</span>
+<span class="sd">                parameter, so it is safe from injection.</span>
+<span class="sd">            host (str, optional): The host from which the user can connect. Defaults</span>
+<span class="sd">                to ``&#39;localhost&#39;``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If a database error occurs (e.g., user already exists,</span>
+<span class="sd">                insufficient privileges, connection failure). The exception message</span>
+<span class="sd">                includes the original error and the query for debugging.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance ``db`` connected to a MySQL server::</span>
+
+<span class="sd">                # Create a user &#39;app_user&#39; with password &#39;secure123&#39; from localhost</span>
+<span class="sd">                db.create_user(&#39;app_user&#39;, &#39;secure123&#39;)</span>
+
+<span class="sd">                # Create a user &#39;remote_user&#39; allowed to connect from any host</span>
+<span class="sd">                db.create_user(&#39;remote_user&#39;, &#39;pass456&#39;, host=&#39;%&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;CREATE USER &#39;</span><span class="si">{</span><span class="n">username</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;@&#39;</span><span class="si">{</span><span class="n">host</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39; IDENTIFIED BY %s;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">(</span><span class="n">password</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="Driver.drop_user">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.drop_user">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">drop_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;localhost&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Permanently delete a MySQL user account.</span>
+
+<span class="sd">        This method executes a ``DROP USER`` statement, which removes the specified</span>
+<span class="sd">        user account from the MySQL server. The user account is identified by the</span>
+<span class="sd">        combination of username and host. All privileges associated with the user</span>
+<span class="sd">        are also revoked automatically.</span>
+
+<span class="sd">        The method sanitizes the input by doubling single quotes (``&#39;``) within</span>
+<span class="sd">        the username and host to prevent SQL injection attacks. However, it is</span>
+<span class="sd">        recommended to use parameterized queries for user-supplied input whenever</span>
+<span class="sd">        possible.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username (str): The username of the account to drop. Single quotes</span>
+<span class="sd">                within the string are automatically escaped.</span>
+<span class="sd">            host (str, optional): The host part of the account (e.g., ``&#39;localhost&#39;``,</span>
+<span class="sd">                ``&#39;%&#39;``, or a specific IP). Defaults to ``&#39;localhost&#39;``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the user does not exist, the current user lacks</span>
+<span class="sd">                the ``DROP USER`` privilege, or a database error occurs. The</span>
+<span class="sd">                original error message is included in the raised exception.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a configured :class:`Driver` instance named ``db``::</span>
+
+<span class="sd">                # Drop user &#39;johndoe&#39; at localhost</span>
+<span class="sd">                db.drop_user(&#39;johndoe&#39;)</span>
+
+<span class="sd">                # Drop user &#39;appuser&#39; from any host</span>
+<span class="sd">                db.drop_user(&#39;appuser&#39;, host=&#39;%&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;DROP USER &#39;</span><span class="si">{</span><span class="n">username</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;@&#39;</span><span class="si">{</span><span class="n">host</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.change_password">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.change_password">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">change_password</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">new_password</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;localhost&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Change the password for an existing MySQL user account.</span>
+
+<span class="sd">        This method executes an ``ALTER USER`` statement to update the password</span>
+<span class="sd">        for the specified user at the given host. The password is passed as a</span>
+<span class="sd">        parameter to prevent SQL injection. The change takes effect immediately</span>
+<span class="sd">        for new connections; existing connections remain unaffected.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username (str): The name of the user whose password is to be changed.</span>
+<span class="sd">            new_password (str): The new password for the user account.</span>
+<span class="sd">            host (str, optional): The host part of the user account. Defaults to</span>
+<span class="sd">                ``&#39;localhost&#39;``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the user does not exist, the current connection lacks</span>
+<span class="sd">                sufficient privileges (e.g., ``CREATE USER`` or ``ALTER USER``</span>
+<span class="sd">                privileges), or any other database error occurs. The exception</span>
+<span class="sd">                message will contain the original error and the executed query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance named ``db`` connected with</span>
+<span class="sd">            administrative privileges::</span>
+
+<span class="sd">                # Change password for &#39;app_user&#39; on localhost</span>
+<span class="sd">                db.change_password(&#39;app_user&#39;, &#39;new_secure_password_123&#39;)</span>
+
+<span class="sd">                # Change password for a user on a specific host</span>
+<span class="sd">                db.change_password(&#39;remote_user&#39;, &#39;p@ssw0rd&#39;, host=&#39;192.168.1.100&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;ALTER USER &#39;</span><span class="si">{</span><span class="n">username</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;@&#39;</span><span class="si">{</span><span class="n">host</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39; IDENTIFIED BY %s;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excp</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">(</span><span class="n">new_password</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="Driver.rename_user">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.rename_user">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rename_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">old_username</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">old_host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">new_username</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">new_host</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Rename an existing MySQL user account.</span>
+
+<span class="sd">        This method executes a ``RENAME USER`` statement, which changes both the</span>
+<span class="sd">        username and the host portion of an existing user account. Both the old and</span>
+<span class="sd">        new host values must be specified, as MySQL identifies users by the</span>
+<span class="sd">        combination of username and host. The method automatically escapes single</span>
+<span class="sd">        quotes in the provided strings to prevent SQL injection.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            old_username (str): The current username of the account to rename.</span>
+<span class="sd">            old_host (str): The current host part of the account (e.g., ``&#39;localhost&#39;``</span>
+<span class="sd">                or ``&#39;%&#39;``).</span>
+<span class="sd">            new_username (str): The new username for the account.</span>
+<span class="sd">            new_host (str): The new host part for the account.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the ``RENAME USER`` statement fails (e.g., the old user</span>
+<span class="sd">                does not exist, insufficient privileges, or the new user already</span>
+<span class="sd">                exists). The exception includes the original error message and the</span>
+<span class="sd">                generated query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a :class:`Driver` instance ``db`` with appropriate privileges::</span>
+
+<span class="sd">                # Rename user &#39;john&#39;@&#39;localhost&#39; to &#39;jane&#39;@&#39;%&#39;</span>
+<span class="sd">                db.rename_user(&#39;john&#39;, &#39;localhost&#39;, &#39;jane&#39;, &#39;%&#39;)</span>
+
+<span class="sd">                # Rename user &#39;app_user&#39;@&#39;192.168.1.100&#39; to &#39;prod_user&#39;@&#39;10.0.0.5&#39;</span>
+<span class="sd">                db.rename_user(&#39;app_user&#39;, &#39;192.168.1.100&#39;, &#39;prod_user&#39;, &#39;10.0.0.5&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;RENAME USER &#39;</span><span class="si">{</span><span class="n">old_username</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;@&#39;</span><span class="si">{</span><span class="n">old_host</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39; TO &#39;</span><span class="si">{</span><span class="n">new_username</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;@&#39;</span><span class="si">{</span><span class="n">new_host</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.grant_privileges">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.grant_privileges">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">grant_privileges</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">privileges</span><span class="p">:</span> <span class="n">PRIVILEGES</span><span class="p">,</span> <span class="n">database</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;*&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Grant specific privileges on a database table to a MySQL user.</span>
+
+<span class="sd">        This method constructs and executes a ``GRANT`` statement, allowing the</span>
+<span class="sd">        specified user to perform the given operations on the target table. The</span>
+<span class="sd">        privileges are granted immediately and take effect without requiring a</span>
+<span class="sd">        flush (though the driver also provides :meth:`flush_privileges` if needed).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username (str): The name of the user to receive the privileges. Single</span>
+<span class="sd">                quotes and special characters are automatically escaped.</span>
+<span class="sd">            host (str): The host from which the user connects (e.g., ``&#39;localhost&#39;``</span>
+<span class="sd">                or ``&#39;%&#39;``). Escaped automatically.</span>
+<span class="sd">            privileges (PRIVILEGES): A privilege string from the driver&#39;s</span>
+<span class="sd">                :attr:`PRIVILEGES` type literal (e.g., ``&#39;SELECT&#39;``, ``&#39;ALL PRIVILEGES&#39;``,</span>
+<span class="sd">                ``&#39;INSERT, UPDATE&#39;``). Multiple privileges can be combined in a</span>
+<span class="sd">                comma-separated string.</span>
+<span class="sd">            database (str): The name of the database on which privileges are granted.</span>
+<span class="sd">                Escaped automatically.</span>
+<span class="sd">            table (str, optional): The table name within the database. Defaults to</span>
+<span class="sd">                ``&#39;*&#39;``, meaning all tables in the database.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the underlying SQL execution fails (e.g., user does not</span>
+<span class="sd">                exist, invalid privilege name, insufficient permissions). The</span>
+<span class="sd">                exception message includes the original error and the query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Grant ``SELECT`` and ``INSERT`` on the ``users`` table to user</span>
+<span class="sd">            ``&#39;app_user&#39;`` from localhost::</span>
+
+<span class="sd">                db.grant_privileges(</span>
+<span class="sd">                    username=&#39;app_user&#39;,</span>
+<span class="sd">                    host=&#39;localhost&#39;,</span>
+<span class="sd">                    privileges=&#39;SELECT, INSERT&#39;,</span>
+<span class="sd">                    database=&#39;myapp&#39;,</span>
+<span class="sd">                    table=&#39;users&#39;</span>
+<span class="sd">                )</span>
+
+<span class="sd">            Grant all privileges on all tables in the database::</span>
+
+<span class="sd">                db.grant_privileges(</span>
+<span class="sd">                    username=&#39;admin&#39;,</span>
+<span class="sd">                    host=&#39;%&#39;,</span>
+<span class="sd">                    privileges=&#39;ALL PRIVILEGES&#39;,</span>
+<span class="sd">                    database=&#39;myapp&#39;</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;GRANT </span><span class="si">{</span><span class="n">privileges</span><span class="si">}</span><span class="s2"> ON </span><span class="si">{</span><span class="n">database</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2"> TO &#39;</span><span class="si">{</span><span class="n">username</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;@&#39;</span><span class="si">{</span><span class="n">host</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.revoke_privileges">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.revoke_privileges">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">revoke_privileges</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">privileges</span><span class="p">:</span> <span class="n">PRIVILEGES</span><span class="p">,</span> <span class="n">database</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;*&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Revoke specific privileges on a database table from a MySQL user.</span>
+
+<span class="sd">        This method constructs and executes a ``REVOKE`` statement, removing the</span>
+<span class="sd">        specified privileges from the given user on the target table. The changes</span>
+<span class="sd">        take effect immediately; a subsequent :meth:`flush_privileges` is not</span>
+<span class="sd">        required but can be called if needed.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            username (str): The name of the user from whom to revoke privileges.</span>
+<span class="sd">                Single quotes and special characters are automatically escaped.</span>
+<span class="sd">            host (str): The host from which the user connects (e.g., ``&#39;localhost&#39;``</span>
+<span class="sd">                or ``&#39;%&#39;``). Escaped automatically.</span>
+<span class="sd">            privileges (PRIVILEGES): A privilege string from the driver&#39;s</span>
+<span class="sd">                :attr:`PRIVILEGES` type literal (e.g., ``&#39;SELECT&#39;``, ``&#39;ALL PRIVILEGES&#39;``,</span>
+<span class="sd">                ``&#39;INSERT, UPDATE&#39;``). Multiple privileges can be combined in a</span>
+<span class="sd">                comma-separated string.</span>
+<span class="sd">            database (str): The name of the database from which privileges are revoked.</span>
+<span class="sd">                Escaped automatically.</span>
+<span class="sd">            table (str, optional): The table name within the database. Defaults to</span>
+<span class="sd">                ``&#39;*&#39;``, meaning all tables in the database.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the underlying SQL execution fails (e.g., user does not</span>
+<span class="sd">                exist, invalid privilege name, insufficient permissions). The</span>
+<span class="sd">                exception message includes the original error and the query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Revoke ``DELETE`` and ``UPDATE`` privileges on the ``users`` table from</span>
+<span class="sd">            user ``&#39;app_user&#39;`` connecting from localhost::</span>
+
+<span class="sd">                db.revoke_privileges(</span>
+<span class="sd">                    username=&#39;app_user&#39;,</span>
+<span class="sd">                    host=&#39;localhost&#39;,</span>
+<span class="sd">                    privileges=&#39;DELETE, UPDATE&#39;,</span>
+<span class="sd">                    database=&#39;myapp&#39;,</span>
+<span class="sd">                    table=&#39;users&#39;</span>
+<span class="sd">                )</span>
+
+<span class="sd">            Revoke all privileges on all tables in the database::</span>
+
+<span class="sd">                db.revoke_privileges(</span>
+<span class="sd">                    username=&#39;app_user&#39;,</span>
+<span class="sd">                    host=&#39;%&#39;,</span>
+<span class="sd">                    privileges=&#39;ALL PRIVILEGES&#39;,</span>
+<span class="sd">                    database=&#39;myapp&#39;</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;REVOKE </span><span class="si">{</span><span class="n">privileges</span><span class="si">}</span><span class="s2"> ON </span><span class="si">{</span><span class="n">database</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2"> FROM &#39;</span><span class="si">{</span><span class="n">username</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;@&#39;</span><span class="si">{</span><span class="n">host</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.flush_privileges">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.flush_privileges">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">flush_privileges</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reload the MySQL privilege tables from the grant tables in the system database.</span>
+
+<span class="sd">        This method executes the ``FLUSH PRIVILEGES`` statement, which forces MySQL</span>
+<span class="sd">        to reload the privilege tables (stored in the ``mysql`` database) into memory.</span>
+<span class="sd">        This is necessary after manually editing grant tables or when using privilege</span>
+<span class="sd">        management statements like :meth:`grant_privileges` or :meth:`revoke_privileges`</span>
+<span class="sd">        that do not automatically trigger a reload (though in most cases MySQL does</span>
+<span class="sd">        it automatically). Calling this method ensures that all privilege changes</span>
+<span class="sd">        take effect immediately for all active connections.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database execution fails (e.g., insufficient privileges</span>
+<span class="sd">                to flush privileges, or a connection error). The exception message</span>
+<span class="sd">                includes the original error and the query.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            After granting or revoking privileges, you may explicitly flush::</span>
+
+<span class="sd">                db.grant_privileges(&#39;app_user&#39;, &#39;localhost&#39;, &#39;SELECT&#39;, &#39;myapp&#39;)</span>
+<span class="sd">                db.flush_privileges()  # Ensure the change is loaded</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s2">&quot;FLUSH PRIVILEGES;&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.disconnect">
+<a class="viewcode-back" href="../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Driver.disconnect">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Close all database connections and release resources.</span>
+
+<span class="sd">        This method terminates the connection pool by closing every active MySQL</span>
+<span class="sd">        connection stored in the pool, clearing the internal queue, and setting the</span>
+<span class="sd">        connection status flag to ``False``. After calling this method, the driver</span>
+<span class="sd">        instance cannot be used for further database operations; any attempt to</span>
+<span class="sd">        execute a query or create a new connection will raise a :class:`RuntimeError`</span>
+<span class="sd">        (via :meth:`_create_connection`). If you need to reconnect, you must create</span>
+<span class="sd">        a new :class:`Driver` instance.</span>
+
+<span class="sd">        The method attempts to close each connection, ignoring any errors that occur</span>
+<span class="sd">        during the close process (e.g., connections already closed). It then drains</span>
+<span class="sd">        the queue of any remaining connection objects.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            None: While the method itself does not raise exceptions, subsequent</span>
+<span class="sd">                database operations will fail with a :class:`RuntimeError` if</span>
+<span class="sd">                attempted after disconnection.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Gracefully shut down the database connection pool::</span>
+
+<span class="sd">                db = Driver(host=&#39;localhost&#39;, username=&#39;root&#39;, password=&#39;pass&#39;,</span>
+<span class="sd">                            db_name=&#39;myapp&#39;)</span>
+<span class="sd">                # ... perform operations ...</span>
+<span class="sd">                db.disconnect()</span>
+
+<span class="sd">            After disconnection, attempting to use the driver will fail::</span>
+
+<span class="sd">                db.disconnect()</span>
+<span class="sd">                db.get_tables()  # Raises RuntimeError: You have closed the connection...</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool_storage</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">i</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">empty</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span><span class="o">.</span><span class="n">get_nowait</span><span class="p">()</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,263 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ormophine.Postgresql.Core.join &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">Ormophine.Postgresql.Core.join</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for Ormophine.Postgresql.Core.join</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<div class="viewcode-block" id="Join">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Join">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Join</span><span class="p">:</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Factory namespace for creating SQL JOIN clauses.</span>
+
+<span class="sd">    This class serves as a container for nested join type classes (`Inner`, `Left`,</span>
+<span class="sd">    `Right`). Each nested class, when instantiated, produces a join fragment that</span>
+<span class="sd">    can be passed to the :meth:`Table.join` method to build complex SELECT queries</span>
+<span class="sd">    with joined tables.</span>
+
+<span class="sd">    The nested classes store both the SQL join string and its associated</span>
+<span class="sd">    parameter list, which are used internally by the ORM.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        Basic usage with an INNER JOIN:</span>
+
+<span class="sd">        &gt;&gt;&gt; employees = driver.employees</span>
+<span class="sd">        &gt;&gt;&gt; departments = driver.departments</span>
+<span class="sd">        &gt;&gt;&gt; join_condition = employees.dept_id == departments.id</span>
+<span class="sd">        &gt;&gt;&gt; inner = Join.Inner(departments, join_condition)</span>
+<span class="sd">        &gt;&gt;&gt; results = employees.join(</span>
+<span class="sd">        ...     [employees.name, departments.name],</span>
+<span class="sd">        ...     [inner]</span>
+<span class="sd">        ... )</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        Using a LEFT JOIN to include all employees even if they have no department:</span>
+
+<span class="sd">        &gt;&gt;&gt; left = Join.Left(departments, join_condition)</span>
+<span class="sd">        &gt;&gt;&gt; results = employees.join(</span>
+<span class="sd">        ...     [employees.name, departments.name],</span>
+<span class="sd">        ...     [left],</span>
+<span class="sd">        ...     where=employees.salary &gt; 50000</span>
+<span class="sd">        ... )</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        Using a RIGHT JOIN to include all departments even if they have no employees:</span>
+
+<span class="sd">        &gt;&gt;&gt; right = Join.Right(departments, join_condition)</span>
+<span class="sd">        &gt;&gt;&gt; results = employees.join(</span>
+<span class="sd">        ...     [employees.name, departments.name],</span>
+<span class="sd">        ...     [right]</span>
+<span class="sd">        ... )</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        Multiple joins can be combined by passing a list of join objects to</span>
+<span class="sd">        :meth:`Table.join`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+        
+<div class="viewcode-block" id="Join.Inner">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Join.Inner">[docs]</a>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Inner</span><span class="p">:</span>
+<div class="viewcode-block" id="Join.Inner.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Join.Inner.__init__">[docs]</a>
+        <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="n">Table</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="p">:</span> <span class="n">ColumnsOperation</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Initialize an INNER JOIN clause for a query.</span>
+
+<span class="sd">            This constructor creates an INNER JOIN fragment that can be used in the</span>
+<span class="sd">            :meth:`Table.join` method. It stores the SQL representation and its</span>
+<span class="sd">            associated parameters for later use in building a complete SELECT query.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                table (Table): The table to join with.</span>
+<span class="sd">                match_case_condition (ColumnsOperation): The join condition, typically</span>
+<span class="sd">                    a comparison between columns from the main table and the joined table.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                None: This method initializes the instance and does not return a value.</span>
+
+<span class="sd">            Example:</span>
+<span class="sd">                &gt;&gt;&gt; employees = driver.employees</span>
+<span class="sd">                &gt;&gt;&gt; departments = driver.departments</span>
+<span class="sd">                &gt;&gt;&gt; join_condition = employees.dept_id == departments.id</span>
+<span class="sd">                &gt;&gt;&gt; inner_join = Join.Inner(departments, join_condition)</span>
+<span class="sd">                &gt;&gt;&gt; # Then use in a join query:</span>
+<span class="sd">                &gt;&gt;&gt; results = employees.join(</span>
+<span class="sd">                ...     [employees.name, departments.name],</span>
+<span class="sd">                ...     [inner_join]</span>
+<span class="sd">                ... )</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_output</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;INNER JOIN </span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ON </span><span class="si">{</span><span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+</div>
+
+            
+<div class="viewcode-block" id="Join.Left">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Join.Left">[docs]</a>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Left</span><span class="p">:</span>
+<div class="viewcode-block" id="Join.Left.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Join.Left.__init__">[docs]</a>
+        <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="n">Table</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="p">:</span> <span class="n">ColumnsOperation</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Create a LEFT JOIN clause for use in a :meth:`Table.join` query.</span>
+
+<span class="sd">            This class represents a LEFT JOIN between the current table and another</span>
+<span class="sd">            table, with a specified join condition. It stores the generated SQL</span>
+<span class="sd">            fragment and its parameters in the `_output` attribute, which is</span>
+<span class="sd">            consumed by :meth:`Table.join` to build the final query.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                table (Table): The table to join with.</span>
+<span class="sd">                match_case_condition (ColumnsOperation): A condition expression</span>
+<span class="sd">                    defining how the tables are related (e.g., using equality</span>
+<span class="sd">                    comparisons). This is used in the `ON` clause of the join.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                None: The constructor initializes the instance and does not return</span>
+<span class="sd">                a value.</span>
+
+<span class="sd">            Example:</span>
+<span class="sd">                &gt;&gt;&gt; employees = driver.employees</span>
+<span class="sd">                &gt;&gt;&gt; departments = driver.departments</span>
+<span class="sd">                &gt;&gt;&gt; join_condition = employees.dept_id == departments.id</span>
+<span class="sd">                &gt;&gt;&gt; left_join = Join.Left(departments, join_condition)</span>
+<span class="sd">                &gt;&gt;&gt; results = employees.join(</span>
+<span class="sd">                ...     [employees.name, departments.name],</span>
+<span class="sd">                ...     [left_join]</span>
+<span class="sd">                ... )</span>
+<span class="sd">                &gt;&gt;&gt; # This generates: SELECT ... FROM &quot;employees&quot;</span>
+<span class="sd">                &gt;&gt;&gt; # LEFT JOIN &quot;departments&quot; ON (&quot;employees&quot;.&quot;dept_id&quot; = &quot;departments&quot;.&quot;id&quot;)</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_output</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;LEFT JOIN </span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ON </span><span class="si">{</span><span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+</div>
+
+
+<div class="viewcode-block" id="Join.Right">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Join.Right">[docs]</a>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Right</span><span class="p">:</span>
+<div class="viewcode-block" id="Join.Right.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.Join.Right.__init__">[docs]</a>
+        <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="n">Table</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="p">:</span> <span class="n">ColumnsOperation</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Initialize a RIGHT JOIN clause for a query.</span>
+
+<span class="sd">            This constructor creates a RIGHT JOIN fragment that can be used in the</span>
+<span class="sd">            :meth:`Table.join` method. A RIGHT JOIN returns all rows from the right</span>
+<span class="sd">            table (the one being joined), and the matching rows from the left table.</span>
+<span class="sd">            If no match is found, NULL values are returned for the left table&#39;s columns.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                table (Table): The table to join with (the right side of the join).</span>
+<span class="sd">                match_case_condition (ColumnsOperation): The join condition, typically</span>
+<span class="sd">                    a comparison between columns from the main table and the joined table.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                None: This method initializes the instance and does not return a value.</span>
+
+<span class="sd">            Example:</span>
+<span class="sd">                &gt;&gt;&gt; employees = driver.employees</span>
+<span class="sd">                &gt;&gt;&gt; departments = driver.departments</span>
+<span class="sd">                &gt;&gt;&gt; join_condition = employees.dept_id == departments.id</span>
+<span class="sd">                &gt;&gt;&gt; right_join = Join.Right(departments, join_condition)</span>
+<span class="sd">                &gt;&gt;&gt; # This will include all departments, even those with no employees.</span>
+<span class="sd">                &gt;&gt;&gt; results = employees.join(</span>
+<span class="sd">                ...     [employees.name, departments.name],</span>
+<span class="sd">                ...     [right_join]</span>
+<span class="sd">                ... )</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_output</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;RIGHT JOIN </span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ON </span><span class="si">{</span><span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+</div>
+</div>
+
+            
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,1610 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ormophine.Postgresql.Core.tablestructure &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">Ormophine.Postgresql.Core.tablestructure</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for Ormophine.Postgresql.Core.tablestructure</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+
+<div class="viewcode-block" id="DataTypes">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DataTypes</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collection of PostgreSQL 16 data types as static methods.</span>
+
+<span class="sd">    This class serves as a central registry of all commonly used PostgreSQL data</span>
+<span class="sd">    types, offering a clean, programmatic way to specify column types without</span>
+<span class="sd">    writing raw SQL strings. Each static method returns the corresponding SQL</span>
+<span class="sd">    type string, ready to be passed directly to methods such as</span>
+<span class="sd">    :meth:`TableStructure.add_column` or :meth:`Table.add_column`.</span>
+
+<span class="sd">    The provided types cover:</span>
+
+<span class="sd">    - **Numeric types:** :meth:`SMALLINT`, :meth:`INTEGER`, :meth:`BIGINT`,</span>
+<span class="sd">      :meth:`DECIMAL`, :meth:`NUMERIC`, :meth:`REAL`, :meth:`DOUBLE_PRECISION`,</span>
+<span class="sd">      :meth:`MONEY`, :meth:`BIT`.</span>
+<span class="sd">    - **Serial (auto‑increment) types:** :meth:`SMALLSERIAL`, :meth:`SERIAL`,</span>
+<span class="sd">      :meth:`BIGSERIAL`.</span>
+<span class="sd">    - **Character types:** :meth:`CHAR`, :meth:`VARCHAR`, :meth:`TEXT`.</span>
+<span class="sd">    - **Binary type:** :meth:`BYTEA`.</span>
+<span class="sd">    - **Date/time types:** :meth:`DATE`, :meth:`TIME`, :meth:`TIMETZ`,</span>
+<span class="sd">      :meth:`TIMESTAMP`, :meth:`TIMESTAMPTZ`, :meth:`INTERVAL`.</span>
+<span class="sd">    - **Boolean type:** :meth:`BOOLEAN`.</span>
+<span class="sd">    - **JSON types:** :meth:`JSON`, :meth:`JSONB`.</span>
+<span class="sd">    - **UUID type:** :meth:`UUID`.</span>
+<span class="sd">    - **Spatial (PostGIS) types:** :meth:`GEOMETRY`, :meth:`GEOGRAPHY`,</span>
+<span class="sd">      :meth:`POINT`, :meth:`LINESTRING`, :meth:`POLYGON`, :meth:`MULTIPOINT`,</span>
+<span class="sd">      :meth:`MULTILINESTRING`, :meth:`MULTIPOLYGON`,</span>
+<span class="sd">      :meth:`GEOMETRYCOLLECTION`.</span>
+<span class="sd">    - **Array type:** :meth:`ARRAY`, which accepts an element type string and</span>
+<span class="sd">      appends ``[]``.</span>
+
+<span class="sd">    All methods are ``@staticmethod``, so they can be called without</span>
+<span class="sd">    instantiating the class.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">        &gt;&gt;&gt; structure = TableStructure(&quot;users&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; structure.add_column(&quot;id&quot;, DataTypes.SERIAL(), primary_key=True)</span>
+<span class="sd">        &gt;&gt;&gt; structure.add_column(&quot;name&quot;, DataTypes.VARCHAR(100), not_null=True)</span>
+<span class="sd">        &gt;&gt;&gt; structure.add_column(&quot;balance&quot;, DataTypes.NUMERIC(12, 2))</span>
+<span class="sd">        &gt;&gt;&gt; structure.add_column(&quot;created_at&quot;, DataTypes.TIMESTAMPTZ())</span>
+<span class="sd">        &gt;&gt;&gt; structure.add_column(&quot;tags&quot;, DataTypes.ARRAY(DataTypes.VARCHAR(30)))</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># ========================</span>
+    <span class="c1"># Numeric Data Types</span>
+    <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.BIT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.BIT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">BIT</span><span class="p">(</span><span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL ``BIT(length)`` type string for fixed‑length bit strings.</span>
+
+<span class="sd">        This static method generates a valid PostgreSQL data type definition for</span>
+<span class="sd">        a bit string column with the exact number of bits specified by ``size``.</span>
+<span class="sd">        The value must be between 1 and 64 inclusive; otherwise a ``ValueError``</span>
+<span class="sd">        is raised.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            size (int): The number of bits for the column. Must be an integer</span>
+<span class="sd">                in the range [1, 64].</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A SQL type string in the form ``&#39;BIT(size)&#39;``, suitable for use</span>
+<span class="sd">            in column definitions.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If ``size`` is less than 1 or greater than 64.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; DataTypes.BIT(8)</span>
+<span class="sd">            &#39;BIT(8)&#39;</span>
+<span class="sd">            &gt;&gt;&gt; # Used in a TableStructure definition:</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;flags&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;permissions&quot;, DataTypes.BIT(8))</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">size</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="mi">64</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Size for BIT must be between 1 and 64.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;BIT(</span><span class="si">{</span><span class="n">size</span><span class="si">}</span><span class="s2">)&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.SMALLINT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.SMALLINT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">SMALLINT</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL string for the SMALLINT data type.</span>
+
+<span class="sd">        The ``SMALLINT`` type represents a signed two‑byte integer with a range</span>
+<span class="sd">        of -32,768 to 32,767. It is typically used for compact storage of</span>
+<span class="sd">        small whole numbers.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The literal string ``&quot;SMALLINT&quot;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes</span>
+<span class="sd">            &gt;&gt;&gt; small_int = DataTypes.SMALLINT()</span>
+<span class="sd">            &gt;&gt;&gt; small_int</span>
+<span class="sd">            &#39;SMALLINT&#39;</span>
+<span class="sd">            &gt;&gt;&gt; # Use it when defining a table structure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;example&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;count&quot;, DataTypes.SMALLINT(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;SMALLINT&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.INTEGER">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.INTEGER">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">INTEGER</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the PostgreSQL ``INTEGER`` data type string.</span>
+
+<span class="sd">        Use this method when defining a table column to specify a 32‑bit</span>
+<span class="sd">        signed integer.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;INTEGER&quot;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import TableStructure, DataTypes</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;age&quot;, DataTypes.INTEGER())</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;INTEGER&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.BIGINT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.BIGINT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">BIGINT</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL ``BIGINT`` data type string.</span>
+
+<span class="sd">        Represents a signed 8‑byte (64‑bit) integer, which is the same as</span>
+<span class="sd">        ``INTEGER`` in PostgreSQL but with explicit sizing.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&#39;BIGINT&#39;``, ready to be used in a column</span>
+<span class="sd">            definition or ``CREATE TABLE`` statement.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; DataTypes.BIGINT()</span>
+<span class="sd">            &#39;BIGINT&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;BIGINT&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.DECIMAL">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.DECIMAL">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">DECIMAL</span><span class="p">(</span><span class="n">precision</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">scale</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL ``DECIMAL(precision, scale)`` type string.</span>
+
+<span class="sd">        The ``DECIMAL`` type is used for exact numeric values with a fixed</span>
+<span class="sd">        number of decimal places. This method generates a standard PostgreSQL</span>
+<span class="sd">        decimal definition that can be passed directly to</span>
+<span class="sd">        :meth:`TableStructure.add_column`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            precision (int): Total number of significant digits.</span>
+<span class="sd">                Defaults to ``10``.</span>
+<span class="sd">            scale (int): Number of digits after the decimal point.</span>
+<span class="sd">                Defaults to ``0``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A string like ``&#39;DECIMAL(10, 2)&#39;`` that can be used as the</span>
+<span class="sd">            ``datatype`` argument when defining a column.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import TableStructure, DataTypes</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;products&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;price&quot;, DataTypes.DECIMAL(8, 2))</span>
+<span class="sd">            &gt;&gt;&gt; # Generates: CREATE TABLE &quot;products&quot; ( &quot;price&quot; DECIMAL(8, 2), ... );</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;DECIMAL(</span><span class="si">{</span><span class="n">precision</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">scale</span><span class="si">}</span><span class="s2">)&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.NUMERIC">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.NUMERIC">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">NUMERIC</span><span class="p">(</span><span class="n">precision</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">scale</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL NUMERIC type string with given precision and scale.</span>
+
+<span class="sd">        Generates a ``NUMERIC(precision, scale)`` column definition suitable for</span>
+<span class="sd">        PostgreSQL. NUMERIC is an arbitrary‑precision decimal type. The *precision*</span>
+<span class="sd">        is the total count of significant digits, and the *scale* is the number of</span>
+<span class="sd">        fractional digits. Both must be non‑negative integers, and the scale must</span>
+<span class="sd">        not exceed the precision.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            precision (int): Total number of significant digits (must be ≥ 1).</span>
+<span class="sd">                Defaults to ``10``.</span>
+<span class="sd">            scale (int): Number of digits to the right of the decimal point</span>
+<span class="sd">                (must be ≥ 0 and ≤ precision). Defaults to ``0``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A string like ``&quot;NUMERIC(10, 0)&quot;`` that can be used directly in</span>
+<span class="sd">            ``CREATE TABLE`` statements or passed to methods such as</span>
+<span class="sd">            :meth:`TableStructure.add_column` and :meth:`Table.add_column`.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If ``precision &lt; 1``, ``scale &lt; 0``, or ``scale &gt; precision``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.NUMERIC(12, 2)</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            NUMERIC(12, 2)</span>
+<span class="sd">            &gt;&gt;&gt; # Use in a table definition</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;payments&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;amount&quot;, DataTypes.NUMERIC(8, 2), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">precision</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">scale</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">scale</span> <span class="o">&gt;</span> <span class="n">precision</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Precision must be &gt;= 1 and scale must be &gt;= 0 and &lt;= precision.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;NUMERIC(</span><span class="si">{</span><span class="n">precision</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">scale</span><span class="si">}</span><span class="s2">)&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.REAL">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.REAL">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">REAL</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL REAL type string.</span>
+
+<span class="sd">        Represents a 4‑byte, single‑precision floating‑point number in</span>
+<span class="sd">        PostgreSQL. It is commonly used for columns that store approximate</span>
+<span class="sd">        numeric values with less storage overhead than</span>
+<span class="sd">        :meth:`DOUBLE_PRECISION` or :meth:`NUMERIC`. The precision is about</span>
+<span class="sd">        6 decimal digits.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The SQL type string ``&quot;REAL&quot;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.REAL()</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            REAL</span>
+<span class="sd">            &gt;&gt;&gt; # Use in table definition</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;sensors&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;temperature&quot;, DataTypes.REAL(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;REAL&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.DOUBLE_PRECISION">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.DOUBLE_PRECISION">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">DOUBLE_PRECISION</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL DOUBLE PRECISION type string.</span>
+
+<span class="sd">        Generates the ``DOUBLE PRECISION`` column definition suitable for</span>
+<span class="sd">        PostgreSQL. This is an 8‑byte floating‑point data type (synonym for</span>
+<span class="sd">        ``FLOAT8``).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;DOUBLE PRECISION&quot;``, which can be used directly</span>
+<span class="sd">            in ``CREATE TABLE`` statements or passed to methods such as</span>
+<span class="sd">            :meth:`TableStructure.add_column` and :meth:`Table.add_column`.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.DOUBLE_PRECISION()</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            DOUBLE PRECISION</span>
+<span class="sd">            &gt;&gt;&gt; # Use in a table definition</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;measurements&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;value&quot;, DataTypes.DOUBLE_PRECISION(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;DOUBLE PRECISION&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.MONEY">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.MONEY">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">MONEY</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL MONEY type string for monetary values.</span>
+
+<span class="sd">        ``MONEY`` is a fixed‑point numeric data type that stores currency</span>
+<span class="sd">        amounts with a fractional precision of two decimal places. The output</span>
+<span class="sd">        format is locale‑sensitive, meaning the currency symbol, grouping, and</span>
+<span class="sd">        decimal separators depend on the database&#39;s ``lc_monetary`` setting.</span>
+<span class="sd">        Despite its formatting behaviour, the underlying storage uses a 64‑bit</span>
+<span class="sd">        signed integer representing the amount in cents; the maximum range is</span>
+<span class="sd">        ±9,223,372,036,854,775,807 cents (approximately ±92.23 trillion in</span>
+<span class="sd">        the base currency unit). Use this type for applications where monetary</span>
+<span class="sd">        values do not exceed that range and locale‑specific display is desired.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The literal string ``&quot;MONEY&quot;``, which can be used directly in</span>
+<span class="sd">            ``CREATE TABLE`` statements or passed to methods such as</span>
+<span class="sd">            :meth:`TableStructure.add_column` and :meth:`Table.add_column`.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.MONEY()</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            MONEY</span>
+<span class="sd">            &gt;&gt;&gt; # Use in a table definition</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;products&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;price&quot;, DataTypes.MONEY(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;MONEY&quot;</span></div>
+
+
+    <span class="c1"># ========================</span>
+    <span class="c1"># Serial (Auto-increment) Types</span>
+    <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.SERIAL">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.SERIAL">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">SERIAL</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL ``SERIAL`` type string for auto‑incrementing integer columns.</span>
+
+<span class="sd">        ``SERIAL`` is a PostgreSQL pseudo‑type that creates an ``INTEGER`` column</span>
+<span class="sd">        with a sequence‑based default value, automatically generating unique</span>
+<span class="sd">        identifiers for new rows. This method simply returns the string</span>
+<span class="sd">        ``&quot;SERIAL&quot;``, which can be used directly in column definitions passed to</span>
+<span class="sd">        :meth:`TableStructure.add_column` or :meth:`Table.add_column`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The literal string ``&quot;SERIAL&quot;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.SERIAL()</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            SERIAL</span>
+<span class="sd">            &gt;&gt;&gt; # Use in a table definition</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;orders&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;id&quot;, DataTypes.SERIAL(), primary_key=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;SERIAL&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.SMALLSERIAL">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.SMALLSERIAL">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">SMALLSERIAL</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL SMALLSERIAL type string for an auto‑incrementing small integer.</span>
+
+<span class="sd">        ``SMALLSERIAL`` is a PostgreSQL pseudo‑type that creates a 2‑byte integer</span>
+<span class="sd">        column (``SMALLINT``) that automatically increments with each new row,</span>
+<span class="sd">        backed by a sequence. It is equivalent to ``SMALLINT`` with an implicit</span>
+<span class="sd">        ``GENERATED BY DEFAULT AS IDENTITY``. This method returns the string</span>
+<span class="sd">        ``&quot;SMALLSERIAL&quot;``, which can be used directly in ``CREATE TABLE``</span>
+<span class="sd">        definitions or passed to :meth:`TableStructure.add_column` and</span>
+<span class="sd">        :meth:`Table.add_column`.</span>
+
+<span class="sd">        When ``SMALLSERIAL`` is used in :meth:`TableStructure.add_column`, the</span>
+<span class="sd">        method automatically sets ``primary_key=True``, ``not_null=True``, and</span>
+<span class="sd">        ``auto_increment=True`` unless explicitly overridden. The underlying</span>
+<span class="sd">        Python type mapped for SMALLSERIAL columns is :class:`int`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;SMALLSERIAL&quot;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure, Driver</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.SMALLSERIAL()</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            SMALLSERIAL</span>
+<span class="sd">            &gt;&gt;&gt; # Use in a table structure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;logs&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;log_id&quot;, DataTypes.SMALLSERIAL(), primary_key=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;SMALLSERIAL&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.BIGSERIAL">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.BIGSERIAL">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">BIGSERIAL</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL BIGSERIAL type string for auto‑incrementing 64‑bit integers.</span>
+
+<span class="sd">        ``BIGSERIAL`` is a PostgreSQL pseudo‑type that creates a ``BIGINT`` column</span>
+<span class="sd">        with an implicit sequence and default value. It automatically generates</span>
+<span class="sd">        unique values when inserting rows without specifying the column. This method</span>
+<span class="sd">        simply returns the literal ``&#39;BIGSERIAL&#39;``, which can be used directly in</span>
+<span class="sd">        ``CREATE TABLE`` definitions.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;BIGSERIAL&quot;``, ready for use in a column definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;logs&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;id&quot;, DataTypes.BIGSERIAL(), primary_key=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;BIGSERIAL&quot;</span></div>
+
+
+    <span class="c1"># ========================</span>
+    <span class="c1"># String Data Types</span>
+    <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.CHAR">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.CHAR">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">CHAR</span><span class="p">(</span><span class="n">length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL CHAR type string with a fixed length.</span>
+
+<span class="sd">        Generates a ``CHAR(length)`` column definition for fixed-length character</span>
+<span class="sd">        strings in PostgreSQL. The *length* specifies the exact number of characters</span>
+<span class="sd">        the column can store; values shorter than this are right-padded with spaces.</span>
+<span class="sd">        This method is intended to be used with :meth:`TableStructure.add_column` or</span>
+<span class="sd">        :meth:`Table.add_column` when defining a table schema.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            length (int): The fixed number of characters for the CHAR column.</span>
+<span class="sd">                Must be at least ``1``. Defaults to ``1``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A string like ``&quot;CHAR(10)&quot;`` that can be passed directly to a</span>
+<span class="sd">            column definition method.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If ``length`` is less than ``1``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;countries&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;code&quot;, DataTypes.CHAR(2), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">length</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Length for CHAR must be at least 1.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;CHAR(</span><span class="si">{</span><span class="n">length</span><span class="si">}</span><span class="s2">)&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.VARCHAR">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.VARCHAR">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">VARCHAR</span><span class="p">(</span><span class="n">length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">255</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL VARCHAR type string with the specified maximum length.</span>
+
+<span class="sd">        Generates a ``VARCHAR(length)`` column definition suitable for PostgreSQL.</span>
+<span class="sd">        VARCHAR is a variable‑length character string with a user‑defined maximum</span>
+<span class="sd">        size. The *length* must be a positive integer.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            length (int): Maximum number of characters the column can store.</span>
+<span class="sd">                Must be ≥ 1. Defaults to ``255``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A string like ``&quot;VARCHAR(100)&quot;`` that can be used directly in</span>
+<span class="sd">            ``CREATE TABLE`` statements or passed to methods such as</span>
+<span class="sd">            :meth:`TableStructure.add_column` and :meth:`Table.add_column`.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If ``length`` is less than 1.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;name&quot;, DataTypes.VARCHAR(100), not_null=True)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;bio&quot;, DataTypes.VARCHAR())  # defaults to 255</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">length</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Length for VARCHAR must be at least 1.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;VARCHAR(</span><span class="si">{</span><span class="n">length</span><span class="si">}</span><span class="s2">)&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.TEXT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.TEXT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">TEXT</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL TEXT type string for variable‑length character data.</span>
+
+<span class="sd">        In PostgreSQL, ``TEXT`` represents a character string of unlimited length.</span>
+<span class="sd">        This method returns the literal ``&#39;TEXT&#39;`` so it can be used directly in</span>
+<span class="sd">        column definitions when creating tables via :class:`TableStructure` or</span>
+<span class="sd">        :meth:`Table.add_column`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;TEXT&quot;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;notes&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;content&quot;, DataTypes.TEXT())</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;TEXT&quot;</span></div>
+
+
+    <span class="c1"># ========================</span>
+    <span class="c1"># Binary Data Types</span>
+    <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.BYTEA">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.BYTEA">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">BYTEA</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL BYTEA type string for storing binary data.</span>
+
+<span class="sd">        ``BYTEA`` is the PostgreSQL data type for variable‑length binary strings</span>
+<span class="sd">        (``bytea``). It can hold raw bytes, similar to ``BLOB`` in other databases.</span>
+<span class="sd">        This method returns the literal ``&#39;BYTEA&#39;``, ready to be used in column</span>
+<span class="sd">        definitions.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;BYTEA&quot;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;files&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;content&quot;, DataTypes.BYTEA(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;BYTEA&quot;</span></div>
+
+
+    <span class="c1"># ========================</span>
+    <span class="c1"># Date and Time Data Types</span>
+    <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.DATE">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.DATE">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">DATE</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL DATE type string for storing dates.</span>
+
+<span class="sd">        The ``DATE`` type stores a calendar date (year, month, day) without any</span>
+<span class="sd">        time zone or time-of-day component, following the PostgreSQL ``date``</span>
+<span class="sd">        data type. This method simply returns the literal ``&#39;DATE&#39;``, which can be</span>
+<span class="sd">        used directly in ``CREATE TABLE`` column definitions or passed to</span>
+<span class="sd">        :meth:`TableStructure.add_column` and :meth:`Table.add_column`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;DATE&quot;``, ready for use in a column definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;events&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;event_date&quot;, DataTypes.DATE(), not_null=True)</span>
+<span class="sd">            &gt;&gt;&gt; print(DataTypes.DATE())</span>
+<span class="sd">            DATE</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;DATE&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.TIME">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.TIME">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">TIME</span><span class="p">(</span><span class="n">precision</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL TIME type string, optionally with fractional seconds precision.</span>
+
+<span class="sd">        ``TIME`` represents a time of day without a date, storing hours, minutes,</span>
+<span class="sd">        and seconds. If *precision* is given, it specifies the number of fractional</span>
+<span class="sd">        digits retained for the seconds part (0–6). Without arguments, the plain</span>
+<span class="sd">        ``TIME`` string is returned, meaning the default precision of the database</span>
+<span class="sd">        (typically 6) will be used.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            precision (int, optional): Number of fractional digits for seconds</span>
+<span class="sd">                (0 to 6). If ``None`` (default), no precision is included.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Either ``&quot;TIME&quot;`` or ``&quot;TIME(precision)&quot;``, ready for use in a</span>
+<span class="sd">            column definition, such as in :meth:`TableStructure.add_column` or</span>
+<span class="sd">            :meth:`Table.add_column`.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If *precision* is outside the valid range (0–6). (Note:</span>
+<span class="sd">                The current implementation does not validate the range; this may</span>
+<span class="sd">                be added in future versions.)</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; # Plain time without fractional seconds</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.TIME()</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            TIME</span>
+<span class="sd">            &gt;&gt;&gt; # Time with milliseconds precision</span>
+<span class="sd">            &gt;&gt;&gt; dt_ms = DataTypes.TIME(3)</span>
+<span class="sd">            &gt;&gt;&gt; print(dt_ms)</span>
+<span class="sd">            TIME(3)</span>
+<span class="sd">            &gt;&gt;&gt; # Use in a table definition</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;schedule&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;start_time&quot;, DataTypes.TIME(0), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;TIME(</span><span class="si">{</span><span class="n">precision</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;TIME&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.TIMETZ">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.TIMETZ">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">TIMETZ</span><span class="p">(</span><span class="n">precision</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL TIMETZ type string, optionally with fractional seconds precision.</span>
+
+<span class="sd">        ``TIMETZ`` is the time‑with‑time‑zone data type, storing a time of day</span>
+<span class="sd">        together with a time zone offset. It is analogous to :meth:`TIME` but</span>
+<span class="sd">        includes time zone awareness. If *precision* is provided, it specifies the</span>
+<span class="sd">        number of fractional digits retained for the seconds part (0–6). Without</span>
+<span class="sd">        arguments, the plain ``TIMETZ`` string is returned, using the database</span>
+<span class="sd">        default precision (typically 6).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            precision (int, optional): Number of fractional digits for seconds</span>
+<span class="sd">                (0 to 6). If ``None`` (default), no precision is included in the</span>
+<span class="sd">                type string.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Either ``&quot;TIMETZ&quot;`` or ``&quot;TIMETZ(precision)&quot;``, ready for use in</span>
+<span class="sd">            column definitions (e.g., :meth:`TableStructure.add_column`).</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: (Not currently enforced) If *precision* is outside the</span>
+<span class="sd">                valid range (0–6). Future versions may add validation.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; # Plain time with time zone</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.TIMETZ()</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            TIMETZ</span>
+<span class="sd">            &gt;&gt;&gt; # With milliseconds precision</span>
+<span class="sd">            &gt;&gt;&gt; dt_ms = DataTypes.TIMETZ(3)</span>
+<span class="sd">            &gt;&gt;&gt; print(dt_ms)</span>
+<span class="sd">            TIMETZ(3)</span>
+<span class="sd">            &gt;&gt;&gt; # Use in a table definition</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;events&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;start_time&quot;, DataTypes.TIMETZ(0), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;TIMETZ(</span><span class="si">{</span><span class="n">precision</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;TIMETZ&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.TIMESTAMP">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.TIMESTAMP">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">TIMESTAMP</span><span class="p">(</span><span class="n">precision</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL TIMESTAMP type string, optionally with fractional seconds precision.</span>
+
+<span class="sd">        ``TIMESTAMP`` stores a date and time (without time zone). If *precision*</span>
+<span class="sd">        is provided, it specifies the number of fractional digits retained for the</span>
+<span class="sd">        seconds part (0–6). Without arguments, the plain ``TIMESTAMP`` string is</span>
+<span class="sd">        returned, using the database default precision (typically 6).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            precision (int, optional): Number of fractional digits for seconds</span>
+<span class="sd">                (0 to 6). If ``None`` (default), no precision is included.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Either ``&quot;TIMESTAMP&quot;`` or ``&quot;TIMESTAMP(precision)&quot;``, ready for</span>
+<span class="sd">            use in a column definition (e.g., in :meth:`TableStructure.add_column`</span>
+<span class="sd">            or :meth:`Table.add_column`).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; # Plain timestamp</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.TIMESTAMP()</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            TIMESTAMP</span>
+<span class="sd">            &gt;&gt;&gt; # Timestamp with millisecond precision</span>
+<span class="sd">            &gt;&gt;&gt; dt_ms = DataTypes.TIMESTAMP(3)</span>
+<span class="sd">            &gt;&gt;&gt; print(dt_ms)</span>
+<span class="sd">            TIMESTAMP(3)</span>
+<span class="sd">            &gt;&gt;&gt; # Use in a table definition</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;events&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;created_at&quot;, DataTypes.TIMESTAMP(0), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;TIMESTAMP(</span><span class="si">{</span><span class="n">precision</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;TIMESTAMP&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.TIMESTAMPTZ">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.TIMESTAMPTZ">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">TIMESTAMPTZ</span><span class="p">(</span><span class="n">precision</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL TIMESTAMPTZ type string, optionally with fractional seconds precision.</span>
+
+<span class="sd">        ``TIMESTAMPTZ`` represents a date and time with time zone awareness. The</span>
+<span class="sd">        optional *precision* argument specifies the number of fractional digits</span>
+<span class="sd">        retained for the seconds part (0–6). If omitted, the default database</span>
+<span class="sd">        precision (typically 6) is used.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            precision (int, optional): Number of fractional digits for seconds</span>
+<span class="sd">                (0 to 6). If ``None`` (default), no precision is included.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Either ``&quot;TIMESTAMPTZ&quot;`` or ``&quot;TIMESTAMPTZ(precision)&quot;``, ready</span>
+<span class="sd">            for use in a column definition, such as in</span>
+<span class="sd">            :meth:`TableStructure.add_column` or :meth:`Table.add_column`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; # Timestamp with time zone, default precision</span>
+<span class="sd">            &gt;&gt;&gt; dt = DataTypes.TIMESTAMPTZ()</span>
+<span class="sd">            &gt;&gt;&gt; print(dt)</span>
+<span class="sd">            TIMESTAMPTZ</span>
+<span class="sd">            &gt;&gt;&gt; # With millisecond precision</span>
+<span class="sd">            &gt;&gt;&gt; dt_ms = DataTypes.TIMESTAMPTZ(3)</span>
+<span class="sd">            &gt;&gt;&gt; print(dt_ms)</span>
+<span class="sd">            TIMESTAMPTZ(3)</span>
+<span class="sd">            &gt;&gt;&gt; # Use in a table definition</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;events&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;created_at&quot;, DataTypes.TIMESTAMPTZ(3), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;TIMESTAMPTZ(</span><span class="si">{</span><span class="n">precision</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;TIMESTAMPTZ&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.INTERVAL">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.INTERVAL">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">INTERVAL</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL INTERVAL type string for storing time spans.</span>
+
+<span class="sd">        ``INTERVAL`` represents a duration of time (e.g., days, hours, minutes,</span>
+<span class="sd">        seconds). It is a native PostgreSQL type that can store a combination of</span>
+<span class="sd">        different time units. This method simply returns the literal</span>
+<span class="sd">        ``&#39;INTERVAL&#39;``, which can be used directly in ``CREATE TABLE`` definitions.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;INTERVAL&quot;``, ready for use in a column definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;events&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;duration&quot;, DataTypes.INTERVAL(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;INTERVAL&quot;</span></div>
+
+
+    <span class="c1"># ========================</span>
+    <span class="c1"># Boolean Type</span>
+    <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.BOOLEAN">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.BOOLEAN">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">BOOLEAN</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL BOOLEAN type string for true/false values.</span>
+
+<span class="sd">        ``BOOLEAN`` represents a logical truth value, storing ``TRUE``,</span>
+<span class="sd">        ``FALSE``, or ``NULL``. In PostgreSQL, it is equivalent to the</span>
+<span class="sd">        ``bool`` type. This method simply returns the literal ``&#39;BOOLEAN&#39;``,</span>
+<span class="sd">        which can be used directly in ``CREATE TABLE`` definitions or passed</span>
+<span class="sd">        to methods such as :meth:`TableStructure.add_column` and</span>
+<span class="sd">        :meth:`Table.add_column`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;BOOLEAN&quot;``, ready for use in a column</span>
+<span class="sd">            definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;users&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;is_active&quot;, DataTypes.BOOLEAN(),</span>
+<span class="sd">            ...                      default=True, not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;BOOLEAN&quot;</span></div>
+
+
+    <span class="c1"># ========================</span>
+    <span class="c1"># JSON Types</span>
+    <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.JSON">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.JSON">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">JSON</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL JSON type string for storing JSON data.</span>
+
+<span class="sd">        In PostgreSQL, ``JSON`` is a data type that stores JSON-formatted text</span>
+<span class="sd">        without enforcing the stricter binary format of ``JSONB``. It preserves</span>
+<span class="sd">        white space, key order, and duplicate keys exactly as inserted. This</span>
+<span class="sd">        method simply returns the literal ``&#39;JSON&#39;``, which can be used in</span>
+<span class="sd">        ``CREATE TABLE`` column definitions or with methods like</span>
+<span class="sd">        :meth:`TableStructure.add_column` and :meth:`Table.add_column`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;JSON&quot;``, ready for use in a column definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;settings&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;config&quot;, DataTypes.JSON(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;JSON&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.JSONB">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.JSONB">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">JSONB</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL JSONB type string for storing JSON data in a binary format.</span>
+
+<span class="sd">        In PostgreSQL, ``JSONB`` is a data type that stores JSON data in a</span>
+<span class="sd">        decomposed binary format, which allows efficient indexing, faster</span>
+<span class="sd">        processing, and more advanced querying (e.g., containment, existence, and</span>
+<span class="sd">        path matching operators). Unlike ``JSON``, it does not preserve white</span>
+<span class="sd">        space, key order, or duplicate keys. This method simply returns the</span>
+<span class="sd">        literal ``&#39;JSONB&#39;``, which can be used in ``CREATE TABLE`` column</span>
+<span class="sd">        definitions or with methods like :meth:`TableStructure.add_column` and</span>
+<span class="sd">        :meth:`Table.add_column`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;JSONB&quot;``, ready for use in a column definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;products&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;attributes&quot;, DataTypes.JSONB(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;JSONB&quot;</span></div>
+
+
+    <span class="c1"># ========================</span>
+    <span class="c1"># UUID Type</span>
+    <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.UUID">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.UUID">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">UUID</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL UUID type string for storing universally unique identifiers.</span>
+
+<span class="sd">        ``UUID`` is a PostgreSQL data type that stores 128‑bit quantities</span>
+<span class="sd">        generated by algorithms that ensure uniqueness across space and time.</span>
+<span class="sd">        This method simply returns the literal ``&#39;UUID&#39;``, which can be used</span>
+<span class="sd">        directly in ``CREATE TABLE`` column definitions or with methods like</span>
+<span class="sd">        :meth:`TableStructure.add_column` and :meth:`Table.add_column`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;UUID&quot;``, ready for use in a column definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;devices&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;device_id&quot;, DataTypes.UUID(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;UUID&quot;</span></div>
+
+
+    <span class="c1"># ========================</span>
+    <span class="c1"># Spatial Data Types (PostGIS)</span>
+    <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.GEOMETRY">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.GEOMETRY">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">GEOMETRY</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL GEOMETRY type string for spatial data (PostGIS).</span>
+
+<span class="sd">        ``GEOMETRY`` is a spatial data type provided by the PostGIS extension</span>
+<span class="sd">        for PostgreSQL. It stores geometric shapes such as points, lines, and</span>
+<span class="sd">        polygons in a planar coordinate system. To use this type, the PostGIS</span>
+<span class="sd">        extension must be installed and enabled in the database (``CREATE</span>
+<span class="sd">        EXTENSION postgis;``). This method simply returns the literal</span>
+<span class="sd">        ``&#39;GEOMETRY&#39;``, which can be used in ``CREATE TABLE`` column definitions</span>
+<span class="sd">        or with methods like :meth:`TableStructure.add_column` and</span>
+<span class="sd">        :meth:`Table.add_column`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;GEOMETRY&quot;``, ready for use in a column definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;landmarks&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;location&quot;, DataTypes.GEOMETRY())</span>
+<span class="sd">            &gt;&gt;&gt; # After creating the table, spatial data can be inserted with</span>
+<span class="sd">            &gt;&gt;&gt; # PostGIS functions like ST_MakePoint, ST_GeomFromText, etc.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;GEOMETRY&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.GEOGRAPHY">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.GEOGRAPHY">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">GEOGRAPHY</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL GEOGRAPHY type string for geodetic (round‑earth) data.</span>
+
+<span class="sd">        ``GEOGRAPHY`` is a PostGIS spatial type that stores coordinates on a</span>
+<span class="sd">        spheroidal model of the Earth, enabling accurate distance and area</span>
+<span class="sd">        calculations. Unlike ``GEOMETRY``, which assumes a flat Cartesian plane,</span>
+<span class="sd">        ``GEOGRAPHY`` accounts for the Earth&#39;s curvature. This method returns</span>
+<span class="sd">        ``&#39;GEOGRAPHY&#39;``, which can be used directly in ``CREATE TABLE`` column</span>
+<span class="sd">        definitions.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;GEOGRAPHY&quot;``, suitable for use with</span>
+<span class="sd">            :meth:`TableStructure.add_column` or :meth:`Table.add_column`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;cities&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;location&quot;, DataTypes.GEOGRAPHY())</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;GEOGRAPHY&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.POINT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.POINT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">POINT</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL POINT type string for a PostGIS geometry column.</span>
+
+<span class="sd">        ``POINT`` is a spatial data type representing a single location on the</span>
+<span class="sd">        earth&#39;s surface, typically stored as a pair of coordinates (longitude,</span>
+<span class="sd">        latitude). This method returns the string ``&#39;POINT&#39;`` which can be used</span>
+<span class="sd">        in column definitions for tables that have the PostGIS extension enabled.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The literal ``&quot;POINT&quot;``, suitable for a column definition in a</span>
+<span class="sd">            ``CREATE TABLE`` statement, e.g. via :meth:`TableStructure.add_column`.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Using this data type requires the PostGIS extension to be installed in</span>
+<span class="sd">            the PostgreSQL database. If PostGIS is not available, creating a column</span>
+<span class="sd">            with this type will fail.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;locations&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;coordinates&quot;, DataTypes.POINT(), not_null=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;POINT&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.LINESTRING">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.LINESTRING">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">LINESTRING</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL LINESTRING type string for PostGIS spatial data.</span>
+
+<span class="sd">        ``LINESTRING`` is a PostGIS geometry type representing a sequence of</span>
+<span class="sd">        points forming a continuous line. This method returns the literal</span>
+<span class="sd">        ``&#39;LINESTRING&#39;``, which can be used directly in ``CREATE TABLE``</span>
+<span class="sd">        column definitions when PostGIS is enabled.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;LINESTRING&quot;``, ready for use in a column</span>
+<span class="sd">            definition, such as in :meth:`TableStructure.add_column` or</span>
+<span class="sd">            :meth:`Table.add_column`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;routes&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;path&quot;, DataTypes.LINESTRING())</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;LINESTRING&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.POLYGON">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.POLYGON">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">POLYGON</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL POLYGON type string for PostGIS spatial data.</span>
+
+<span class="sd">        ``POLYGON`` is a PostGIS geometry type representing a closed plane figure</span>
+<span class="sd">        bounded by a sequence of line segments. This method returns the literal</span>
+<span class="sd">        ``&#39;POLYGON&#39;``, which can be used directly in ``CREATE TABLE`` column</span>
+<span class="sd">        definitions when PostGIS is enabled.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;POLYGON&quot;``, ready for use in a column definition,</span>
+<span class="sd">            such as in :meth:`TableStructure.add_column` or</span>
+<span class="sd">            :meth:`Table.add_column`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;zones&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;boundary&quot;, DataTypes.POLYGON())</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;POLYGON&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.MULTIPOINT">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.MULTIPOINT">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">MULTIPOINT</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL MULTIPOINT type string for PostGIS spatial data.</span>
+
+<span class="sd">        ``MULTIPOINT`` is a PostGIS geometry type representing a collection of</span>
+<span class="sd">        points. This method returns the literal ``&#39;MULTIPOINT&#39;``, which can be</span>
+<span class="sd">        used directly in ``CREATE TABLE`` column definitions when PostGIS is</span>
+<span class="sd">        enabled.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;MULTIPOINT&quot;``, ready for use in a column</span>
+<span class="sd">            definition, such as in :meth:`TableStructure.add_column` or</span>
+<span class="sd">            :meth:`Table.add_column`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;survey_sites&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;locations&quot;, DataTypes.MULTIPOINT())</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;MULTIPOINT&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.MULTILINESTRING">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.MULTILINESTRING">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">MULTILINESTRING</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL MULTILINESTRING type string for PostGIS spatial data.</span>
+
+<span class="sd">        ``MULTILINESTRING`` is a PostGIS geometry type representing a collection</span>
+<span class="sd">        of :class:`LINESTRING` objects. This method returns the literal</span>
+<span class="sd">        ``&#39;MULTILINESTRING&#39;``, which can be used directly in ``CREATE TABLE``</span>
+<span class="sd">        column definitions when the PostGIS extension is enabled.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;MULTILINESTRING&quot;``, ready for use in a column</span>
+<span class="sd">            definition, such as in :meth:`TableStructure.add_column` or</span>
+<span class="sd">            :meth:`Table.add_column`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;trails&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;paths&quot;, DataTypes.MULTILINESTRING())</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;MULTILINESTRING&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.MULTIPOLYGON">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.MULTIPOLYGON">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">MULTIPOLYGON</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL MULTIPOLYGON type string for PostGIS spatial data.</span>
+
+<span class="sd">        ``MULTIPOLYGON`` is a PostGIS geometry type representing a collection of</span>
+<span class="sd">        non‑overlapping polygons. This method simply returns the literal</span>
+<span class="sd">        ``&#39;MULTIPOLYGON&#39;``, which can be used directly in ``CREATE TABLE``</span>
+<span class="sd">        column definitions when PostGIS is enabled.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;MULTIPOLYGON&quot;``, ready for use in a column</span>
+<span class="sd">            definition, such as in :meth:`TableStructure.add_column` or</span>
+<span class="sd">            :meth:`Table.add_column`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;regions&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;area&quot;, DataTypes.MULTIPOLYGON())</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;MULTIPOLYGON&quot;</span></div>
+
+
+<div class="viewcode-block" id="DataTypes.GEOMETRYCOLLECTION">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.GEOMETRYCOLLECTION">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">GEOMETRYCOLLECTION</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL GEOMETRYCOLLECTION type string for PostGIS spatial data.</span>
+
+<span class="sd">        ``GEOMETRYCOLLECTION`` is a PostGIS geometry type that can hold a</span>
+<span class="sd">        collection of zero or more geometry values of any type (e.g., points,</span>
+<span class="sd">        lines, polygons) in a single column. This method returns the literal</span>
+<span class="sd">        ``&#39;GEOMETRYCOLLECTION&#39;``, which can be used directly in ``CREATE TABLE``</span>
+<span class="sd">        column definitions when PostGIS is enabled.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The string ``&quot;GEOMETRYCOLLECTION&quot;``, ready for use in a column</span>
+<span class="sd">            definition, such as in :meth:`TableStructure.add_column` or</span>
+<span class="sd">            :meth:`Table.add_column`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;mixed_shapes&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;shapes&quot;, DataTypes.GEOMETRYCOLLECTION())</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;GEOMETRYCOLLECTION&quot;</span></div>
+
+
+        <span class="c1"># ========================</span>
+        <span class="c1"># Array Type</span>
+        <span class="c1"># ========================</span>
+
+<div class="viewcode-block" id="DataTypes.ARRAY">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.DataTypes.ARRAY">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ARRAY</span><span class="p">(</span><span class="n">element_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the SQL array type string for the given element type.</span>
+
+<span class="sd">        In PostgreSQL, an array column is declared by appending ``[]`` to the base</span>
+<span class="sd">        data type. This method accepts the element type string (e.g., ``&#39;INTEGER&#39;``,</span>
+<span class="sd">        ``&#39;VARCHAR(255)&#39;``) and returns the corresponding array type string (e.g.,</span>
+<span class="sd">        ``&#39;INTEGER[]&#39;``). The returned string can be used directly in ``CREATE TABLE``</span>
+<span class="sd">        column definitions, such as when calling :meth:`TableStructure.add_column`</span>
+<span class="sd">        or :meth:`Table.add_column`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            element_type (str): The base data type of the array elements, typically</span>
+<span class="sd">                obtained from another :class:`DataTypes` method (e.g.,</span>
+<span class="sd">                ``DataTypes.INTEGER()``, ``DataTypes.VARCHAR(100)``).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The array type string, formed by appending ``[]`` to the</span>
+<span class="sd">            element type. For example, ``&quot;INTEGER[]&quot;`` or ``&quot;VARCHAR(255)[]&quot;``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            None: No validation is performed on the element type; any string</span>
+<span class="sd">            concatenation will be accepted. It is the caller&#39;s responsibility</span>
+<span class="sd">            to provide a valid PostgreSQL data type.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import DataTypes, TableStructure</span>
+<span class="sd">            &gt;&gt;&gt; # Declare a column that holds an array of integers</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;survey&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;scores&quot;, DataTypes.ARRAY(DataTypes.INTEGER()))</span>
+<span class="sd">            &gt;&gt;&gt; # Declare a column that holds an array of variable-length strings</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;tags&quot;, DataTypes.ARRAY(DataTypes.VARCHAR(50)))</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">element_type</span><span class="si">}</span><span class="s2">[]&quot;</span></div>
+</div>
+
+    
+
+<div class="viewcode-block" id="TableStructure">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.TableStructure">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TableStructure</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A builder class for programmatically defining PostgreSQL table structures.</span>
+
+<span class="sd">    This class provides a fluent interface for constructing table schemas by</span>
+<span class="sd">    adding columns with data types, constraints (primary key, unique, not null,</span>
+<span class="sd">    default values, auto-increment), and foreign key relationships. It validates</span>
+<span class="sd">    the schema consistency (e.g., only one auto-increment column, primary key</span>
+<span class="sd">    columns are not null, serial types enforce not null and auto-increment) and</span>
+<span class="sd">    generates the final SQL CREATE TABLE statement.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        table_query (str): Accumulated SQL fragment for column definitions.</span>
+<span class="sd">        primary_keys (list): List of column names that are part of the primary key.</span>
+<span class="sd">        items (dict): Internal store mapping column names to their properties.</span>
+<span class="sd">        name (str): The quoted table name.</span>
+<span class="sd">        foreigns (list): List of SQL foreign key constraint clauses.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; from ormophine.Postgresql import TableStructure, DataTypes, Driver</span>
+<span class="sd">        &gt;&gt;&gt; # Assume driver and existing table objects are available</span>
+<span class="sd">        &gt;&gt;&gt; departments = TableStructure(&quot;departments&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; departments.add_column(&quot;id&quot;, DataTypes.SERIAL(), primary_key=True)</span>
+<span class="sd">        &gt;&gt;&gt; departments.add_column(&quot;name&quot;, DataTypes.VARCHAR(100), not_null=True, unique=True)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; employees = TableStructure(&quot;employees&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; employees.add_column(&quot;id&quot;, DataTypes.SERIAL(), primary_key=True)</span>
+<span class="sd">        &gt;&gt;&gt; employees.add_column(&quot;name&quot;, DataTypes.VARCHAR(100), not_null=True)</span>
+<span class="sd">        &gt;&gt;&gt; employees.add_column(&quot;dept_id&quot;, DataTypes.INTEGER())</span>
+<span class="sd">        &gt;&gt;&gt; employees.foreign_key(&quot;dept_id&quot;, departments, departments.id,</span>
+<span class="sd">        ...                       on_delete=&quot;CASCADE&quot;)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Generate and execute the CREATE TABLE statement</span>
+<span class="sd">        &gt;&gt;&gt; driver.create_table(employees)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ON_ACTION</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;CASCADE&#39;</span><span class="p">,</span> <span class="s1">&#39;SET NULL&#39;</span><span class="p">,</span> <span class="s1">&#39;SET DEFAULT&#39;</span><span class="p">,</span> <span class="s1">&#39;RESTRICT&#39;</span><span class="p">,</span> <span class="s1">&#39;NO ACTION&#39;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="TableStructure.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.TableStructure.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialises a new table structure definition.</span>
+
+<span class="sd">        Prepares an empty table structure with the given name. The name is</span>
+<span class="sd">        automatically wrapped in double quotes to support case‑sensitive and</span>
+<span class="sd">        special‑character table names in PostgreSQL. After initialisation,</span>
+<span class="sd">        columns can be added with :meth:`add_column` and foreign keys with</span>
+<span class="sd">        :meth:`foreign_key` before the structure is passed to</span>
+<span class="sd">        :meth:`Driver.create_table`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            table_name (str): The name of the table to be created. It will be</span>
+<span class="sd">                quoted internally, e.g. ``&quot;my_table&quot;``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;id&quot;, DataTypes.SERIAL(), primary_key=True)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&quot;name&quot;, DataTypes.VARCHAR(100))</span>
+<span class="sd">            &gt;&gt;&gt; print(structure.get_structure())</span>
+<span class="sd">            CREATE TABLE &quot;employees&quot; (&quot;id&quot; SERIAL,... , PRIMARY KEY(&quot;id&quot;));</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">primary_keys</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">items</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s1">&quot;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">foreigns</span> <span class="o">=</span> <span class="p">[]</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">,</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">default_value</span><span class="p">,</span> <span class="n">unique</span><span class="p">,</span> <span class="n">not_null</span><span class="p">,</span> <span class="n">primary_key</span><span class="p">,</span> <span class="n">auto_increment</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validates the parameters for a new column before adding it to the table structure.</span>
+
+<span class="sd">        This internal method enforces a set of rules to ensure that the column</span>
+<span class="sd">        definition is consistent and compatible with PostgreSQL requirements.</span>
+<span class="sd">        It checks data type validity, primary key/unique/null constraints,</span>
+<span class="sd">        duplicate column names, auto‑increment restrictions, serial type</span>
+<span class="sd">        semantics, and default value types.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column_name (str): The name of the column (already quoted).</span>
+<span class="sd">            datatype (str): The SQL data type string returned by a</span>
+<span class="sd">                :class:`DataTypes` method.</span>
+<span class="sd">            default_value (Any or None): The default value for the column,</span>
+<span class="sd">                if any.</span>
+<span class="sd">            unique (bool or None): Whether the column should have a UNIQUE</span>
+<span class="sd">                constraint.</span>
+<span class="sd">            not_null (bool or None): Whether the column should be NOT NULL.</span>
+<span class="sd">            primary_key (bool or None): Whether the column is part of the</span>
+<span class="sd">                primary key.</span>
+<span class="sd">            auto_increment (bool): Whether the column is an auto‑increment</span>
+<span class="sd">                identity column.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            TypeError: If ``datatype`` is not a string.</span>
+<span class="sd">            Exception: If any of the following invalid configurations are</span>
+<span class="sd">                detected:</span>
+<span class="sd">                - A primary key column is not marked NOT NULL.</span>
+<span class="sd">                - A primary key column is also marked UNIQUE.</span>
+<span class="sd">                - A column with the same name already exists in the table.</span>
+<span class="sd">                - The default value is a ``bytes`` object.</span>
+<span class="sd">                - More than one auto‑increment column is defined.</span>
+<span class="sd">                - An auto‑increment column is not a numeric type.</span>
+<span class="sd">                - An auto‑increment column is not PRIMARY KEY or UNIQUE.</span>
+<span class="sd">                - An auto‑increment column has an explicit DEFAULT value.</span>
+<span class="sd">                - A serial type (SMALLSERIAL, SERIAL, BIGSERIAL) is not</span>
+<span class="sd">                marked NOT NULL or does not have ``auto_increment=True``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The method only performs validation; it returns ``None``</span>
+<span class="sd">            if all checks pass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">datatype</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;datatype must be a string returned by DataTypes.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">primary_key</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">not_null</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;PRIMARY KEY columns must also be NOT NULL.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">unique</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;PRIMARY KEY columns cannot be UNIQUE, as they are inherently unique.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">column_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Column </span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s2"> already exists.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default_value</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Bytes objects cannot be used as default values.&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">values</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span> <span class="ow">and</span> <span class="n">auto_increment</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Only one auto-increment column is allowed.&quot;</span><span class="p">)</span>
+
+        <span class="n">numeric_types</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;SMALLINT&quot;</span><span class="p">,</span><span class="s2">&quot;INTEGER&quot;</span><span class="p">,</span><span class="s2">&quot;BIGINT&quot;</span><span class="p">,</span><span class="s2">&quot;DECIMAL&quot;</span><span class="p">,</span><span class="s2">&quot;NUMERIC&quot;</span><span class="p">,</span><span class="s2">&quot;REAL&quot;</span><span class="p">,</span><span class="s2">&quot;DOUBLE PRECISION&quot;</span><span class="p">,</span><span class="s2">&quot;SMALLSERIAL&quot;</span><span class="p">,</span><span class="s2">&quot;SERIAL&quot;</span><span class="p">,</span><span class="s2">&quot;BIGSERIAL&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">auto_increment</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">datatype</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;(&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">numeric_types</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Auto-increment is only allowed on numeric or serial types.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">primary_key</span> <span class="ow">or</span> <span class="n">unique</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Auto-increment column must be PRIMARY KEY or UNIQUE.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">default_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Auto-increment columns cannot have DEFAULT values.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">datatype</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;SMALLSERIAL&quot;</span><span class="p">,</span> <span class="s2">&quot;SERIAL&quot;</span><span class="p">,</span> <span class="s2">&quot;BIGSERIAL&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">not_null</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Serial types are inherently NOT NULL, so not_null must be True.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">auto_increment</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Serial types are inherently auto-increment, so auto_increment must be True.&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TableStructure.add_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.TableStructure.add_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">datatype</span><span class="p">:</span> <span class="n">DataTypes</span><span class="p">,</span><span class="n">default_value</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span><span class="n">not_null</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span><span class="n">primary_key</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span><span class="n">auto_increment</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Adds a column definition to the table structure.</span>
+
+<span class="sd">        Appends a column with the given name and data type to the internal</span>
+<span class="sd">        ``CREATE TABLE`` query. The ``datatype`` argument must be a string</span>
+<span class="sd">        returned by one of the :class:`DataTypes` static methods (e.g.,</span>
+<span class="sd">        ``DataTypes.INTEGER()``, ``DataTypes.VARCHAR(100)``). Additional</span>
+<span class="sd">        constraints such as ``NOT NULL``, ``UNIQUE``, ``PRIMARY KEY``, and</span>
+<span class="sd">        ``auto_increment`` (``GENERATED BY DEFAULT AS IDENTITY``) are added as</span>
+<span class="sd">        requested. If the column is a serial type (``SMALLSERIAL``, ``SERIAL``,</span>
+<span class="sd">        ``BIGSERIAL``), ``primary_key``, ``not_null``, and ``auto_increment``</span>
+<span class="sd">        are automatically set to ``True`` unless explicitly overridden.</span>
+
+<span class="sd">        The method returns ``self``, enabling fluent chaining of multiple</span>
+<span class="sd">        ``add_column`` calls.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column_name (str): The name of the column (will be double‑quoted).</span>
+<span class="sd">            datatype (str): A valid PostgreSQL data type string from</span>
+<span class="sd">                :class:`DataTypes` (e.g., ``DataTypes.INTEGER()``).</span>
+<span class="sd">            default_value (Any, optional): The default value for the column.</span>
+<span class="sd">                Strings are automatically quoted in the SQL. Defaults to</span>
+<span class="sd">                ``None``.</span>
+<span class="sd">            unique (bool, optional): If ``True``, adds a ``UNIQUE`` constraint.</span>
+<span class="sd">                Defaults to ``None`` (omitted).</span>
+<span class="sd">            not_null (bool, optional): If ``True``, adds a ``NOT NULL``</span>
+<span class="sd">                constraint. Defaults to ``None`` (omitted).</span>
+<span class="sd">            primary_key (bool, optional): If ``True``, makes the column a</span>
+<span class="sd">                primary key. Implies ``NOT NULL``. Defaults to ``None``.</span>
+<span class="sd">            auto_increment (bool): If ``True``, adds ``GENERATED BY DEFAULT</span>
+<span class="sd">                AS IDENTITY`` for integer types. Cannot be used with</span>
+<span class="sd">                ``default_value``. Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            :class:`TableStructure`: The same instance (``self``), allowing</span>
+<span class="sd">            method chaining.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            TypeError: If ``datatype`` is not a string.</span>
+<span class="sd">            Exception: If validation fails – for example:</span>
+<span class="sd">                - Duplicate column name.</span>
+<span class="sd">                - ``PRIMARY KEY`` set but ``not_null`` is ``False`` (or</span>
+<span class="sd">                ``UNIQUE`` also set).</span>
+<span class="sd">                - ``auto_increment`` used on a non‑numeric type, or without</span>
+<span class="sd">                ``primary_key``/``unique``, or with a ``default_value``.</span>
+<span class="sd">                - More than one ``auto_increment`` column is added.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import TableStructure, DataTypes</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; (structure</span>
+<span class="sd">            ...  .add_column(&quot;id&quot;, DataTypes.SERIAL(), primary_key=True)</span>
+<span class="sd">            ...  .add_column(&quot;name&quot;, DataTypes.VARCHAR(100), not_null=True)</span>
+<span class="sd">            ...  .add_column(&quot;salary&quot;, DataTypes.NUMERIC(10, 2),</span>
+<span class="sd">            ...              default_value=0.0))</span>
+<span class="sd">            &gt;&gt;&gt; print(structure.get_structure())</span>
+<span class="sd">            CREATE TABLE &quot;employees&quot; (&quot;id&quot; SERIAL NOT NULL, &quot;name&quot; VARCHAR(100) NOT NULL, &quot;salary&quot; NUMERIC(10, 2) DEFAULT 0.0);</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">column_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">column_name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s1">&quot;&#39;</span>
+        <span class="n">primary_key</span><span class="p">,</span> <span class="n">not_null</span><span class="p">,</span> <span class="n">auto_increment</span> <span class="o">=</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">datatype</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;SMALLSERIAL&quot;</span><span class="p">,</span> <span class="s2">&quot;SERIAL&quot;</span><span class="p">,</span> <span class="s2">&quot;BIGSERIAL&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="n">primary_key</span><span class="p">,</span> <span class="n">not_null</span><span class="p">,</span> <span class="n">auto_increment</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_column</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span><span class="n">datatype</span><span class="p">,</span><span class="n">default_value</span><span class="p">,</span><span class="n">unique</span><span class="p">,</span><span class="n">not_null</span><span class="p">,</span><span class="n">primary_key</span><span class="p">,</span><span class="n">auto_increment</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span> <span class="o">==</span> <span class="nb">bytes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Cant set bytes object as default value&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">primary_keys</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span> <span class="k">if</span> <span class="n">primary_key</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">[</span><span class="n">column_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">datatype</span><span class="p">,</span> <span class="n">default_value</span><span class="p">,</span> <span class="n">unique</span><span class="p">,</span> <span class="n">not_null</span><span class="p">,</span> <span class="n">primary_key</span><span class="p">,</span> <span class="n">auto_increment</span><span class="p">]</span>
+        <span class="n">auto_part</span> <span class="o">=</span> <span class="s2">&quot; GENERATED BY DEFAULT AS IDENTITY&quot;</span> <span class="k">if</span> <span class="n">auto_increment</span> <span class="ow">and</span> <span class="n">datatype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;SMALLSERIAL&quot;</span><span class="p">,</span> <span class="s2">&quot;SERIAL&quot;</span><span class="p">,</span> <span class="s2">&quot;BIGSERIAL&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39; </span><span class="si">{</span><span class="n">column_name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">datatype</span><span class="si">}{</span><span class="n">auto_part</span><span class="si">}{</span><span class="s1">&#39; UNIQUE&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">unique</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="s1">&#39; NOT NULL&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">not_null</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="sa">f</span><span class="s1">&#39; DEFAULT </span><span class="si">{</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">default_value</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">type</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">str</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">default_value</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">default_value</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">,&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="TableStructure.delete_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.TableStructure.delete_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove a column from the table definition.</span>
+
+<span class="sd">        This method deletes the specified column from the internal column store</span>
+<span class="sd">        and updates the SQL creation string accordingly. It is useful for modifying</span>
+<span class="sd">        a table structure before creation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column_name (str): The name of the column to remove.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            TableStructure: The current instance, allowing method chaining.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            KeyError: If the specified column does not exist in the table definition.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; table = TableStructure(&quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; table.add_column(&quot;id&quot;, DataTypes.INTEGER(), primary_key=True)</span>
+<span class="sd">            &gt;&gt;&gt; table.add_column(&quot;name&quot;, DataTypes.VARCHAR(50))</span>
+<span class="sd">            &gt;&gt;&gt; table.delete_column(&quot;name&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; table.get_structure()</span>
+<span class="sd">            &#39;CREATE TABLE &quot;employees&quot; (&quot;id&quot; INTEGER NOT NULL, PRIMARY KEY(&quot;id&quot;));&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">column_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">column_name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s1">&quot;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="n">query_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="n">new_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">query_list</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">column_name</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">new_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">new_list</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="TableStructure.get_columns">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.TableStructure.get_columns">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_columns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieve a list of column definitions for the table structure.</span>
+
+<span class="sd">        This method iterates over the internally stored column metadata and</span>
+<span class="sd">        returns a list of dictionaries, each containing the properties of a</span>
+<span class="sd">        column as defined by previous calls to :meth:`add_column`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[dict]: A list of dictionaries, each with the following keys:</span>
+<span class="sd">                - ``name`` (str): The column name (including surrounding quotes).</span>
+<span class="sd">                - ``datatype`` (str): The SQL data type string.</span>
+<span class="sd">                - ``default_value`` (Any): The default value, or ``None``.</span>
+<span class="sd">                - ``unique`` (bool): Whether the column is marked UNIQUE.</span>
+<span class="sd">                - ``not_null`` (bool): Whether the column is NOT NULL.</span>
+<span class="sd">                - ``primari_key`` (bool): Whether the column is a PRIMARY KEY</span>
+<span class="sd">                (note the typo in the key name, preserved for compatibility).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; table = TableStructure(&quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; table.add_column(&quot;id&quot;, DataTypes.INTEGER(), primary_key=True, not_null=True)</span>
+<span class="sd">            &gt;&gt;&gt; table.add_column(&quot;name&quot;, DataTypes.VARCHAR(50))</span>
+<span class="sd">            &gt;&gt;&gt; columns = table.get_columns()</span>
+<span class="sd">            &gt;&gt;&gt; for col in columns:</span>
+<span class="sd">            ...     print(f&quot;{col[&#39;name&#39;]} ({col[&#39;datatype&#39;]}) PK: {col[&#39;primari_key&#39;]}&quot;)</span>
+<span class="sd">            &quot;id&quot; (INTEGER) PK: True</span>
+<span class="sd">            &quot;name&quot; (VARCHAR(50)) PK: False</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">items_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">:</span>
+            <span class="n">items_dict</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">[</span><span class="n">item</span><span class="p">]</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">item</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;default_value&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;unique&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">else</span> <span class="kc">False</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;not_null&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="k">else</span> <span class="kc">False</span>
+            <span class="n">items_dict</span><span class="p">[</span><span class="s1">&#39;primari_key&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="k">else</span> <span class="kc">False</span>
+            <span class="n">items_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">items_dict</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">items_list</span></div>
+
+
+<div class="viewcode-block" id="TableStructure.foreign_key">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.TableStructure.foreign_key">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">foreign_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">refrences_table</span><span class="p">:</span> <span class="s1">&#39;Table&#39;</span><span class="p">,</span><span class="n">refrences_column</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span><span class="p">,</span> <span class="n">on_delete</span><span class="p">:</span> <span class="n">ON_ACTION</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">on_update</span><span class="p">:</span> <span class="n">ON_ACTION</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a foreign key constraint to the table definition.</span>
+
+<span class="sd">        This method appends a FOREIGN KEY clause to the table&#39;s SQL definition.</span>
+<span class="sd">        It references a column in another table, with optional ON DELETE and</span>
+<span class="sd">        ON UPDATE cascade actions. The constraint is included in the final</span>
+<span class="sd">        `CREATE TABLE` statement generated by :meth:`get_structure`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column (str): The name of the column in the current table that will</span>
+<span class="sd">                act as the foreign key.</span>
+<span class="sd">            refrences_table (Table): The target table being referenced.</span>
+<span class="sd">            refrences_column (Column): The target column in the referenced table.</span>
+<span class="sd">            on_delete (ON_ACTION, optional): Action to take when the referenced</span>
+<span class="sd">                row is deleted. Must be one of &#39;CASCADE&#39;, &#39;SET NULL&#39;,</span>
+<span class="sd">                &#39;SET DEFAULT&#39;, &#39;RESTRICT&#39;, or &#39;NO ACTION&#39;.</span>
+<span class="sd">            on_update (ON_ACTION, optional): Action to take when the referenced</span>
+<span class="sd">                row is updated. Must be one of the same allowed values.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            TableStructure: The current instance, enabling method chaining.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from ormophine.Postgresql import TableStructure, DataTypes, Table, Column</span>
+<span class="sd">            &gt;&gt;&gt; orders = TableStructure(&quot;orders&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; customers = TableStructure(&quot;customers&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; customers.add_column(&quot;id&quot;, DataTypes.INTEGER(), primary_key=True)</span>
+<span class="sd">            &gt;&gt;&gt; orders.add_column(&quot;customer_id&quot;, DataTypes.INTEGER())</span>
+<span class="sd">            &gt;&gt;&gt; orders.foreign_key(</span>
+<span class="sd">            ...     column=&quot;customer_id&quot;,</span>
+<span class="sd">            ...     refrences_table=customers,</span>
+<span class="sd">            ...     refrences_column=Column(customers, &quot;id&quot;, int),</span>
+<span class="sd">            ...     on_delete=&quot;CASCADE&quot;,</span>
+<span class="sd">            ...     on_update=&quot;RESTRICT&quot;</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; orders.get_structure()</span>
+<span class="sd">            &#39;CREATE TABLE &quot;orders&quot; (&quot;customer_id&quot; INTEGER, FOREIGN KEY (customer_id) REFERENCES &quot;customers&quot; (&quot;id&quot;) ON DELETE CASCADE ON UPDATE RESTRICT);&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">foreigns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;FOREIGN KEY (</span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s1">) REFERENCES </span><span class="si">{</span><span class="n">refrences_table</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="n">refrences_column</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">)</span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39; ON DELETE </span><span class="si">{</span><span class="n">on_delete</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">on_delete</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="sa">f</span><span class="s1">&#39; ON UPDATE </span><span class="si">{</span><span class="n">on_update</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">on_update</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="TableStructure.get_structure">
+<a class="viewcode-back" href="../../../../api/Ormophine.Postgresql.html#Ormophine.Postgresql.TableStructure.get_structure">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate the complete SQL CREATE TABLE statement from the defined structure.</span>
+
+<span class="sd">        This method compiles all columns, primary keys, foreign keys, and constraints</span>
+<span class="sd">        into a single PostgreSQL CREATE TABLE statement. It validates that at least</span>
+<span class="sd">        one column has been added before generating the statement.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The full SQL CREATE TABLE statement that can be executed to create</span>
+<span class="sd">                the table in the database.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If no columns have been added to the table structure.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; struct = TableStructure(&quot;employees&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; struct.add_column(&quot;id&quot;, DataTypes.INTEGER(), primary_key=True)</span>
+<span class="sd">            &gt;&gt;&gt; struct.add_column(&quot;name&quot;, DataTypes.VARCHAR(100), not_null=True)</span>
+<span class="sd">            &gt;&gt;&gt; struct.add_column(&quot;dept_id&quot;, DataTypes.INTEGER())</span>
+<span class="sd">            &gt;&gt;&gt; struct.foreign_key(&quot;dept_id&quot;, departments_table, departments_table.id,</span>
+<span class="sd">            ...                    on_delete=&quot;CASCADE&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; sql = struct.get_structure()</span>
+<span class="sd">            &gt;&gt;&gt; print(sql)</span>
+<span class="sd">            CREATE TABLE &quot;employees&quot; (</span>
+<span class="sd">                &quot;id&quot; INTEGER NOT NULL,</span>
+<span class="sd">                &quot;name&quot; VARCHAR(100) NOT NULL,</span>
+<span class="sd">                &quot;dept_id&quot; INTEGER,</span>
+<span class="sd">                PRIMARY KEY(&quot;id&quot;),</span>
+<span class="sd">                FOREIGN KEY (dept_id) REFERENCES &quot;departments&quot; (&quot;id&quot;) ON DELETE CASCADE</span>
+<span class="sd">            );</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_columns</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;You must add at least one column to create a table&#39;</span><span class="p">)</span>
+        <span class="n">primary_key_clause</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;, PRIMARY KEY(</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">primary_keys</span><span class="p">)</span><span class="si">}</span><span class="s1">)&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">primary_keys</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">foreign_key_clause</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;, </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">foreigns</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">foreigns</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_query</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">primary_key_clause</span> <span class="o">+</span> <span class="n">foreign_key_clause</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;CREATE TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="n">body</span><span class="si">}</span><span class="s1">);&#39;</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

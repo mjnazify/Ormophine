@@ -1,0 +1,330 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ormophine.Mysql.Core.join &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">Ormophine.Mysql.Core.join</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for Ormophine.Mysql.Core.join</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<div class="viewcode-block" id="Join">
+<a class="viewcode-back" href="../../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Join">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Join</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Namespace for creating JOIN specifications to be used in :meth:`Table.join`.</span>
+
+<span class="sd">    The :class:`Join` class serves as a container for three nested classes:</span>
+<span class="sd">    :class:`Inner`, :class:`Left`, and :class:`Right`. Each of these classes</span>
+<span class="sd">    represents a specific type of SQL JOIN and encapsulates the target table</span>
+<span class="sd">    and the join condition. When instantiated, they produce an object with a</span>
+<span class="sd">    ``_output`` attribute (a tuple containing the SQL fragment and its</span>
+<span class="sd">    parameters) that is consumed by :meth:`Table.join`.</span>
+
+<span class="sd">    **Nested Classes**</span>
+<span class="sd">        - :class:`Join.Inner`: Creates an ``INNER JOIN`` clause.</span>
+<span class="sd">        - :class:`Join.Left`: Creates a ``LEFT JOIN`` clause.</span>
+<span class="sd">        - :class:`Join.Right`: Creates a ``RIGHT JOIN`` clause.</span>
+
+<span class="sd">    Each nested class has the same constructor signature:</span>
+<span class="sd">        ``__init__(table: Table, match_case_condition: ColumnsOperation)``</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        Joining two tables using an INNER JOIN::</span>
+
+<span class="sd">            from ormophine.Mysql import Join</span>
+
+<span class="sd">            # Assume we have table objects: users, orders</span>
+<span class="sd">            # and column objects: users.id, orders.user_id</span>
+
+<span class="sd">            inner_join = Join.Inner(</span>
+<span class="sd">                orders,</span>
+<span class="sd">                users.id == orders.user_id</span>
+<span class="sd">            )</span>
+
+<span class="sd">            results = users.join(</span>
+<span class="sd">                columns=[users.id, users.name, orders.amount],</span>
+<span class="sd">                joins_list=[inner_join],</span>
+<span class="sd">                where=users.id &gt; 100</span>
+<span class="sd">            )</span>
+
+<span class="sd">        Using a LEFT JOIN::</span>
+
+<span class="sd">            left_join = Join.Left(</span>
+<span class="sd">                orders,</span>
+<span class="sd">                users.id == orders.user_id</span>
+<span class="sd">            )</span>
+
+<span class="sd">            results = users.join(</span>
+<span class="sd">                columns=[users.id, users.name, orders.amount],</span>
+<span class="sd">                joins_list=[left_join]</span>
+<span class="sd">            )</span>
+
+<span class="sd">        Using a RIGHT JOIN::</span>
+
+<span class="sd">            right_join = Join.Right(</span>
+<span class="sd">                orders,</span>
+<span class="sd">                users.id == orders.user_id</span>
+<span class="sd">            )</span>
+
+<span class="sd">            results = users.join(</span>
+<span class="sd">                columns=[users.id, users.name, orders.amount],</span>
+<span class="sd">                joins_list=[right_join]</span>
+<span class="sd">            )</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        The join objects are not meant to be used independently; they are</span>
+<span class="sd">        designed to be passed as a list to the ``joins_list`` parameter of</span>
+<span class="sd">        :meth:`Table.join`. The join condition must be a</span>
+<span class="sd">        :class:`ColumnsOperation` expression, typically created using</span>
+<span class="sd">        comparison operators (``==``, ``!=``, ``&gt;``, etc.) on :class:`Column`</span>
+<span class="sd">        objects.</span>
+<span class="sd">    &quot;&quot;&quot;</span>    
+<div class="viewcode-block" id="Join.Inner">
+<a class="viewcode-back" href="../../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Join.Inner">[docs]</a>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Inner</span><span class="p">:</span>
+<div class="viewcode-block" id="Join.Inner.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Join.Inner.__init__">[docs]</a>
+        <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="n">Table</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="p">:</span> <span class="n">ColumnsOperation</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Initialize an INNER JOIN clause between the current table and another table.</span>
+
+<span class="sd">            This constructor creates an object that represents an ``INNER JOIN`` SQL</span>
+<span class="sd">            clause. It stores both the SQL string and the associated parameter values</span>
+<span class="sd">            for the join condition. The resulting object is typically used in a list</span>
+<span class="sd">            passed to :meth:`Table.join` to perform multi-table queries.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                table (Table): The table to join with. This is the right-hand side</span>
+<span class="sd">                    table in the join.</span>
+<span class="sd">                match_case_condition (ColumnsOperation): A :class:`ColumnsOperation`</span>
+<span class="sd">                    expression that defines the join condition (e.g., ``users.id == orders.user_id``).</span>
+<span class="sd">                    This condition will be used in the ``ON`` clause of the join.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                None: This method does not return a value; it initializes the instance.</span>
+
+<span class="sd">            Raises:</span>
+<span class="sd">                None: This constructor does not perform any validation and does not</span>
+<span class="sd">                    raise exceptions.</span>
+
+<span class="sd">            Example:</span>
+<span class="sd">                Creating an INNER JOIN between the ``users`` table and the ``orders``</span>
+<span class="sd">                table::</span>
+
+<span class="sd">                    from ormophine.Mysql import Join</span>
+
+<span class="sd">                    # Assuming we have table objects: users, orders</span>
+<span class="sd">                    inner_join = Join.Inner(</span>
+<span class="sd">                        orders,</span>
+<span class="sd">                        users.id == orders.user_id</span>
+<span class="sd">                    )</span>
+
+<span class="sd">                    # Then use it in a join query</span>
+<span class="sd">                    results = users.join(</span>
+<span class="sd">                        columns=[users.name, orders.amount],</span>
+<span class="sd">                        joins_list=[inner_join]</span>
+<span class="sd">                    )</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_output</span> <span class="o">=</span>  <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;INNER JOIN </span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ON </span><span class="si">{</span><span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+</div>
+
+            
+<div class="viewcode-block" id="Join.Left">
+<a class="viewcode-back" href="../../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Join.Left">[docs]</a>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Left</span><span class="p">:</span>
+<div class="viewcode-block" id="Join.Left.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Join.Left.__init__">[docs]</a>
+        <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="n">Table</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="p">:</span> <span class="n">ColumnsOperation</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Initialize a LEFT JOIN clause for a SQL query.</span>
+
+<span class="sd">            This constructor creates a representation of a LEFT JOIN between the</span>
+<span class="sd">            current table and the specified ``table``, using the provided condition.</span>
+<span class="sd">            The resulting object stores a tuple ``_output`` containing the SQL fragment</span>
+<span class="sd">            (e.g., ``&#39;LEFT JOIN table_name ON condition&#39;``) and the associated parameter</span>
+<span class="sd">            list for safe parameterized execution. This object is intended to be used</span>
+<span class="sd">            in the :meth:`Table.join` method.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                table (Table): The table to join with.</span>
+<span class="sd">                match_case_condition (ColumnsOperation): A :class:`ColumnsOperation`</span>
+<span class="sd">                    expression defining the join condition (e.g., ``users.id == orders.user_id``).</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                None: The constructor initializes the instance and stores the SQL</span>
+<span class="sd">                fragment and parameters in ``self._output``.</span>
+
+<span class="sd">            Raises:</span>
+<span class="sd">                None: This method does not raise any exceptions directly.</span>
+
+<span class="sd">            Example:</span>
+<span class="sd">                Creating a LEFT JOIN between the ``users`` and ``orders`` tables::</span>
+
+<span class="sd">                    from ormophine.Mysql import Join</span>
+
+<span class="sd">                    join_clause = Join.Left(</span>
+<span class="sd">                        orders,</span>
+<span class="sd">                        users.id == orders.user_id</span>
+<span class="sd">                    )</span>
+
+<span class="sd">                    # The join clause can then be passed to Table.join()</span>
+<span class="sd">                    results = users.join(</span>
+<span class="sd">                        columns=[users.name, orders.amount],</span>
+<span class="sd">                        joins_list=[join_clause]</span>
+<span class="sd">                    )</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_output</span> <span class="o">=</span>  <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;LEFT JOIN </span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ON </span><span class="si">{</span><span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+</div>
+
+
+<div class="viewcode-block" id="Join.Right">
+<a class="viewcode-back" href="../../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Join.Right">[docs]</a>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Right</span><span class="p">:</span>
+<div class="viewcode-block" id="Join.Right.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Mysql.html#Ormophine.Mysql.Join.Right.__init__">[docs]</a>
+        <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="n">Table</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="p">:</span> <span class="n">ColumnsOperation</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Initialize a RIGHT JOIN clause for a query.</span>
+
+<span class="sd">            This constructor creates a RIGHT JOIN specification that can be used</span>
+<span class="sd">            in a :meth:`Table.join` call. A RIGHT JOIN returns all rows from the</span>
+<span class="sd">            right table (the table being joined) and the matching rows from the</span>
+<span class="sd">            left table (the base table). If no match is found on the left side,</span>
+<span class="sd">            columns from the left table will contain ``NULL``.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                table (Table): The table to join on the right side. This is the</span>
+<span class="sd">                    table from which all rows will be returned (the &quot;right&quot; table).</span>
+<span class="sd">                match_case_condition (ColumnsOperation): A :class:`ColumnsOperation`</span>
+<span class="sd">                    expression defining the join condition, typically an equality</span>
+<span class="sd">                    comparison between columns of the base table and the joined table</span>
+<span class="sd">                    (e.g., ``users.id == orders.user_id``).</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                None: This constructor only initializes the join object. The resulting</span>
+<span class="sd">                object is meant to be passed to :meth:`Table.join`.</span>
+
+<span class="sd">            Raises:</span>
+<span class="sd">                Exception: If the underlying SQL generation or execution fails</span>
+<span class="sd">                    (indirectly, when the join object is used in a query).</span>
+
+<span class="sd">            Example:</span>
+<span class="sd">                Performing a RIGHT JOIN between the ``users`` table and an</span>
+<span class="sd">                ``orders`` table::</span>
+
+<span class="sd">                    from ormophine.Mysql import Join</span>
+
+<span class="sd">                    # Assume we have table objects: users, orders</span>
+<span class="sd">                    # and column objects: users.id, orders.user_id, orders.amount</span>
+
+<span class="sd">                    right_join = Join.Right(</span>
+<span class="sd">                        orders,</span>
+<span class="sd">                        users.id == orders.user_id</span>
+<span class="sd">                    )</span>
+
+<span class="sd">                    results = users.join(</span>
+<span class="sd">                        columns=[users.id, users.name, orders.amount],</span>
+<span class="sd">                        joins_list=[right_join],</span>
+<span class="sd">                        where=users.id &gt; 100</span>
+<span class="sd">                    )</span>
+<span class="sd">                    # This will return all orders, even those without a matching user</span>
+<span class="sd">                    # (user columns will be NULL for unmatched orders).</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_output</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;RIGHT JOIN </span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ON </span><span class="si">{</span><span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">match_case_condition</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+</div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

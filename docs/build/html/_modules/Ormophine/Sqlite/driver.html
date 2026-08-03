@@ -1,0 +1,944 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ormophine.Sqlite.driver &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">Ormophine.Sqlite.driver</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for Ormophine.Sqlite.driver</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">SimpleQueue</span><span class="p">,</span> <span class="n">Event</span><span class="p">,</span> <span class="n">Thread</span><span class="p">,</span> <span class="n">SetPragma</span><span class="p">,</span> <span class="n">TableStructure</span><span class="p">,</span> <span class="n">Table</span><span class="p">,</span> <span class="n">sleep</span><span class="p">,</span> <span class="n">print_exc</span><span class="p">,</span> <span class="n">connect</span>
+
+<div class="viewcode-block" id="Driver">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Driver</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Comprehensive SQLite Driver for Ormophine.</span>
+
+<span class="sd">    The Driver class serves as the central gateway to the SQLite database,</span>
+<span class="sd">    managing connections, threading, and high‑level operations. It provides</span>
+<span class="sd">    a thread‑safe, non‑blocking environment where a single writer thread</span>
+<span class="sd">    serialises all write operations, while an optional pool of reader threads</span>
+<span class="sd">    handles concurrent read queries without interfering with the writer.</span>
+
+<span class="sd">    Key Features</span>
+<span class="sd">    ------------</span>
+<span class="sd">    - **Automatic Table Discovery** – Existing tables are immediately</span>
+<span class="sd">      available as attributes (e.g. ``driver.users``) right after</span>
+<span class="sd">      initialisation.</span>
+<span class="sd">    - **Strict Schema Creation** – Use ``TableStructure`` and ``DataTypes``</span>
+<span class="sd">      to define tables with constraints, defaults, foreign keys, and</span>
+<span class="sd">      conflict resolutions.</span>
+<span class="sd">    - **Full CRUD via ``Table`` Objects** – Each table exposes fluent</span>
+<span class="sd">      APIs for insert, update, delete, select, joins, batch operations,</span>
+<span class="sd">      indexes, and column manipulation.</span>
+<span class="sd">    - **Pragma Management** – Pragmas are set through the ``driver.SetPragma``</span>
+<span class="sd">      helper that safely serialises commands onto the writer thread.</span>
+<span class="sd">    - **WAL Mode &amp; Checkpointing** – Easily enable WAL mode; a background</span>
+<span class="sd">      checkpoint timer keeps the WAL file tidy.</span>
+<span class="sd">    - **Non‑blocking Reads** – Fetches can be directed to a separate</span>
+<span class="sd">      reader pool, avoiding contention with writes.</span>
+<span class="sd">    - **Graceful Shutdown** – ``disconnect()`` stops all threads, commits</span>
+<span class="sd">      pending work, and closes connections cleanly.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    db_path : str</span>
+<span class="sd">        Path to the SQLite database file. If the file does not exist,</span>
+<span class="sd">        SQLite will create it.</span>
+<span class="sd">    isolation_level : {&#39;DEFERRED&#39;, &#39;IMMEDIATE&#39;, &#39;EXCLUSIVE&#39;}, optional</span>
+<span class="sd">        Transaction isolation level (default ``&#39;DEFERRED&#39;``).</span>
+<span class="sd">    cache_size : int, optional</span>
+<span class="sd">        Number of cached SQL statements per connection (default 128).</span>
+<span class="sd">    none_block_reader_pool_size : int, optional</span>
+<span class="sd">        Number of reader threads to spawn. Each thread holds its own</span>
+<span class="sd">        SQLite connection. Increase for highly concurrent read workloads</span>
+<span class="sd">        (default 1).</span>
+<span class="sd">    setup_time : float, optional</span>
+<span class="sd">        Time in seconds to wait after initial table discovery (allows</span>
+<span class="sd">        ``Table`` objects to populate their column attributes). Usually</span>
+<span class="sd">        no need to change (default 0.5).</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    db_path : str</span>
+<span class="sd">        The database file path.</span>
+<span class="sd">    main_queue : queue.SimpleQueue</span>
+<span class="sd">        Internal command queue for the writer thread.</span>
+<span class="sd">    SetPragma : SetPragma</span>
+<span class="sd">        Pragma interface (see :class:`SetPragma`).</span>
+<span class="sd">    PLACE_HOLDER : str</span>
+<span class="sd">        String used internally for complex parameter substitution. May</span>
+<span class="sd">        be changed if it conflicts with real data (default</span>
+<span class="sd">        ``&#39;_MY_S4ULT3D_PL4C3_H0LD3R_?_&#39;``).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; # 1. Connect</span>
+<span class="sd">    &gt;&gt;&gt; driver = Driver(&#39;example.db&#39;, isolation_level=&#39;IMMEDIATE&#39;)</span>
+
+<span class="sd">    &gt;&gt;&gt; # 2. Create a table with strict schema</span>
+<span class="sd">    &gt;&gt;&gt; schema = TableStructure(&#39;users&#39;, strict=True)</span>
+<span class="sd">    &gt;&gt;&gt; schema.add_column(</span>
+<span class="sd">    ...     &#39;id&#39;, DataTypes.INTEGER(),</span>
+<span class="sd">    ...     primary_key=True</span>
+<span class="sd">    ... ).add_column(</span>
+<span class="sd">    ...     &#39;name&#39;, DataTypes.TEXT(max_length=100),</span>
+<span class="sd">    ...     not_null=True</span>
+<span class="sd">    ... ).add_column(</span>
+<span class="sd">    ...     &#39;age&#39;, DataTypes.TINYINT(unsigned=True)</span>
+<span class="sd">    ... )</span>
+<span class="sd">    &gt;&gt;&gt; users = driver.create_table(schema)</span>
+
+<span class="sd">    &gt;&gt;&gt; # 3. Insert a row</span>
+<span class="sd">    &gt;&gt;&gt; users.insert({users.name: &#39;Alice&#39;, users.age: 30})</span>
+
+<span class="sd">    &gt;&gt;&gt; # 4. Query with conditions</span>
+<span class="sd">    &gt;&gt;&gt; where = (users.name == &#39;Alice&#39;) &amp; (users.age &gt; 25)</span>
+<span class="sd">    &gt;&gt;&gt; row = users.get_row([users.id, users.name, users.age], where)</span>
+<span class="sd">    &gt;&gt;&gt; print(row)   # e.g. (1, &#39;Alice&#39;, 30)</span>
+
+<span class="sd">    &gt;&gt;&gt; # 5. Update</span>
+<span class="sd">    &gt;&gt;&gt; users.update({users.age: 31}, where)</span>
+
+<span class="sd">    &gt;&gt;&gt; # 6. Bulk insert</span>
+<span class="sd">    &gt;&gt;&gt; users.bulk_insert(</span>
+<span class="sd">    ...     [users.name, users.age],</span>
+<span class="sd">    ...     [(&#39;Bob&#39;, 25), (&#39;Carol&#39;, 28)]</span>
+<span class="sd">    ... )</span>
+
+<span class="sd">    &gt;&gt;&gt; # 7. Complex join</span>
+<span class="sd">    &gt;&gt;&gt; orders = driver.table_object(&#39;orders&#39;)  # assuming orders table exists</span>
+<span class="sd">    &gt;&gt;&gt; joined = users.join(</span>
+<span class="sd">    ...     columns=[users.name, orders.total],</span>
+<span class="sd">    ...     joins_list=[Join.Inner(orders, users.id == orders.user_id)],</span>
+<span class="sd">    ...     where=orders.total &gt; 100</span>
+<span class="sd">    ... )</span>
+<span class="sd">    &gt;&gt;&gt; print(joined)</span>
+
+<span class="sd">    &gt;&gt;&gt; # 8. Non-blocking read (reader pool)</span>
+<span class="sd">    &gt;&gt;&gt; res = users.get_row([users.name], from_readers_pool=True)</span>
+
+<span class="sd">    &gt;&gt;&gt; # 9. PRAGMA</span>
+<span class="sd">    &gt;&gt;&gt; driver.SetPragma.journal_mode(&#39;WAL&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; driver.SetPragma.foreign_keys(True)</span>
+
+<span class="sd">    &gt;&gt;&gt; # 10. Disconnect</span>
+<span class="sd">    &gt;&gt;&gt; driver.disconnect()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ISOLATION_LEVEL</span><span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;DEFERRED&#39;</span><span class="p">,</span> <span class="s1">&#39;IMMEDIATE&#39;</span><span class="p">,</span> <span class="s1">&#39;EXCLUSIVE&#39;</span><span class="p">]</span>
+    <span class="n">PLACE_HOLDER</span> <span class="o">=</span> <span class="s1">&#39;_MY_S4ULT3D_PL4C3_H0LD3R_?_&#39;</span>
+<div class="viewcode-block" id="Driver.__init__">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">isolation_level</span><span class="p">:</span> <span class="n">ISOLATION_LEVEL</span> <span class="o">=</span> <span class="s1">&#39;DEFERRED&#39;</span><span class="p">,</span><span class="n">cache_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">,</span> <span class="n">none_block_reader_pool_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span><span class="n">setup_time</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialises the database connection and the worker threads.</span>
+
+<span class="sd">        Opens (and immediately closes) a test connection to verify the path,</span>
+<span class="sd">        then starts a main writer thread and a pool of non‑blocking reader threads.</span>
+<span class="sd">        All schema objects (tables) are discovered and exposed as attributes on the</span>
+<span class="sd">        driver instance (e.g. ``driver.my_table``).  SetPragma helper is also</span>
+<span class="sd">        attached as :attr:`SetPragma`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            db_path: Path to the SQLite database file.  If the file does not exist</span>
+<span class="sd">                it will be created by the underlying writer thread.</span>
+<span class="sd">            isolation_level: One of ``&#39;DEFERRED&#39;``, ``&#39;IMMEDIATE&#39;``, or</span>
+<span class="sd">                ``&#39;EXCLUSIVE&#39;``.  Controls the transaction isolation mode.</span>
+<span class="sd">                Defaults to ``&#39;DEFERRED&#39;``.</span>
+<span class="sd">            cache_size: Number of compiled SQL statements to keep in the</span>
+<span class="sd">                statement cache (passed to :func:`sqlite3.connect` as</span>
+<span class="sd">                ``cached_statements``).  Defaults to 128.</span>
+<span class="sd">            none_block_reader_pool_size: Number of separate reader connections</span>
+<span class="sd">                and threads to create for non‑blocking read operations (used by</span>
+<span class="sd">                the ``from_readers_pool`` parameter of various methods).</span>
+<span class="sd">                Defaults to 1.</span>
+<span class="sd">            setup_time: Time (in seconds) to sleep after discovering tables,</span>
+<span class="sd">                giving each :class:`Table` instance time to fetch its column</span>
+<span class="sd">                metadata before the constructor returns.  Defaults to 0.5.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the initial test connection fails (e.g. invalid path,</span>
+<span class="sd">                permission denied).  Also raised if the subsequent master table</span>
+<span class="sd">                query fails.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;app.db&#39;, isolation_level=&#39;IMMEDIATE&#39;,</span>
+<span class="sd">            ...                 none_block_reader_pool_size=3)</span>
+<span class="sd">            &gt;&gt;&gt; # Access a table directly</span>
+<span class="sd">            &gt;&gt;&gt; users = driver.users</span>
+<span class="sd">            &gt;&gt;&gt; # Use pragma helper</span>
+<span class="sd">            &gt;&gt;&gt; driver.SetPragma.journal_mode(&#39;WAL&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">connector</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">db_path</span> <span class="p">,</span> <span class="n">isolation_level</span><span class="o">=</span><span class="n">isolation_level</span> <span class="p">,</span> <span class="n">cached_statements</span><span class="o">=</span><span class="n">cache_size</span><span class="p">)</span>
+            <span class="n">connector</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span> <span class="o">=</span> <span class="s1">&#39;_MY_S4ULT3D_PL4C3_H0LD3R_?_&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_path</span><span class="o">=</span> <span class="n">db_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wal_stop</span><span class="o">=</span> <span class="n">Event</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wal_enabled</span><span class="o">=</span> <span class="n">Event</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">SetPragma</span><span class="o">=</span> <span class="n">SetPragma</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reader_pool_size</span> <span class="o">=</span> <span class="n">none_block_reader_pool_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pool_holder</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reader_pool_size</span><span class="p">):</span>
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+            <span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">Driver</span><span class="o">.</span><span class="n">reader_driver</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_path</span><span class="p">,</span> <span class="n">isolation_level</span><span class="p">,</span> <span class="n">cache_size</span><span class="p">))</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">)</span>
+        <span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">Driver</span><span class="o">.</span><span class="n">simple_driver</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_path</span><span class="p">,</span> <span class="n">isolation_level</span><span class="p">,</span> <span class="n">cache_size</span><span class="p">))</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="n">QueueCallBack</span><span class="o">=</span><span class="n">SimpleQueue</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;SELECT * FROM SQLITE_MASTER;&#39;</span><span class="p">,),</span> <span class="n">QueueCallBack</span><span class="p">])</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">callback</span><span class="o">:=</span> <span class="n">QueueCallBack</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">Table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span> <span class="k">if</span> <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;table&#39;</span> <span class="ow">and</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;sqlite_sequence&#39;</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+            <span class="n">sleep</span><span class="p">(</span><span class="n">setup_time</span><span class="p">)</span> <span class="c1">#give Table objects some time to fetch from database and do __setattr__ </span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+        
+    <span class="k">def</span><span class="w"> </span><span class="nf">_exc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Send a command to the writer queue and return the result synchronously.</span>
+
+<span class="sd">        This internal helper is the primary communication channel for all write</span>
+<span class="sd">        operations.  It places a ``(cmd, query, callback_queue)`` tuple on</span>
+<span class="sd">        :attr:`main_queue`, blocks until the writer thread has processed the</span>
+<span class="sd">        request, and either returns the result or raises an exception.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cmd: A short string identifying the operation type. Supported values</span>
+<span class="sd">                are ``&#39;qf&#39;`` (query‑fetch), ``&#39;qcb&#39;`` (query‑commit),</span>
+<span class="sd">                ``&#39;qsb&#39;`` (script‑batch), ``&#39;qmb&#39;`` (executemany‑batch), and</span>
+<span class="sd">                ``&#39;cp&#39;`` (checkpoint).  These map to the writer thread&#39;s</span>
+<span class="sd">                ``match`` cases.</span>
+<span class="sd">            query: The SQL statement and optional parameters. The exact format</span>
+<span class="sd">                depends on *cmd*:</span>
+<span class="sd">                - For ``&#39;qf&#39;`` and ``&#39;qcb&#39;``: ``(sql_statement,)`` or</span>
+<span class="sd">                ``(sql_statement, parameters)``.</span>
+<span class="sd">                - For ``&#39;qsb&#39;``: a list of such query tuples.</span>
+<span class="sd">                - For ``&#39;qmb&#39;``: ``(sql_statement, sequence_of_parameters)``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The result produced by the writer thread:</span>
+<span class="sd">            - For ``&#39;qf&#39;``, a list of rows (possibly empty).</span>
+<span class="sd">            - For ``&#39;qcb&#39;``, ``&#39;qsb&#39;``, and ``&#39;qmb&#39;``, ``None`` on success.</span>
+<span class="sd">            - For ``&#39;cp&#39;``, ``None`` (checkpoints are fire‑and‑forget from the</span>
+<span class="sd">            caller&#39;s perspective).</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the writer thread catches an exception during</span>
+<span class="sd">                execution, it is re‑raised here with the original traceback</span>
+<span class="sd">                message.  This includes SQLite operational errors, constraint</span>
+<span class="sd">                violations, etc.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Usually called indirectly by higher‑level methods, but can be used</span>
+<span class="sd">            for custom low‑level queries::</span>
+
+<span class="sd">                driver = Driver(&#39;app.db&#39;)</span>
+<span class="sd">                # Execute a simple PRAGMA</span>
+<span class="sd">                driver._exc(&#39;qcb&#39;, (&quot;PRAGMA user_version = 1;&quot;,))</span>
+<span class="sd">                # Fetch results from a system table</span>
+<span class="sd">                rows = driver._exc(&#39;qf&#39;, (&#39;SELECT * FROM sqlite_master;&#39;,))</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">queue_call_back</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">cmd</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">queue_call_back</span><span class="p">))</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queue_call_back</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+<div class="viewcode-block" id="Driver.reader_driver">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.reader_driver">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reader_driver</span><span class="p">(</span><span class="n">receiver</span><span class="p">:</span> <span class="n">SimpleQueue</span><span class="p">,</span> <span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">isolation_level</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cache_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run a dedicated reader thread that executes queries from a queue.</span>
+
+<span class="sd">        This static method is intended to be started as a separate thread. It</span>
+<span class="sd">        continuously listens on the *receiver* queue for commands of the form</span>
+<span class="sd">        ``[&#39;qf&#39;, (sql, [params]), callback_queue]`` or ``[&#39;dc&#39;]`` (disconnect).</span>
+<span class="sd">        Each read query is executed on its own SQLite connection, and the</span>
+<span class="sd">        result (or exception) is put into the *callback_queue*.</span>
+
+<span class="sd">        The method is used internally by :class:`Driver` to create the non‑blocking</span>
+<span class="sd">        reader pool. Applications normally do not call it directly.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            receiver: Queue from which the thread receives work items. Each item</span>
+<span class="sd">                is a list ``[command, query_tuple, callback_queue]``.</span>
+<span class="sd">            db_path: Path to the SQLite database file.</span>
+<span class="sd">            isolation_level: SQLite isolation level (e.g. ``&#39;DEFERRED&#39;``).</span>
+<span class="sd">            cache_size: Number of cached statements for the connection.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None. The function runs an infinite loop until a ``&#39;dc&#39;`` command is</span>
+<span class="sd">            received, at which point it returns.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            No exceptions are propagated; any errors during query execution are</span>
+<span class="sd">            returned to the caller through the callback queue as</span>
+<span class="sd">            ``(False, exception)``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            This method is launched by :meth:`Driver.__init__` when creating the</span>
+<span class="sd">            reader pool. For every configured reader a thread similar to::</span>
+
+<span class="sd">                Thread(</span>
+<span class="sd">                    target=Driver.reader_driver,</span>
+<span class="sd">                    args=(connection_queue, db_path, isolation_level, cache_size)</span>
+<span class="sd">                ).start()</span>
+
+<span class="sd">            is started. A typical command sent to the queue looks like::</span>
+
+<span class="sd">                callback = SimpleQueue()</span>
+<span class="sd">                connection_queue.put([&#39;qf&#39;, (&#39;SELECT * FROM users&#39;,), callback])</span>
+<span class="sd">                success, data = callback.get()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">connector</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">db_path</span> <span class="p">,</span> <span class="n">isolation_level</span><span class="o">=</span><span class="n">isolation_level</span> <span class="p">,</span> <span class="n">cached_statements</span><span class="o">=</span><span class="n">cache_size</span><span class="p">)</span>
+                <span class="n">cursor</span> <span class="o">=</span> <span class="n">connector</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+                <span class="k">break</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">query</span> <span class="o">=</span> <span class="n">receiver</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">0.05</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">query</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;dc&#39;</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">True</span><span class="p">,</span> <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()))</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">True</span><span class="p">,</span> <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()))</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">False</span><span class="p">,</span> <span class="n">e</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Driver.simple_driver">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.simple_driver">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">simple_driver</span><span class="p">(</span><span class="n">receiver</span><span class="p">:</span> <span class="n">SimpleQueue</span><span class="p">,</span> <span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">isolation_level</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cache_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Runs the main writer thread that processes all database commands serially.</span>
+
+<span class="sd">        This static method is intended to be executed in a dedicated background thread.</span>
+<span class="sd">        It opens a single SQLite connection, creates a cursor, and then enters an</span>
+<span class="sd">        infinite loop waiting for commands on `receiver`.  Each command is a tuple</span>
+<span class="sd">        of the form ``(cmd, payload, callback_queue)``.  Supported ``cmd`` values:</span>
+
+<span class="sd">        * ``&#39;qf&#39;`` – execute a query and return the fetched rows via the callback.</span>
+<span class="sd">        * ``&#39;qcb&#39;`` – execute a statement and commit (or rollback on error).</span>
+<span class="sd">        * ``&#39;qsb&#39;`` – execute a list of statements as a single transaction.</span>
+<span class="sd">        * ``&#39;qmb&#39;`` – execute a parameterised statement with ``executemany``.</span>
+<span class="sd">        * ``&#39;cp&#39;`` – force a WAL checkpoint (``PRAGMA wal_checkpoint(TRUNCATE)``).</span>
+<span class="sd">        * ``&#39;dc&#39;`` – commit, signal shutdown, and break the loop.</span>
+
+<span class="sd">        On any exception the transaction is rolled back and an ``(False, exception)``</span>
+<span class="sd">        tuple is sent back through the callback queue.  Successful operations return</span>
+<span class="sd">        ``(True, result)``.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            receiver: A :class:`queue.SimpleQueue` from which the thread reads</span>
+<span class="sd">                commands.  Each command is a list/tuple with three elements:</span>
+<span class="sd">                the command string, the query (with optional parameters), and a</span>
+<span class="sd">                callback :class:`queue.SimpleQueue` to receive the result.</span>
+<span class="sd">            db_path: Path to the SQLite database file.</span>
+<span class="sd">            isolation_level: The transaction isolation level (e.g.</span>
+<span class="sd">                ``&#39;DEFERRED&#39;``, ``&#39;IMMEDIATE&#39;``, ``&#39;EXCLUSIVE&#39;``) passed to</span>
+<span class="sd">                :func:`sqlite3.connect`.</span>
+<span class="sd">            cache_size: Number of compiled statements to cache (``cached_statements``</span>
+<span class="sd">                parameter).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None.  The method blocks until a ``&#39;dc&#39;`` command is received and then</span>
+<span class="sd">            returns.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            This method does not raise exceptions directly; all database errors are</span>
+<span class="sd">            caught and reported through the callback queue.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Typically this method is not called directly by users.  It is started</span>
+<span class="sd">            internally by the :class:`Driver` constructor::</span>
+
+<span class="sd">                Thread(target=Driver.simple_driver,</span>
+<span class="sd">                    args=(self.main_queue, db_path, isolation_level, cache_size)).start()</span>
+
+<span class="sd">            To simulate a command from outside (for testing purposes) you might do::</span>
+
+<span class="sd">                import queue</span>
+<span class="sd">                receiver = queue.SimpleQueue()</span>
+<span class="sd">                # start the thread</span>
+<span class="sd">                thread = Thread(target=Driver.simple_driver,</span>
+<span class="sd">                                args=(receiver, &#39;test.db&#39;, &#39;DEFERRED&#39;, 128))</span>
+<span class="sd">                thread.start()</span>
+<span class="sd">                # send a command</span>
+<span class="sd">                callback = queue.SimpleQueue()</span>
+<span class="sd">                receiver.put((&#39;qcb&#39;, (&#39;CREATE TABLE t(x INTEGER)&#39;,), callback))</span>
+<span class="sd">                success, _ = callback.get()</span>
+<span class="sd">                print(success)  # True</span>
+<span class="sd">                # stop the thread</span>
+<span class="sd">                receiver.put((&#39;dc&#39;, None, callback))</span>
+<span class="sd">                thread.join()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="n">connector</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">db_path</span> <span class="p">,</span> <span class="n">isolation_level</span><span class="o">=</span><span class="n">isolation_level</span> <span class="p">,</span> <span class="n">cached_statements</span><span class="o">=</span><span class="n">cache_size</span><span class="p">)</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="n">connector</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">query</span> <span class="o">=</span> <span class="n">receiver</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">0.05</span><span class="p">)</span>
+                    <span class="n">cmd</span> <span class="o">=</span> <span class="n">query</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">except</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">match</span> <span class="n">cmd</span><span class="p">:</span>
+                    <span class="k">case</span> <span class="s1">&#39;qf&#39;</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">True</span><span class="p">,</span> <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()))</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">True</span><span class="p">,</span><span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()))</span>
+                        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">False</span><span class="p">,</span> <span class="n">e</span><span class="p">))</span>
+                    <span class="k">case</span> <span class="s1">&#39;qcb&#39;</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+                            <span class="n">connector</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">True</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+                        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                            <span class="n">connector</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">False</span><span class="p">,</span> <span class="n">e</span><span class="p">))</span>
+                    <span class="k">case</span> <span class="s1">&#39;qsb&#39;</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="p">[</span><span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+                            <span class="n">connector</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">True</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+                        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                            <span class="n">connector</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">False</span><span class="p">,</span> <span class="n">e</span><span class="p">))</span>
+                    <span class="k">case</span> <span class="s1">&#39;qmb&#39;</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">cursor</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cursor</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+                            <span class="n">connector</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">True</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+                        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                            <span class="n">connector</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">False</span><span class="p">,</span> <span class="n">e</span><span class="p">))</span>
+                    <span class="k">case</span> <span class="s1">&#39;cp&#39;</span><span class="p">:</span>
+                        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA wal_checkpoint(TRUNCATE);&quot;</span><span class="p">)</span>
+                        <span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="k">case</span> <span class="s1">&#39;dc&#39;</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">connector</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">True</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+                        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                            <span class="n">connector</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                            <span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="kc">False</span><span class="p">,</span> <span class="n">e</span><span class="p">))</span>
+                        <span class="k">break</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">print_exc</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Driver.checkpoint_timer">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.checkpoint_timer">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">checkpoint_timer</span><span class="p">(</span><span class="n">main_commit_queue</span><span class="p">:</span> <span class="n">SimpleQueue</span><span class="p">,</span> <span class="n">timer</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">stop</span><span class="p">:</span> <span class="n">Event</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Continuously triggers WAL checkpoints at a fixed interval.</span>
+
+<span class="sd">        This static method is designed to run in a dedicated thread.  It</span>
+<span class="sd">        periodically sends a ``&#39;cp&#39;`` command (WAL checkpoint TRUNCATE) to</span>
+<span class="sd">        the main writer queue, helping to keep the WAL file size under</span>
+<span class="sd">        control when WAL mode is enabled.  The loop runs until the</span>
+<span class="sd">        *stop* :class:`~threading.Event` is set.</span>
+
+<span class="sd">        This is an internal helper called by :meth:`Driver.set_WAL_mode` and</span>
+<span class="sd">        should not normally be invoked directly.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            main_commit_queue: The :class:`queue.SimpleQueue` used by the</span>
+<span class="sd">                writer thread.  A ``[&#39;cp&#39;, callback_queue]`` message is</span>
+<span class="sd">                placed into this queue to request a checkpoint.</span>
+<span class="sd">            timer: Number of seconds to sleep between consecutive checkpoint</span>
+<span class="sd">                requests.</span>
+<span class="sd">            stop: A :class:`~threading.Event` that signals the loop to</span>
+<span class="sd">                terminate.  When set, the function prints a message and</span>
+<span class="sd">                returns.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The function does not return; it blocks indefinitely until</span>
+<span class="sd">            the stop event is signalled.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            This function is started automatically when WAL mode is activated:</span>
+
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;app.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; driver.set_WAL_mode(True, wal_timer=30)</span>
+<span class="sd">            # Internally starts a thread running checkpoint_timer</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">stop</span><span class="o">.</span><span class="n">is_set</span><span class="p">():</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;checkpoint stopped&#39;</span><span class="p">)</span>
+                <span class="k">break</span>
+            <span class="n">sleep</span><span class="p">(</span><span class="n">timer</span><span class="p">)</span>
+            <span class="n">call_back_queue</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+            <span class="n">main_commit_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;cp&#39;</span><span class="p">,</span> <span class="n">call_back_queue</span><span class="p">])</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">call_back_queue</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="Driver.table_object">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.table_object">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">table_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;Table&#39;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns a :class:`Table` instance for the given table name.</span>
+
+<span class="sd">        This method looks up the table in the database by calling</span>
+<span class="sd">        :meth:`get_tables` and returns a freshly‑constructed</span>
+<span class="sd">        :class:`Table` object.  It is useful when you need to work with</span>
+<span class="sd">        a table that was not automatically exposed as an attribute of the</span>
+<span class="sd">        :class:`Driver` instance, or when you prefer explicit access.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            table_name: The exact name of the table (case‑sensitive) as</span>
+<span class="sd">                it appears in the SQLite schema.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A :class:`Table` object bound to this driver and the named</span>
+<span class="sd">            table.  All column attributes are immediately available.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If there are no tables at all in the database</span>
+<span class="sd">                (``&#39;No table found&#39;``).</span>
+<span class="sd">            Exception: If the requested *table_name* does not exist</span>
+<span class="sd">                (``&#39;No such table named …&#39;``).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;app.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; # if table &#39;logs&#39; is not already driver.logs</span>
+<span class="sd">            &gt;&gt;&gt; logs = driver.table_object(&#39;logs&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; print(logs.get_columns_name())</span>
+<span class="sd">            [&#39;timestamp&#39;, &#39;message&#39;, &#39;level&#39;]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">tables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_tables</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tables</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No table found&#39;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No such table named </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s1"> in this db&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.custom_execute">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.custom_execute">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a raw SQL statement on the main writer connection.</span>
+
+<span class="sd">        Sends *query* and optional *params* to the background writer thread.</span>
+<span class="sd">        The statement is committed immediately if it succeeds; on failure the</span>
+<span class="sd">        transaction is rolled back and an exception is raised.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query: The SQL statement to execute.  May contain ``?``</span>
+<span class="sd">                placeholders if *params* is supplied.</span>
+<span class="sd">            params: A list of values to bind to the placeholders in *query*.</span>
+<span class="sd">                Defaults to ``None``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the writer thread encounters an error (e.g. syntax</span>
+<span class="sd">                error, constraint violation).  The underlying exception</span>
+<span class="sd">                message is propagated.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;app.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; driver.custom_execute(&#39;PRAGMA user_version = 1&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; driver.custom_execute(</span>
+<span class="sd">            ...     &#39;INSERT INTO logs (message) VALUES (?)&#39;,</span>
+<span class="sd">            ...     [&#39;startup complete&#39;]</span>
+<span class="sd">            ... )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">))</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span></div>
+
+        
+<div class="viewcode-block" id="Driver.custom_execute_many">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.custom_execute_many">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute_many</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a raw SQL statement with multiple parameter sets (``executemany``).</span>
+
+<span class="sd">        Sends the statement and the list of parameter sequences to the writer</span>
+<span class="sd">        queue for execution inside a single transaction.  This is the</span>
+<span class="sd">        recommended way to run bulk inserts, updates, or deletes that require</span>
+<span class="sd">        multiple parameter sets but only one SQL command.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query: The SQL query string.  It must contain placeholders</span>
+<span class="sd">                (``?``) that will be replaced by the elements of each</span>
+<span class="sd">                parameter tuple in *params*.</span>
+<span class="sd">            params: A list of tuples (or lists) where each element</span>
+<span class="sd">                provides the values for one execution of the statement.</span>
+<span class="sd">                If omitted or ``None``, the statement is executed once</span>
+<span class="sd">                with no parameters (effectively the same as</span>
+<span class="sd">                :meth:`custom_execute`).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ``None``.  The operation is performed asynchronously; if it</span>
+<span class="sd">            fails an exception will be raised.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the statement execution fails.  The exception</span>
+<span class="sd">                contains the original SQLite error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;app.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; driver.custom_execute(</span>
+<span class="sd">            ...     &#39;CREATE TABLE logs (message TEXT, level INTEGER)&#39;</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; data = [(&quot;startup&quot;, 1), (&quot;shutdown&quot;, 2), (&quot;error&quot;, 3)]</span>
+<span class="sd">            &gt;&gt;&gt; driver.custom_execute_many(</span>
+<span class="sd">            ...     &#39;INSERT INTO logs VALUES (?, ?)&#39;,</span>
+<span class="sd">            ...     data</span>
+<span class="sd">            ... )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qmb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">))</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qmb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="Driver.custom_execute_with_fetch">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.custom_execute_with_fetch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute_with_fetch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">from_readers_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute an arbitrary SQL query and return the fetched rows.</span>
+
+<span class="sd">        This is a low‑level method that submits a read query (typically a</span>
+<span class="sd">        ``SELECT``) to the worker thread infrastructure.  By default it uses the</span>
+<span class="sd">        main writer thread; when *from_readers_pool* is ``True`` it borrows a</span>
+<span class="sd">        connection from the non‑blocking reader pool, which is useful for</span>
+<span class="sd">        long‑running queries that should not block other writers.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query: The SQL statement to execute (usually a ``SELECT``).</span>
+<span class="sd">            params: Optional list or tuple of bind parameters to substitute</span>
+<span class="sd">                into *query* (using SQLite ``?`` placeholders).  Defaults to</span>
+<span class="sd">                ``None``.</span>
+<span class="sd">            from_readers_pool: If ``True`` the query is executed on a reader</span>
+<span class="sd">                pool connection; otherwise the main writer thread is used.</span>
+<span class="sd">                Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The result of ``cursor.fetchall()`` after executing the query.</span>
+<span class="sd">            Typically a list of tuples (one tuple per row).  The exact format</span>
+<span class="sd">            depends on the SQL statement.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the underlying worker reports an error (e.g.</span>
+<span class="sd">                malformed SQL, missing table, or parameter mismatch).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;app.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; rows = driver.custom_execute_with_fetch(</span>
+<span class="sd">            ...     &quot;SELECT name FROM users WHERE age &gt; ?&quot;, [18]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # Use the reader pool to avoid blocking the writer</span>
+<span class="sd">            &gt;&gt;&gt; heavy = driver.custom_execute_with_fetch(</span>
+<span class="sd">            ...     &quot;SELECT * FROM large_logs WHERE processed = 0&quot;,</span>
+<span class="sd">            ...     from_readers_pool=True</span>
+<span class="sd">            ... )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">from_readers_pool</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,</span><span class="n">params</span><span class="p">))</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">queueCallBack</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,</span><span class="n">params</span><span class="p">),</span> <span class="n">queueCallBack</span><span class="p">])</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,),</span> <span class="n">queueCallBack</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queueCallBack</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Driver.get_tables">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.get_tables">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_tables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="s1">&#39;Table&#39;</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieve a dictionary of all user tables in the database.</span>
+
+<span class="sd">        Queries the ``SQLITE_MASTER`` table via</span>
+<span class="sd">        :meth:`custom_execute_with_fetch` and returns a mapping from table</span>
+<span class="sd">        name (string) to :class:`Table` instance for every table that is not</span>
+<span class="sd">        the internal ``sqlite_sequence``.  The :class:`Table` objects are</span>
+<span class="sd">        freshly constructed and have their column attributes populated.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary where keys are table names (``str``) and values</span>
+<span class="sd">            are corresponding :class:`Table` objects.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagated from the underlying writer thread if the</span>
+<span class="sd">                ``SQLITE_MASTER`` query fails.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;app.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; all_tables = driver.get_tables()</span>
+<span class="sd">            &gt;&gt;&gt; for name, tbl in all_tables.items():</span>
+<span class="sd">            ...     print(f&#39;{name}: {len(tbl.get_columns_name())} columns&#39;)</span>
+<span class="sd">            users: 5 columns</span>
+<span class="sd">            orders: 8 columns</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">tables_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">custom_execute_with_fetch</span><span class="p">(</span><span class="s1">&#39;SELECT * FROM SQLITE_MASTER;&#39;</span><span class="p">)</span>
+        <span class="n">tables_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">tables_list</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;table&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;sqlite_sequence&#39;</span><span class="p">:</span>
+                <span class="n">tables_dict</span><span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">tables_dict</span></div>
+
+
+<div class="viewcode-block" id="Driver.create_table">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.create_table">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_structure</span><span class="p">:</span> <span class="s1">&#39;TableStructure&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;Table&#39;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates a new table in the database from a :class:`TableStructure` definition.</span>
+
+<span class="sd">        Executes the ``CREATE TABLE`` statement generated by</span>
+<span class="sd">        :meth:`TableStructure.get_structure`, then immediately makes the</span>
+<span class="sd">        table accessible as an attribute of the driver instance (e.g.</span>
+<span class="sd">        ``driver.new_table``) and returns the corresponding :class:`Table`</span>
+<span class="sd">        object.  All column metadata is fetched and attached to the table.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            table_structure: A fully configured :class:`TableStructure`</span>
+<span class="sd">                instance describing the columns, constraints, foreign keys,</span>
+<span class="sd">                and strict mode setting.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            :class:`Table`: The newly created table object, ready for</span>
+<span class="sd">            inserts, updates, queries, etc.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagated from the writer thread if the SQL</span>
+<span class="sd">                execution fails (e.g. syntax error in the structure,</span>
+<span class="sd">                duplicate table name, or violation of database constraints).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; structure = TableStructure(&#39;employees&#39;, strict=True)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&#39;id&#39;, DataTypes.INTEGER(), primary_key=True)</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&#39;name&#39;, DataTypes.TEXT(max_length=100))</span>
+<span class="sd">            &gt;&gt;&gt; structure.add_column(&#39;salary&#39;, DataTypes.REAL(min_val=0.0))</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;company.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; emp_table = driver.create_table(structure)</span>
+<span class="sd">            &gt;&gt;&gt; # Now driver.employees is also available</span>
+<span class="sd">            &gt;&gt;&gt; driver.employees.insert({emp_table.name: &#39;John&#39;})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">table_structure</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(),))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">table_structure</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">Table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">table_structure</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">Table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_structure</span><span class="o">.</span><span class="n">name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.defragment">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.defragment">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">defragment</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Rebuilds the database file and updates statistics for the query planner.</span>
+
+<span class="sd">        Executes the SQLite ``VACUUM`` command followed by ``PRAGMA optimize``.</span>
+<span class="sd">        ``VACUUM`` rebuilds the entire database, reclaiming unused space and</span>
+<span class="sd">        defragmenting the file.  ``PRAGMA optimize`` analyzes the database</span>
+<span class="sd">        and updates internal statistics to help the query planner choose</span>
+<span class="sd">        efficient execution plans.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None.  The operation is performed synchronously on the writer</span>
+<span class="sd">            thread.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If either the ``VACUUM`` or ``PRAGMA optimize``</span>
+<span class="sd">                command fails (e.g. disk full, permission error).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;my_data.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; driver.defragment()</span>
+<span class="sd">            # The database file is now compacted and optimized.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;VACUUM;PRAGMA optimize;&quot;</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="Driver.set_WAL_mode">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.set_WAL_mode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_WAL_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">is_set</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">wal_timer</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Enables or disables Write‑Ahead Logging (WAL) mode.</span>
+
+<span class="sd">        When enabled, the journal mode is set to ``WAL`` and a background</span>
+<span class="sd">        thread periodically performs truncate checkpoints (see</span>
+<span class="sd">        :meth:`checkpoint_timer`).  When disabled, the checkpoint timer is</span>
+<span class="sd">        stopped, journal mode is switched back to ``PERSIST``, and a final</span>
+<span class="sd">        manual checkpoint is executed.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            is_set: ``True`` to enable WAL mode, ``False`` to disable it.</span>
+<span class="sd">            wal_timer: Interval in seconds between automatic checkpoints</span>
+<span class="sd">                while WAL is active.  Ignored when ``is_set`` is ``False``.</span>
+<span class="sd">                Defaults to 60.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagated from the writer thread if a ``PRAGMA``</span>
+<span class="sd">                statement fails (e.g. database is locked).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;mydb.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; # Enable WAL with 30‑second checkpoints</span>
+<span class="sd">            &gt;&gt;&gt; driver.set_WAL_mode(True, wal_timer=30)</span>
+<span class="sd">            &gt;&gt;&gt; # ... perform heavy writes ...</span>
+<span class="sd">            &gt;&gt;&gt; # Disable WAL and return to PERSIST</span>
+<span class="sd">            &gt;&gt;&gt; driver.set_WAL_mode(False)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">is_set</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wal_enabled</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wal_stop</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;PRAGMA journal_mode=WAL;&quot;</span><span class="p">,))</span>
+            <span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">Driver</span><span class="o">.</span><span class="n">checkpoint_timer</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="p">,</span> <span class="n">wal_timer</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">wal_stop</span><span class="p">))</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wal_stop</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;PRAGMA journal_mode=PERSIST;&quot;</span><span class="p">,))</span>
+        <span class="n">call_back_queue</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;cp&#39;</span><span class="p">,</span> <span class="n">call_back_queue</span><span class="p">])</span>
+        <span class="n">call_back_queue</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Driver.disconnect">
+<a class="viewcode-back" href="../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Driver.disconnect">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Gracefully shut down the database connection and all worker threads.</span>
+
+<span class="sd">        This method shuts down the driver in a controlled order:</span>
+
+<span class="sd">        1. It signals any active WAL-checkpoint timer to stop.</span>
+<span class="sd">        2. If WAL mode was enabled, it triggers a final checkpoint through the</span>
+<span class="sd">           main writer thread and waits for completion.</span>
+<span class="sd">        3. It sends a disconnect command to the writer thread so pending work</span>
+<span class="sd">           is committed and the connection is closed.</span>
+<span class="sd">        4. It sends disconnect commands to every reader-pool connection so the</span>
+<span class="sd">           reader threads can exit cleanly.</span>
+
+<span class="sd">        After this call, the driver instance should no longer be used.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: May propagate exceptions from the writer thread if the</span>
+<span class="sd">                final commit or rollback fails.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; driver = Driver(&#39;app.db&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; driver.disconnect()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">wal_stop</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+        <span class="n">callback_dc</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">wal_enabled</span><span class="o">.</span><span class="n">is_set</span><span class="p">():</span>
+            <span class="n">call_back_queue</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;cp&#39;</span><span class="p">,</span> <span class="n">call_back_queue</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;dc&#39;</span> <span class="p">,</span> <span class="n">callback_dc</span><span class="p">])</span>
+            <span class="n">call_back_queue</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;dc&#39;</span> <span class="p">,</span> <span class="n">callback_dc</span><span class="p">])</span>
+        <span class="n">callback_dc</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reader_pool_size</span><span class="p">):</span>
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;dc&#39;</span><span class="p">])</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

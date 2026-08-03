@@ -1,0 +1,1545 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ormophine.Sqlite.Core.table &mdash; Ormophine 0.7.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            Ormophine
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/modules.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Ormophine</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">Ormophine.Sqlite.Core.table</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for Ormophine.Sqlite.Core.table</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">Column</span><span class="p">,</span> <span class="n">ColumnsOperation</span><span class="p">,</span> <span class="n">BatchOperation</span><span class="p">,</span> <span class="n">Join</span><span class="p">,</span> <span class="n">SimpleQueue</span><span class="p">,</span> <span class="n">Any</span>
+
+<div class="viewcode-block" id="Table">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Table</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a database table with methods for data manipulation, schema changes, and queries.</span>
+
+<span class="sd">    The `Table` class provides a high‑level, Pythonic interface to interact with a SQLite table.</span>
+<span class="sd">    It dynamically creates `Column` attributes for each column, and offers methods for:</span>
+<span class="sd">        - CRUD operations: `insert()`, `update()`, `get_row()`, `delete_row()`</span>
+<span class="sd">        - Bulk operations: `bulk_insert()`, `bulk_update()`, `batch()`</span>
+<span class="sd">        - Schema management: `add_column()`, `rename_column()`, `delete_column()`, `create_index()`</span>
+<span class="sd">        - Joins: `join()` (using `Join` helper classes)</span>
+<span class="sd">        - Raw SQL: `custom_execute()`, `custom_execute_many()`, `custom_execute_with_fetch()`</span>
+
+<span class="sd">    All methods are **blocking** – each call waits until the operation is completed.</span>
+<span class="sd">    Exceptions are raised immediately on failure.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        name_ (str): Bracket‑wrapped table name, e.g., `&#39;[users]&#39;`.</span>
+<span class="sd">        main_queue (SimpleQueue): Queue for sending commands to the writer thread.</span>
+<span class="sd">        db_obj (Driver): Parent Driver instance.</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        Basic CRUD:</span>
+<span class="sd">        &gt;&gt;&gt; db = Driver(&#39;company.db&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; employees = db.employees  # Table object</span>
+<span class="sd">        &gt;&gt;&gt; employees.insert({employees.name: &#39;Alice&#39;, employees.salary: 5000})</span>
+<span class="sd">        &gt;&gt;&gt; employees.update({employees.salary: 5500}, where=employees.name == &#39;Alice&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; rows = employees.get_row([employees.name, employees.salary], where=employees.salary &gt; 4000)</span>
+<span class="sd">        &gt;&gt;&gt; employees.delete_row(where=employees.name == &#39;Alice&#39;)</span>
+
+<span class="sd">        Selecting with expressions and slicing:</span>
+<span class="sd">        &gt;&gt;&gt; employees.get_row([employees.name.upper(), employees.salary * 1.1, employees.email[:-4]])</span>
+
+<span class="sd">        Joining tables:</span>
+<span class="sd">        &gt;&gt;&gt; orders = db.orders</span>
+<span class="sd">        &gt;&gt;&gt; customers = db.customers</span>
+<span class="sd">        &gt;&gt;&gt; result = orders.join(</span>
+<span class="sd">        ...     columns=[customers.name, orders.amount],</span>
+<span class="sd">        ...     joins_list=[Join.Inner(customers, customers.id == orders.customer_id)],</span>
+<span class="sd">        ...     where=orders.amount &gt; 100</span>
+<span class="sd">        ... )</span>
+
+<span class="sd">        Bulk operations:</span>
+<span class="sd">        &gt;&gt;&gt; employees.bulk_insert([employees.name, employees.salary],</span>
+<span class="sd">        ...                       [[&#39;Bob&#39;, 3000], [&#39;Charlie&#39;, 3500]])</span>
+<span class="sd">        &gt;&gt;&gt; employees.bulk_update({employees.salary: &#39;?&#39;}, where=employees.name == &#39;?&#39;,</span>
+<span class="sd">        ...                       data_list=[[4000, &#39;Bob&#39;], [4500, &#39;Charlie&#39;]])</span>
+
+<span class="sd">        Batch (transaction):</span>
+<span class="sd">        &gt;&gt;&gt; (employees.batch()</span>
+<span class="sd">        ...     .insert({employees.name: &#39;Dave&#39;, employees.salary: 2000})</span>
+<span class="sd">        ...     .update({employees.salary: employees.salary + 500}, where=employees.name == &#39;Dave&#39;)</span>
+<span class="sd">        ...     .run())</span>
+
+<span class="sd">        Schema changes (dangerous, use with caution):</span>
+<span class="sd">        &gt;&gt;&gt; employees.add_column(&#39;department&#39;, str, default_value=&#39;general&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; employees.rename_column(employees.department, &#39;dept&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; employees.delete_column(employees.dept, True, True, True)</span>
+
+<span class="sd">        Index management:</span>
+<span class="sd">        &gt;&gt;&gt; employees.create_index(&#39;idx_salary&#39;, [employees.salary])</span>
+<span class="sd">        &gt;&gt;&gt; employees.get_indexes()</span>
+<span class="sd">        &gt;&gt;&gt; employees.delete_index(&#39;idx_salary&#39;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">PLACE_HOLDER</span> <span class="o">=</span> <span class="s1">&#39;_MY_S4ULT3D_PL4C3_H0LD3R_?_&#39;</span>
+<div class="viewcode-block" id="Table.__init__">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Driver</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize a Table object representing a database table.</span>
+
+<span class="sd">        This constructor fetches the table&#39;s schema information via</span>
+<span class="sd">        :meth:`get_table_info` and dynamically creates :class:`Column`</span>
+<span class="sd">        attributes for each column in the table. The column names become</span>
+<span class="sd">        attributes on the Table instance, allowing access like</span>
+<span class="sd">        ``table.column_name``. Additionally, a special attribute ``ROWID``</span>
+<span class="sd">        is added to represent SQLite&#39;s implicit rowid.</span>
+
+<span class="sd">        The table name is normalized with square brackets for safe SQL</span>
+<span class="sd">        usage (e.g., ``[table_name]``). The Table object uses the provided</span>
+<span class="sd">        :class:`Driver` instance to communicate with the database via its</span>
+<span class="sd">        main queue and reader pool.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            obj (Driver): The driver instance that manages the database</span>
+<span class="sd">                connection and thread pool.</span>
+<span class="sd">            table_name (str): The name of the table to represent.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the table schema cannot be retrieved (e.g., the</span>
+<span class="sd">                table does not exist or the database is inaccessible).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming a database with a ``users`` table::</span>
+
+<span class="sd">                db = Driver(&#39;my.db&#39;)</span>
+<span class="sd">                users = db.users #Tables are available as properties</span>
+<span class="sd">                # Now users.name, users.age, etc., are Column objects.</span>
+<span class="sd">                # Also users.ROWID is available.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="o">=</span> <span class="s1">&#39;[&#39;</span><span class="o">+</span><span class="n">table_name</span><span class="o">+</span><span class="s1">&#39;]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="p">:</span> <span class="n">SimpleQueue</span><span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">main_queue</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">=</span> <span class="n">obj</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span> <span class="o">=</span> <span class="s1">&#39;_MY_S4ULT3D_PL4C3_H0LD3R_?_&#39;</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_table_info</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">Column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">i</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="s1">&#39;ROWID&#39;</span><span class="p">,</span> <span class="n">Column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;ROWID&#39;</span><span class="p">,</span> <span class="nb">int</span><span class="p">))</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_exc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Send a command and query to the database thread and wait for the result.</span>
+
+<span class="sd">        This is a low‑level internal method used by :class:`Table` to</span>
+<span class="sd">        communicate with the main database thread via the driver&#39;s queue.</span>
+<span class="sd">        It packages the command and query into a message, places it on the</span>
+<span class="sd">        queue, and blocks until a response is received. If the execution</span>
+<span class="sd">        succeeds, the result (or ``None``) is returned; otherwise, an</span>
+<span class="sd">        exception is raised with the error message.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cmd (str): The command type to execute. Valid values include:</span>
+<span class="sd">                - ``&#39;qf&#39;``: execute a query and fetch results.</span>
+<span class="sd">                - ``&#39;qcb&#39;``: execute a query that commits changes.</span>
+<span class="sd">                - ``&#39;qsb&#39;``: execute a script (batch) of statements.</span>
+<span class="sd">                - ``&#39;qmb&#39;``: execute a query with multiple parameter sets.</span>
+<span class="sd">            query (tuple): The SQL query string and optional parameters.</span>
+<span class="sd">                Typically a 1‑ or 2‑tuple, e.g., ``(sql,)`` or ``(sql, params)``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Any: The result of the database operation if successful. For</span>
+<span class="sd">                ``&#39;qf&#39;``, this is the fetched rows; for other commands,</span>
+<span class="sd">                it is ``None``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails, an exception is</span>
+<span class="sd">                raised with the underlying SQLite error message.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            This method is used internally by other :class:`Table` methods::</span>
+
+<span class="sd">                table._exc(&#39;qf&#39;, (&#39;SELECT * FROM users WHERE id = ?&#39;, (1,)))</span>
+<span class="sd">                # returns the fetched row(s) for the query</span>
+
+<span class="sd">                table._exc(&#39;qcb&#39;, (&#39;UPDATE users SET name = ? WHERE id = ?&#39;, (&#39;Alice&#39;, 1)))</span>
+<span class="sd">                # updates the user and returns None on success</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">queue_call_back</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main_queue</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">cmd</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">queue_call_back</span><span class="p">))</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queue_call_back</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    
+<div class="viewcode-block" id="Table.batch">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.batch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">batch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;BatchOperation&#39;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a batch operation context bound to this table.</span>
+
+<span class="sd">        Returns a :class:`BatchOperation` instance that allows multiple</span>
+<span class="sd">        INSERT and UPDATE statements to be grouped into a single atomic</span>
+<span class="sd">        transaction. The batch is executed by calling its :meth:`~BatchOperation.run`</span>
+<span class="sd">        method, which sends all queued operations to the table&#39;s thread‑safe</span>
+<span class="sd">        main queue and waits for the result.</span>
+
+<span class="sd">        This is useful for bundling related changes that must succeed or fail</span>
+<span class="sd">        together, avoiding intermediate commits.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            BatchOperation: A new batch operation object pre‑configured to use</span>
+<span class="sd">                this table&#39;s queue and name.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If any operation in the batch fails when :meth:`~BatchOperation.run`</span>
+<span class="sd">                is called, the exception from SQLite is propagated.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple usage with literal values::</span>
+
+<span class="sd">                table = db.employees</span>
+<span class="sd">                batch = table.batch()</span>
+<span class="sd">                batch.insert({table.name: &quot;John&quot;, table.salary: 50000})</span>
+<span class="sd">                batch.update({table.department: &quot;Engineering&quot;},</span>
+<span class="sd">                            where=table.id.eq(42))</span>
+<span class="sd">                batch.run()</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Complex usage using :class:`ColumnsOperation` expressions for both</span>
+<span class="sd">            the value to be set and the condition::</span>
+
+<span class="sd">                batch = table.batch()</span>
+<span class="sd">                # Give a 10% raise to everyone in &#39;Sales&#39; earning less than 60000</span>
+<span class="sd">                batch.update(</span>
+<span class="sd">                    {table.salary: table.salary * 1.10},</span>
+<span class="sd">                    where=(table.department == &quot;Sales&quot;) &amp; (table.salary &lt; 60000)</span>
+<span class="sd">                )</span>
+<span class="sd">                # Set display_name to first_name + &#39; &#39; + last_name for a specific row</span>
+<span class="sd">                batch.update(</span>
+<span class="sd">                    {table.display_name: table.first_name.add_end(&quot; &quot;).add_end(table.last_name)},</span>
+<span class="sd">                    where=table.id.eq(99)</span>
+<span class="sd">                )</span>
+<span class="sd">                batch.run()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">BatchOperation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="Table.update">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.update">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Column</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates rows in the table that match the given condition.</span>
+
+<span class="sd">        Constructs and executes an ``UPDATE`` SQL statement, setting column values</span>
+<span class="sd">        as specified in the ``update`` dictionary for all rows where the</span>
+<span class="sd">        ``where`` condition holds. The values can be plain Python scalars,</span>
+<span class="sd">        other :class:`Column` objects (to copy values between columns), or</span>
+<span class="sd">        :class:`ColumnsOperation` instances (to use SQL expressions).</span>
+<span class="sd">        Placeholders (``?``) are automatically generated for scalar values;</span>
+<span class="sd">        column references and operation outputs are embedded directly into the</span>
+<span class="sd">        SQL.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            update: A dictionary mapping :class:`Column` instances to the new</span>
+<span class="sd">                value. The value can be:</span>
+
+<span class="sd">                * A plain Python scalar (``int``, ``float``, ``str``, ``bytes``).</span>
+<span class="sd">                It will be passed as a parameter.</span>
+<span class="sd">                * Another :class:`Column` object – the column&#39;s value will be</span>
+<span class="sd">                copied.</span>
+<span class="sd">                * A :class:`ColumnsOperation` representing a SQL expression</span>
+<span class="sd">                (e.g., arithmetic, string concatenation). Its parameters are</span>
+<span class="sd">                merged into the query&#39;s parameter list.</span>
+<span class="sd">            where: A :class:`ColumnsOperation` representing the ``WHERE``</span>
+<span class="sd">                clause condition. It must be created from column comparisons</span>
+<span class="sd">                (e.g., using :meth:`Column.eq`, ``==``, ``&gt;``, etc.).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails. The exception message</span>
+<span class="sd">                contains details from SQLite.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple update with scalar values::</span>
+
+<span class="sd">                # Assume driver and table are already set up</span>
+<span class="sd">                users = driver.users</span>
+<span class="sd">                name_col = users.name</span>
+<span class="sd">                age_col = users.age</span>
+
+<span class="sd">                # Update age to 30 where name is &#39;Alice&#39;</span>
+<span class="sd">                users.update(</span>
+<span class="sd">                    update={age_col: 30},</span>
+<span class="sd">                    where=name_col == &#39;Alice&#39;</span>
+<span class="sd">                )</span>
+
+<span class="sd">            Complex update with a :class:`ColumnsOperation` expression::</span>
+
+<span class="sd">                # Increment the &#39;score&#39; column by 10 for all rows where</span>
+<span class="sd">                # the &#39;level&#39; column is greater than 5.</span>
+<span class="sd">                score_col = users.score</span>
+<span class="sd">                level_col = users.level</span>
+
+<span class="sd">                # Create an operation: score + 10</span>
+<span class="sd">                score_plus_10 = score_col + 10   # returns a ColumnsOperation</span>
+
+<span class="sd">                users.update(</span>
+<span class="sd">                    update={score_col: score_plus_10},</span>
+<span class="sd">                    where=level_col &gt; 5</span>
+<span class="sd">                )</span>
+
+<span class="sd">            Using column-to-column copy and string concatenation::</span>
+
+<span class="sd">                fullname_col = users.fullname</span>
+<span class="sd">                first_col = users.first</span>
+<span class="sd">                last_col = users.last</span>
+
+<span class="sd">                # Concatenate first and last name into fullname</span>
+<span class="sd">                fullname_expr = first_col.add_end(&#39; &#39;).add_end(last_col)</span>
+<span class="sd">                users.update(</span>
+<span class="sd">                    update={fullname_col: fullname_expr},</span>
+<span class="sd">                    where=fullname_col == &#39;&#39;  # only empty fullnames</span>
+<span class="sd">                )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">temp_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="p">[</span><span class="kc">None</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span> <span class="p">,</span> <span class="n">Column</span><span class="p">)</span> <span class="k">else</span> <span class="n">temp_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">ColumnsOperation</span><span class="p">)</span> <span class="k">else</span> <span class="n">temp_list</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">update</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;UPDATE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> SET </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1"> = </span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">Column</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">=?&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">ColumnsOperation</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">=</span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">list</span><span class="p">(</span><span class="n">update</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span><span class="si">}</span><span class="s1"> WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span> <span class="n">temp_list</span><span class="o">+</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.get_table_info">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.get_table_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_table_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">from_readers_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieves column metadata for the table from the SQLite database.</span>
+
+<span class="sd">        Uses the ``PRAGMA table_info({self.name_})`` statement to fetch column</span>
+<span class="sd">        details, including name, data type, nullability, default value, and</span>
+<span class="sd">        primary key status. The data type is mapped to Python types: ``int``</span>
+<span class="sd">        for ``INTEGER``, ``str`` for ``TEXT``, ``float`` for ``REAL``/</span>
+<span class="sd">        ``NUMERIC``, ``bytes`` for ``BLOB``; otherwise defaults to ``str``.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            from_readers_pool (bool): If ``False`` (default), the query is</span>
+<span class="sd">                executed on the main writer connection. If ``True``, a</span>
+<span class="sd">                connection from the reader pool is obtained, allowing</span>
+<span class="sd">                non‑blocking reads in multi‑threaded scenarios.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[dict]: A list of column information dictionaries, each with</span>
+<span class="sd">            the following keys:</span>
+<span class="sd">                - ``id`` (int): column ID (position).</span>
+<span class="sd">                - ``name`` (str): column name.</span>
+<span class="sd">                - ``datatype`` (type): Python type inferred from SQL type.</span>
+<span class="sd">                - ``notnull`` (int): 1 if NOT NULL, 0 otherwise.</span>
+<span class="sd">                - ``default_value`` (Any|None): default value if set.</span>
+<span class="sd">                - ``primary_key`` (int): 1 if part of primary key, 0 otherwise.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database query or reader‑pool acquisition fails.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; users = driver.users</span>
+<span class="sd">            &gt;&gt;&gt; cols = users.get_table_info()</span>
+<span class="sd">            &gt;&gt;&gt; for col in cols:</span>
+<span class="sd">            ...     print(f&quot;{col[&#39;name&#39;]}: {col[&#39;datatype&#39;]}&quot;)</span>
+<span class="sd">            id: &lt;class &#39;int&#39;&gt;</span>
+<span class="sd">            username: &lt;class &#39;str&#39;&gt;</span>
+<span class="sd">            ...</span>
+<span class="sd">            &gt;&gt;&gt; # Using a reader‑pool connection:</span>
+<span class="sd">            &gt;&gt;&gt; cols_async = users.get_table_info(from_readers_pool=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;PRAGMA table_info(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1">)&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">from_readers_pool</span><span class="p">:</span>
+            <span class="n">columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">queueCallBack</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,),</span> <span class="n">queueCallBack</span><span class="p">])</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queueCallBack</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">columns</span> <span class="o">=</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">[{</span><span class="s1">&#39;id&#39;</span><span class="p">:</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;name&#39;</span><span class="p">:</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;datatype&#39;</span><span class="p">:</span><span class="nb">int</span> <span class="k">if</span> <span class="s1">&#39;INTEGER&#39;</span> <span class="ow">in</span> <span class="n">i</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>  <span class="k">else</span> <span class="nb">str</span> <span class="k">if</span> <span class="s1">&#39;TEXT&#39;</span> <span class="ow">in</span> <span class="n">i</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">else</span> <span class="nb">float</span> <span class="k">if</span> <span class="s1">&#39;REAL&#39;</span> <span class="ow">in</span> <span class="n">i</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">else</span> <span class="nb">bytes</span> <span class="k">if</span> <span class="s1">&#39;BLOB&#39;</span> <span class="ow">in</span> <span class="n">i</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">else</span> <span class="nb">float</span> <span class="k">if</span> <span class="s1">&#39;NUMERIC&#39;</span> <span class="ow">in</span> <span class="n">i</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">else</span> <span class="nb">str</span><span class="p">,</span> <span class="s1">&#39;notnull&#39;</span><span class="p">:</span> <span class="n">i</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="s1">&#39;default_value&#39;</span><span class="p">:</span><span class="n">i</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span> <span class="s1">&#39;primary_key&#39;</span><span class="p">:</span><span class="n">i</span><span class="p">[</span><span class="mi">5</span><span class="p">]}</span><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Table.get_columns_name">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.get_columns_name">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_columns_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">from_readers_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieve the names of all columns in the table.</span>
+
+<span class="sd">        Fetches column metadata using ``PRAGMA table_info`` and returns a list</span>
+<span class="sd">        containing only the column name strings.  This is a convenience wrapper</span>
+<span class="sd">        around :meth:`get_table_info` that discards other column details.</span>
+
+<span class="sd">        The operation can be performed on either the main writer connection</span>
+<span class="sd">        (default) or on a dedicated reader thread from the connection pool.</span>
+<span class="sd">        When ``from_readers_pool`` is ``True``, the method acquires a reader</span>
+<span class="sd">        queue from :attr:`Driver.pool_holder`, executes the query there, and</span>
+<span class="sd">        returns the queue back to the pool.  This avoids blocking the writer</span>
+<span class="sd">        thread and is suitable for read-heavy workloads.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            from_readers_pool (bool): If ``True``, use a read-only connection</span>
+<span class="sd">                from :attr:`Driver.pool_holder`.  Defaults to ``False``, which</span>
+<span class="sd">                sends the query through the main writer connection.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[str]: A list of column names as plain strings (without brackets</span>
+<span class="sd">            or escaping).</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagated from the underlying execution if the query</span>
+<span class="sd">                fails or the reader callback reports an error.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; table = db.users</span>
+<span class="sd">            &gt;&gt;&gt; cols = table.get_columns_name()</span>
+<span class="sd">            &gt;&gt;&gt; print(cols)</span>
+<span class="sd">            [&#39;id&#39;, &#39;name&#39;, &#39;email&#39;]</span>
+<span class="sd">        &quot;&quot;&quot;</span>        
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;PRAGMA table_info(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1">)&#39;</span>
+        
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">from_readers_pool</span><span class="p">:</span>
+            <span class="n">columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">queueCallBack</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,),</span> <span class="n">queueCallBack</span><span class="p">])</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queueCallBack</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">columns</span> <span class="o">=</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Table.get_row">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.get_row">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_row</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">which_columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span> <span class="o">|</span> <span class="s1">&#39;ColumnsOperation&#39;</span><span class="p">],</span>
+        <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">order_by</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">from_readers_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Fetch rows from the table with optional filtering, ordering, and expression columns.</span>
+
+<span class="sd">        Builds and executes a ``SELECT`` query on the table. The columns to retrieve can be</span>
+<span class="sd">        plain :class:`Column` objects or complex :class:`ColumnsOperation` expressions.</span>
+<span class="sd">        If a single column/operation is requested, a flat list of values is returned;</span>
+<span class="sd">        otherwise a list of tuples (one per selected column) is returned.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            which_columns (list): List of columns or operations to select. Each element can be a</span>
+<span class="sd">                :class:`Column` instance (retrieves its raw value) or a</span>
+<span class="sd">                :class:`ColumnsOperation` object (evaluates the expression in SQL).</span>
+<span class="sd">            where (:class:`ColumnsOperation`, optional): Filtering condition. Only rows for which</span>
+<span class="sd">                the condition evaluates to true are included. Defaults to ``None`` (all rows).</span>
+<span class="sd">            order_by (:class:`Column`, optional): Column to order results by. If omitted, ordering</span>
+<span class="sd">                falls back to the ``ROWID`` pseudo-column.</span>
+<span class="sd">            from_readers_pool (bool, optional): If ``True``, the query is dispatched to a dedicated</span>
+<span class="sd">                reader thread from the connection pool, which can improve concurrency for</span>
+<span class="sd">                read‑heavy workloads. Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list: If ``which_columns`` contains a single element, a flat list of column values</span>
+<span class="sd">            (e.g., ``[&#39;Alice&#39;, &#39;Bob&#39;]``). Otherwise a list of tuples, each tuple containing</span>
+<span class="sd">            the selected column values in the same order as ``which_columns``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the underlying SQL execution fails. The exception message contains</span>
+<span class="sd">                the database error details.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple retrieval of a single column:</span>
+
+<span class="sd">            &gt;&gt;&gt; names = my_table.get_row([my_table.name])</span>
+<span class="sd">            &gt;&gt;&gt; print(names)</span>
+<span class="sd">            [&#39;Alice&#39;, &#39;Bob&#39;]</span>
+
+<span class="sd">            Retrieving multiple columns:</span>
+
+<span class="sd">            &gt;&gt;&gt; rows = my_table.get_row([my_table.name, my_table.age])</span>
+<span class="sd">            &gt;&gt;&gt; for name, age in rows:</span>
+<span class="sd">            ...     print(f&quot;{name} is {age} years old&quot;)</span>
+
+<span class="sd">            Adding a filter and ordering:</span>
+
+<span class="sd">            &gt;&gt;&gt; adults = my_table.get_row(</span>
+<span class="sd">            ...     [my_table.name],</span>
+<span class="sd">            ...     where=my_table.age &gt; 18,</span>
+<span class="sd">            ...     order_by=my_table.name</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; print(adults)</span>
+<span class="sd">            [&#39;Charlie&#39;, &#39;Diana&#39;]</span>
+
+<span class="sd">            Using a :class:`ColumnsOperation` expression (arithmetic, concatenation, etc.):</span>
+
+<span class="sd">            &gt;&gt;&gt; full_name = my_table.first_name + &#39; &#39; + my_table.last_name  # __add__ on Column creates ColumnsOperation</span>
+<span class="sd">            &gt;&gt;&gt; # Filtering on the computed column</span>
+<span class="sd">            &gt;&gt;&gt; condition = full_name.contains(&#39;John&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; results = my_table.get_row([full_name, my_table.age], where=condition)</span>
+<span class="sd">            &gt;&gt;&gt; for name, age in results:</span>
+<span class="sd">            ...     print(f&quot;Full name: {name}, Age: {age}&quot;)</span>
+
+<span class="sd">            Slicing and string operations:</span>
+
+<span class="sd">            &gt;&gt;&gt; first_initial = my_table.name[:1]  # substring just like python</span>
+<span class="sd">            &gt;&gt;&gt; initials_and_ages = my_table.get_row([first_initial, my_table.age], where=my_table.age &gt;= 30)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">tl</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">wc</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="p">[</span><span class="n">wc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">Column</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">wc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">tl</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">which_columns</span><span class="p">]</span>
+        
+        <span class="n">query</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">wc</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">first_name</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;ROWID&#39;</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span> <span class="n">tl</span><span class="o">+</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="n">where</span> <span class="k">else</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">wc</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">first_name</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;ROWID&#39;</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span><span class="n">tl</span><span class="p">)</span> <span class="k">if</span> <span class="n">tl</span> <span class="k">else</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">wc</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">first_name</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;ROWID&#39;</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">from_readers_pool</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">which_columns</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">queueCallBack</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">queueCallBack</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queueCallBack</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">which_columns</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Table.insert">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.insert">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">insert</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Insert a single row into the table.</span>
+
+<span class="sd">        Builds and executes an ``INSERT INTO`` statement using the provided mapping</span>
+<span class="sd">        of :class:`Column` objects to their values. All values are parameterised to</span>
+<span class="sd">        prevent SQL injection.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            insert (dict[:class:`Column`, Any]): A dictionary where each key is a</span>
+<span class="sd">                :class:`Column` instance belonging to this table, and the corresponding</span>
+<span class="sd">                value is the Python data to store in that column.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the underlying database operation fails (e.g., constraint</span>
+<span class="sd">                violation, syntax error). The exception message contains the database</span>
+<span class="sd">                error details.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple insertion of a single row with literal values::</span>
+
+<span class="sd">                db = Driver(&#39;my_db.sqlite&#39;)</span>
+<span class="sd">                user_table = db.user_table  # User table already created</span>
+
+<span class="sd">                user_table.insert({</span>
+<span class="sd">                    user_table.name: &#39;Alice&#39;,</span>
+<span class="sd">                    user_table.age: 30,</span>
+<span class="sd">                    user_table.email: &#39;alice@example.com&#39;</span>
+<span class="sd">                })</span>
+
+<span class="sd">            Insert a row and then verify it using a :class:`ColumnsOperation` in a</span>
+<span class="sd">            subsequent ``get_row`` call::</span>
+
+<span class="sd">                # Insert a product</span>
+<span class="sd">                products_table.insert({</span>
+<span class="sd">                    products_table.name: &#39;Widget&#39;,</span>
+<span class="sd">                    products_table.price: 19.99,</span>
+<span class="sd">                    products_table.quantity: 150</span>
+<span class="sd">                })</span>
+
+<span class="sd">                # Retrieve products with low stock using an operation</span>
+<span class="sd">                low_stock = products_table.quantity &lt; 50</span>
+<span class="sd">                result = products_table.get_row(</span>
+<span class="sd">                    [products_table.name],</span>
+<span class="sd">                    where=low_stock</span>
+<span class="sd">                )</span>
+<span class="sd">                print(result)  # [] because quantity is 150</span>
+
+<span class="sd">                # Now insert a product that meets the low-stock condition</span>
+<span class="sd">                products_table.insert({</span>
+<span class="sd">                    products_table.name: &#39;Gadget&#39;,</span>
+<span class="sd">                    products_table.price: 9.99,</span>
+<span class="sd">                    products_table.quantity: 30</span>
+<span class="sd">                })</span>
+
+<span class="sd">                result = products_table.get_row(</span>
+<span class="sd">                    [products_table.name],</span>
+<span class="sd">                    where=low_stock</span>
+<span class="sd">                )</span>
+<span class="sd">                print(result)  # [&#39;Gadget&#39;]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;INSERT INTO </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">list</span><span class="p">(</span><span class="n">insert</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span><span class="si">}</span><span class="s1">) VALUES (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;?&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">insert</span><span class="p">)</span><span class="si">}</span><span class="s1">)&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">insert</span><span class="o">.</span><span class="n">values</span><span class="p">())])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span></div>
+
+ 
+<div class="viewcode-block" id="Table.custom_execute">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.custom_execute">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Executes a raw SQL statement on the table&#39;s database connection.</span>
+
+<span class="sd">        Sends the query to the writer queue and waits for completion. The statement</span>
+<span class="sd">        is executed immediately and committed on success; on failure a rollback is</span>
+<span class="sd">        performed and an exception is raised. This method is intended for data</span>
+<span class="sd">        manipulation statements (INSERT, UPDATE, DELETE, DDL, etc.) that do not</span>
+<span class="sd">        return rows.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL statement to execute. Placeholders (``?``) are</span>
+<span class="sd">                allowed for parameterised queries.</span>
+<span class="sd">            params (list, optional): A list of parameters to bind to the</span>
+<span class="sd">                placeholders in `query`. Defaults to None, in which case the</span>
+<span class="sd">                statement is executed without parameters.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails. The original exception</span>
+<span class="sd">                from sqlite3 is propagated.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; users_table.custom_execute(</span>
+<span class="sd">            ...     &quot;INSERT INTO [users] (name, age) VALUES (?, ?)&quot;,</span>
+<span class="sd">            ...     [&quot;Alice&quot;, 30]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # Simple DDL</span>
+<span class="sd">            &gt;&gt;&gt; users_table.custom_execute(&quot;CREATE INDEX idx_name ON [users](name)&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>        
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">))</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span></div>
+
+            
+<div class="viewcode-block" id="Table.custom_execute_many">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.custom_execute_many">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute_many</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Executes a single SQL statement against multiple parameter sets.</span>
+
+<span class="sd">        This method sends a ``qmb`` (query many batch) command to the</span>
+<span class="sd">        underlying driver thread, which uses ``cursor.executemany()`` to</span>
+<span class="sd">        efficiently process the same statement with different bound values.</span>
+<span class="sd">        It is ideal for bulk inserts, updates, or deletes where the SQL</span>
+<span class="sd">        structure remains identical but the data changes.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This is a non‑fetching operation; no result set is returned.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL statement to execute. Use ``?`` placeholders</span>
+<span class="sd">                for parameter binding.</span>
+<span class="sd">            params (list, optional): An iterable of parameter sequences (e.g.,</span>
+<span class="sd">                list of tuples or lists). Each item must match the number of</span>
+<span class="sd">                placeholders in ``query``. If ``None``, the statement is</span>
+<span class="sd">                executed once without parameters (though ``executemany`` with</span>
+<span class="sd">                no parameters is equivalent to a single ``execute``).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails (e.g., constraint</span>
+<span class="sd">                violation, malformed SQL). The original exception from the</span>
+<span class="sd">                driver thread is propagated.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Batch‑insert users using a custom statement::</span>
+
+<span class="sd">                users = db.users</span>
+<span class="sd">                users.custom_execute_many(</span>
+<span class="sd">                    &quot;INSERT INTO users (username, score) VALUES (?, ?)&quot;,</span>
+<span class="sd">                    [</span>
+<span class="sd">                        (&quot;alice&quot;, 95),</span>
+<span class="sd">                        (&quot;bob&quot;, 87),</span>
+<span class="sd">                        (&quot;carol&quot;, 92)</span>
+<span class="sd">                    ]</span>
+<span class="sd">                )</span>
+
+<span class="sd">            This is equivalent to, but often more convenient than, building</span>
+<span class="sd">            a :class:`BatchOperation` manually.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qmb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">))</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qmb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span></div>
+
+
+<div class="viewcode-block" id="Table.custom_execute_with_fetch">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.custom_execute_with_fetch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_execute_with_fetch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">from_readers_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute a custom SQL query and return fetched results.</span>
+
+<span class="sd">        Sends the provided SQL query and optional parameters to the database</span>
+<span class="sd">        connection. If ``from_readers_pool`` is ``False`` (default), the query</span>
+<span class="sd">        is executed on the main writer connection; otherwise a connection from</span>
+<span class="sd">        the non‑blocking reader pool is used. The result is the same as</span>
+<span class="sd">        ``cursor.fetchall()`` – a list of tuples, each representing a row.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query (str): The SQL statement to execute. Placeholders ``?`` can</span>
+<span class="sd">                be used for parameterized queries.</span>
+<span class="sd">            params (list, optional): A list of values to bind to the</span>
+<span class="sd">                placeholders in ``query``. Defaults to ``None``.</span>
+<span class="sd">            from_readers_pool (bool): If ``True``, the query is run against a</span>
+<span class="sd">                reader‑pool connection (non‑blocking). Defaults to ``False``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Any: The rows returned by the query as a list of tuples. For</span>
+<span class="sd">            example, ``[(val1, val2), ...]``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails or a reader‑pool</span>
+<span class="sd">                connection cannot be acquired.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Assuming ``users`` is a :class:`Table` instance:</span>
+
+<span class="sd">            &gt;&gt;&gt; rows = users.custom_execute_with_fetch(</span>
+<span class="sd">            ...     &quot;SELECT id, username FROM users WHERE age &gt; ?&quot;,</span>
+<span class="sd">            ...     params=[18]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; for row in rows:</span>
+<span class="sd">            ...     print(row)</span>
+<span class="sd">            (1, &#39;alice&#39;)</span>
+<span class="sd">            (2, &#39;bob&#39;)</span>
+
+<span class="sd">            To use a reader pool connection for better concurrency:</span>
+
+<span class="sd">            &gt;&gt;&gt; rows = users.custom_execute_with_fetch(</span>
+<span class="sd">            ...     &quot;SELECT COUNT(*) FROM users&quot;,</span>
+<span class="sd">            ...     from_readers_pool=True</span>
+<span class="sd">            ... )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">from_readers_pool</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">))</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">queueCallBack</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">),</span> <span class="n">queueCallBack</span><span class="p">])</span> <span class="k">if</span> <span class="n">params</span> <span class="k">else</span> <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,),</span> <span class="n">queueCallBack</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queueCallBack</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Table.delete_row">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.delete_row">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_row</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Deletes all rows from the table that match the given condition.</span>
+
+<span class="sd">        Constructs a ``DELETE FROM ... WHERE ...`` SQL statement using the</span>
+<span class="sd">        provided :class:`ColumnsOperation` expression. The operation is sent</span>
+<span class="sd">        to the writer queue and executed atomically in a thread‑safe manner.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            where (ColumnsOperation): A condition expression built from</span>
+<span class="sd">                :class:`Column` objects and comparison methods (e.g.,</span>
+<span class="sd">                :meth:`Column.eq`, :meth:`Column.gt`). The</span>
+<span class="sd">                :attr:`ColumnsOperation._output` attribute contains the SQL</span>
+<span class="sd">                fragment and the corresponding bind parameters.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method does not return a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the underlying SQL execution fails (e.g., constraint</span>
+<span class="sd">                violation, syntax error in the condition). The exception</span>
+<span class="sd">                message includes details from the database driver.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; # Assume `db` is a Driver instance and `users` is a Table.</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; # Delete all users with an age less than 18.</span>
+<span class="sd">            &gt;&gt;&gt; condition = users.age &lt; 18</span>
+<span class="sd">            &gt;&gt;&gt; users.delete_row(condition)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;DELETE FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">,</span> <span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.delete_table">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.delete_table">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">are_you_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">are_you_really_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">for_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Drops the table from the database and removes it from the driver.</span>
+
+<span class="sd">        This method executes a ``DROP TABLE`` statement, permanently deleting</span>
+<span class="sd">        the table and all its data. As a safety measure, all three boolean</span>
+<span class="sd">        flags must be ``True`` for the operation to proceed. After successful</span>
+<span class="sd">        deletion, the table&#39;s attribute is removed from the parent</span>
+<span class="sd">        :class:`Driver` instance, making it inaccessible through the ORM.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            are_you_sure (bool): First confirmation flag.</span>
+<span class="sd">            are_you_really_sure (bool): Second confirmation flag.</span>
+<span class="sd">            for_sure (bool): Third confirmation flag.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: This method mutates the database and the driver state, but</span>
+<span class="sd">            returns nothing.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If any of the confirmation flags are not ``True``, or</span>
+<span class="sd">                if the database operation fails (e.g., the table does not exist).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&#39;mydb.sqlite&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; # assuming a table &#39;temp_logs&#39; exists</span>
+<span class="sd">            &gt;&gt;&gt; temp_logs = db.table_object(&#39;temp_logs&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; temp_logs.delete_table(True, True, True)</span>
+<span class="sd">            &gt;&gt;&gt; # Now the table is dropped and &#39;temp_logs&#39; attribute is gone</span>
+<span class="sd">            &gt;&gt;&gt; &#39;temp_logs&#39; in dir(db)</span>
+<span class="sd">            False</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">are_you_sure</span> <span class="ow">and</span> <span class="n">are_you_really_sure</span> <span class="ow">and</span> <span class="n">for_sure</span><span class="p">:</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;DROP TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1">;&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="fm">__delattr__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Table.delete_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.delete_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_column</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">column</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span><span class="p">,</span>
+        <span class="n">are_you_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">are_you_really_sure</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">for_sure</span><span class="p">:</span> <span class="nb">bool</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Drops a column from the table permanently.</span>
+
+<span class="sd">        Executes an ``ALTER TABLE ... DROP COLUMN`` statement on the database</span>
+<span class="sd">        and removes the corresponding attribute from the :class:`Table` object.</span>
+<span class="sd">        The operation is gated by three explicit boolean flags that must all be</span>
+<span class="sd">        ``True`` to proceed – this is a safety mechanism to prevent accidental</span>
+<span class="sd">        column deletion.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column (Column): The column object to be deleted. Must belong to</span>
+<span class="sd">                this table.</span>
+<span class="sd">            are_you_sure (bool): First confirmation flag.</span>
+<span class="sd">            are_you_really_sure (bool): Second confirmation flag.</span>
+<span class="sd">            for_sure (bool): Third confirmation flag. All three must be</span>
+<span class="sd">                ``True`` for the deletion to execute.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The column is dropped from the schema and the attribute is</span>
+<span class="sd">            removed from the :class:`Table` instance.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails (e.g., the column does</span>
+<span class="sd">                not exist, or the table is locked). The original error from the</span>
+<span class="sd">                writer thread is re‑raised.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            After successful deletion, the :class:`Column` object passed as</span>
+<span class="sd">            ``column`` is no longer valid for queries because its underlying</span>
+<span class="sd">            database column no longer exists. The attribute is also removed</span>
+<span class="sd">            from the table object, so accessing it later will raise an</span>
+<span class="sd">            :class:`AttributeError`.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;mydb.sqlite3&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; # Delete the &quot;age&quot; column with triple confirmation</span>
+<span class="sd">            &gt;&gt;&gt; age_col = users.age  # Column instance</span>
+<span class="sd">            &gt;&gt;&gt; users.delete_column(</span>
+<span class="sd">            ...     age_col,</span>
+<span class="sd">            ...     are_you_sure=True,</span>
+<span class="sd">            ...     are_you_really_sure=True,</span>
+<span class="sd">            ...     for_sure=True</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # Now users.age will raise AttributeError</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">are_you_sure</span> <span class="ow">and</span> <span class="n">are_you_really_sure</span> <span class="ow">and</span> <span class="n">for_sure</span><span class="p">:</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;ALTER TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> DROP COLUMN </span><span class="si">{</span><span class="n">column</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">;&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__delattr__</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Table.add_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.add_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">datatype</span><span class="p">:</span> <span class="nb">int</span><span class="o">|</span><span class="nb">str</span><span class="o">|</span><span class="nb">float</span><span class="o">|</span><span class="nb">bytes</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">not_null</span><span class="p">:</span> <span class="nb">bool</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Adds a new column to the table.</span>
+
+<span class="sd">        Executes an ``ALTER TABLE ... ADD COLUMN`` statement using the provided</span>
+<span class="sd">        ``datatype`` string. The string is expected to come from one of the</span>
+<span class="sd">        :class:`DataTypes` static methods (e.g., ``DataTypes.INTEGER()``) and</span>
+<span class="sd">        contains the placeholder ``my_saulted_x``, which is automatically</span>
+<span class="sd">        replaced with the actual column name. After the database operation</span>
+<span class="sd">        succeeds, a corresponding :class:`Column` attribute is set on the</span>
+<span class="sd">        :class:`Table` instance, making it immediately available for queries.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column_name (str): The name of the new column.</span>
+<span class="sd">            datatype (int | str | float | bytes): The SQL column definition</span>
+<span class="sd">                string, typically obtained from a :meth:`DataTypes` method.</span>
+<span class="sd">                The placeholder ``my_saulted_x`` inside this string will be</span>
+<span class="sd">                replaced with ``column_name``.</span>
+<span class="sd">            default_value: The default value for the column. If the value is a</span>
+<span class="sd">                string, it is automatically quoted in the SQL. Defaults to</span>
+<span class="sd">                ``None`` (no DEFAULT clause).</span>
+<span class="sd">            not_null (bool): If ``True``, a ``NOT NULL`` constraint is added</span>
+<span class="sd">                to the column definition. Defaults to ``None``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The column is added to the database schema and the attribute</span>
+<span class="sd">            is created on the :class:`Table` object.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails (e.g., the column</span>
+<span class="sd">                already exists, the table is locked, or the ``datatype``</span>
+<span class="sd">                string is invalid). The original error from the writer thread</span>
+<span class="sd">                is re‑raised.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;mydb.sqlite3&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; # Add a TEXT column with a default value</span>
+<span class="sd">            &gt;&gt;&gt; users.add_column(</span>
+<span class="sd">            ...     &quot;status&quot;,</span>
+<span class="sd">            ...     DataTypes.TEXT(max_length=20),</span>
+<span class="sd">            ...     default_value=&quot;active&quot;,</span>
+<span class="sd">            ...     not_null=True</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # Now users.status is a Column object</span>
+<span class="sd">            &gt;&gt;&gt; print(users.status.first_name)</span>
+<span class="sd">            [status]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;ALTER TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> ADD COLUMN </span><span class="si">{</span><span class="n">datatype</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;my_saulted_x&#39;</span><span class="p">,</span><span class="n">column_name</span><span class="p">)</span><span class="si">}{</span><span class="s1">&#39; NOT NULL&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">not_null</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}{</span><span class="sa">f</span><span class="s1">&#39; DEFAULT </span><span class="si">{</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">default_value</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">type</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">str</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">default_value</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">default_value</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="n">Column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">,</span> <span class="nb">int</span> <span class="k">if</span> <span class="s1">&#39;INTEGER&#39;</span> <span class="ow">in</span> <span class="n">datatype</span>  <span class="k">else</span> <span class="nb">str</span> <span class="k">if</span> <span class="s1">&#39;TEXT&#39;</span> <span class="ow">in</span> <span class="n">datatype</span> <span class="k">else</span> <span class="nb">float</span> <span class="k">if</span> <span class="s1">&#39;REAL&#39;</span> <span class="ow">in</span> <span class="n">datatype</span> <span class="k">else</span> <span class="nb">bytes</span> <span class="k">if</span> <span class="s1">&#39;BLOB&#39;</span> <span class="ow">in</span> <span class="n">datatype</span> <span class="k">else</span> <span class="nb">float</span> <span class="k">if</span> <span class="s1">&#39;NUMERIC&#39;</span> <span class="ow">in</span> <span class="n">datatype</span> <span class="k">else</span> <span class="nb">str</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Table.rename_table">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.rename_table">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rename_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Renames the table in the database and updates all associated objects.</span>
+
+<span class="sd">        Executes an ``ALTER TABLE ... RENAME TO`` statement to change the</span>
+<span class="sd">        table&#39;s name. On success, the old attribute on the :class:`Driver`</span>
+<span class="sd">        object is removed, a new :class:`Table` attribute with the new name is</span>
+<span class="sd">        added, and this instance&#39;s :attr:`name_` is updated to reflect the new</span>
+<span class="sd">        name.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            new_name (str): The new name for the table (without brackets;</span>
+<span class="sd">                they will be added automatically).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The table is renamed in place; the :class:`Table` instance</span>
+<span class="sd">            itself is mutated and the :class:`Driver` attribute is updated.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the ``ALTER TABLE`` command fails (e.g., a table</span>
+<span class="sd">                with the new name already exists, or the database is locked).</span>
+<span class="sd">                The original error from the writer thread is re‑raised.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;mydb.sqlite3&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; old_users = db.users  # original Table object</span>
+<span class="sd">            &gt;&gt;&gt; old_users.rename_table(&quot;clients&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # Now db.clients exists, db.users no longer does</span>
+<span class="sd">            &gt;&gt;&gt; # The old_users variable still refers to the same Table</span>
+<span class="sd">            &gt;&gt;&gt; # instance, but its name_ attribute is now &#39;[clients]&#39;</span>
+<span class="sd">            &gt;&gt;&gt; print(db.clients.name_)</span>
+<span class="sd">            [clients]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;ALTER TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> RENAME TO </span><span class="si">{</span><span class="n">new_name</span><span class="si">}</span><span class="s1">;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="fm">__delattr__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">new_name</span><span class="p">,</span> <span class="n">Table</span><span class="p">(</span><span class="n">obj</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="n">new_name</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name_</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;[</span><span class="si">{</span><span class="n">new_name</span><span class="si">}</span><span class="s1">]&#39;</span></div>
+
+
+<div class="viewcode-block" id="Table.rename_column">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.rename_column">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rename_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span><span class="p">,</span> <span class="n">new_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Renames an existing column in the table.</span>
+
+<span class="sd">        Executes an ``ALTER TABLE ... RENAME COLUMN`` statement to change the</span>
+<span class="sd">        column name in the database schema. After a successful rename, the</span>
+<span class="sd">        original :class:`Column` attribute is removed from the :class:`Table`</span>
+<span class="sd">        instance and a new :class:`Column` attribute with the same datatype</span>
+<span class="sd">        is added under the new name.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            column (Column): The column object to rename. Must be an existing</span>
+<span class="sd">                column of this table.</span>
+<span class="sd">            new_name (str): The new name for the column (without brackets).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The table schema and the object&#39;s internal attribute</span>
+<span class="sd">            mapping are updated in place.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails (e.g., column does not</span>
+<span class="sd">                exist, table is locked, or the new name conflicts). The error</span>
+<span class="sd">                is propagated from the writer thread.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;mydb.sqlite3&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; # Rename the column currently named &quot;age&quot; to &quot;years&quot;</span>
+<span class="sd">            &gt;&gt;&gt; users.rename_column(users.age, &quot;years&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; # Now users.years exists and users.age raises AttributeError</span>
+<span class="sd">            &gt;&gt;&gt; print(users.years.first_name)</span>
+<span class="sd">            &#39;[years]&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;ALTER TABLE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> RENAME COLUMN </span><span class="si">{</span><span class="n">column</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1"> TO </span><span class="si">{</span><span class="n">new_name</span><span class="si">}</span><span class="s1">;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__delattr__</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">new_name</span><span class="p">,</span> <span class="n">Column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_name</span><span class="p">,</span> <span class="n">column</span><span class="o">.</span><span class="n">datatype</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Table.create_index">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.create_index">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_index</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">index_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">],</span>
+        <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates a new index on the table.</span>
+
+<span class="sd">        Builds and executes a ``CREATE INDEX`` (or ``CREATE UNIQUE INDEX``)</span>
+<span class="sd">        statement. Supports specifying a partial index via a ``WHERE``</span>
+<span class="sd">        condition built from a :class:`ColumnsOperation` object.</span>
+
+<span class="sd">        The parameters inside the ``WHERE`` clause are directly</span>
+<span class="sd">        interpolated into the SQL string as literals (not using bound</span>
+<span class="sd">        parameters), so this is safe for trusted data only. The final query</span>
+<span class="sd">        is executed through the thread‑safe writer queue.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index_name (str): The name of the index to create. Must be</span>
+<span class="sd">                unique within the database.</span>
+<span class="sd">            columns (list[Column]): A list of :class:`Column` objects that</span>
+<span class="sd">                define the indexed columns.</span>
+<span class="sd">            unique (bool): If ``True``, creates a ``UNIQUE`` index that</span>
+<span class="sd">                enforces uniqueness of the indexed column combination.</span>
+<span class="sd">                Defaults to ``False``.</span>
+<span class="sd">            where (ColumnsOperation, optional): A column operation</span>
+<span class="sd">                representing the ``WHERE`` clause for a partial index. The</span>
+<span class="sd">                expression and its parameter values are baked into the SQL.</span>
+<span class="sd">                Defaults to ``None``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The operation mutates the database schema; it does not</span>
+<span class="sd">            return any value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: Propagated from the writer thread if the index</span>
+<span class="sd">                creation fails (e.g., duplicate name, invalid column).</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;mydb.sqlite3&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; # Simple index on username</span>
+<span class="sd">            &gt;&gt;&gt; users.create_index(&quot;idx_username&quot;, [users.username])</span>
+<span class="sd">            &gt;&gt;&gt; # Unique composite index</span>
+<span class="sd">            &gt;&gt;&gt; users.create_index(</span>
+<span class="sd">            ...     &quot;idx_email_status&quot;,</span>
+<span class="sd">            ...     [users.email, users.status],</span>
+<span class="sd">            ...     unique=True</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; # Partial index: only active users</span>
+<span class="sd">            &gt;&gt;&gt; users.create_index(</span>
+<span class="sd">            ...     &quot;idx_active_names&quot;,</span>
+<span class="sd">            ...     [users.name],</span>
+<span class="sd">            ...     where=users.status == &#39;active&#39;</span>
+<span class="sd">            ... )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">where</span><span class="p">:</span>
+            <span class="n">wr</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">wr</span><span class="o">=</span><span class="n">wr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;?&#39;</span><span class="p">,</span><span class="n">i</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">),</span><span class="mi">1</span><span class="p">)</span>
+        
+        <span class="n">query</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;CREATE </span><span class="si">{</span><span class="s1">&#39;UNIQUE &#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">unique</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">INDEX </span><span class="si">{</span><span class="n">index_name</span><span class="si">}</span><span class="s1"> ON </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1">) </span><span class="si">{</span><span class="n">wr</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">where</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,[])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.delete_index">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.delete_index">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Drops a database index by its name.</span>
+
+<span class="sd">        Sends a ``DROP INDEX`` statement to the writer thread, which</span>
+<span class="sd">        immediately removes the index from the SQLite schema. This operation</span>
+<span class="sd">        cannot be undone.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index_name (str): The name of the index to drop. This is the</span>
+<span class="sd">                identifier used when the index was created (see</span>
+<span class="sd">                :meth:`create_index`).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The index is removed from the database.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the writer thread encounters an error (e.g., the</span>
+<span class="sd">                index does not exist, or the database is locked). The original</span>
+<span class="sd">                error message from SQLite is re‑raised.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;app.db&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; # Create an index for demonstration</span>
+<span class="sd">            &gt;&gt;&gt; users.create_index(&quot;idx_username&quot;, [users.username])</span>
+<span class="sd">            &gt;&gt;&gt; # Later, drop it</span>
+<span class="sd">            &gt;&gt;&gt; users.delete_index(&quot;idx_username&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;DROP INDEX </span><span class="si">{</span><span class="n">index_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.reindex">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.reindex">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reindex</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Rebuilds a specific index from scratch.</span>
+
+<span class="sd">        Issues a ``REINDEX`` command on the given index name to recreate it,</span>
+<span class="sd">        which can be useful after bulk data changes or to recover from index</span>
+<span class="sd">        corruption. The operation is executed on the writer connection and</span>
+<span class="sd">        blocks until complete.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index_name (str): The name of the index to rebuild. Must already</span>
+<span class="sd">                exist on this table.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The method returns ``None`` after the index has been</span>
+<span class="sd">            successfully rebuilt.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the ``REINDEX`` command fails (e.g., the index</span>
+<span class="sd">                does not exist, or the database is locked). The original</span>
+<span class="sd">                error from the writer thread is re‑raised.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;mydb.sqlite3&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; # Rebuild the &quot;idx_username&quot; index after bulk updates</span>
+<span class="sd">            &gt;&gt;&gt; users.reindex(&quot;idx_username&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;REINDEX </span><span class="si">{</span><span class="n">index_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qcb&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Table.get_indexes">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.get_indexes">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_indexes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">from_readers_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieves a list of all index names defined on the table.</span>
+
+<span class="sd">        Executes the ``PRAGMA index_list({self.name_})`` statement to obtain</span>
+<span class="sd">        the names of every index associated with the table. The operation can</span>
+<span class="sd">        optionally use a reader‑pool connection for non‑blocking reads.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            from_readers_pool (bool): If ``False`` (default), the query runs</span>
+<span class="sd">                on the main writer connection. If ``True``, a connection from</span>
+<span class="sd">                the reader pool is obtained, allowing concurrent reads without</span>
+<span class="sd">                blocking write operations.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[str]: A list of index name strings. For example,</span>
+<span class="sd">            ``[&quot;idx_username&quot;, &quot;idx_email&quot;]``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the pragma query fails or (when</span>
+<span class="sd">                ``from_readers_pool=True``) a reader connection cannot be</span>
+<span class="sd">                acquired. The original exception from the database thread is</span>
+<span class="sd">                re‑raised.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;mydb.sqlite3&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; indexes = users.get_indexes()</span>
+<span class="sd">            &gt;&gt;&gt; print(indexes)</span>
+<span class="sd">            [&#39;idx_username&#39;, &#39;idx_email&#39;]</span>
+<span class="sd">            &gt;&gt;&gt; # Use reader pool for a non‑blocking call</span>
+<span class="sd">            &gt;&gt;&gt; idx_from_reader = users.get_indexes(from_readers_pool=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;PRAGMA index_list(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1">);&#39;</span><span class="p">,)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">from_readers_pool</span><span class="p">:</span> 
+            <span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>  <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">queueCallBack</span><span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>  
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">queueCallBack</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queueCallBack</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Table.get_index_info">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.get_index_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_index_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">from_readers_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieves detailed information about a specific index.</span>
+
+<span class="sd">        Executes ``PRAGMA index_info({index_name})`` to obtain the list of</span>
+<span class="sd">        columns that the index covers. The result is returned as a dictionary</span>
+<span class="sd">        containing the index name and the names of the indexed columns.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            index_name (str): The name of the index to inspect. Must already</span>
+<span class="sd">                exist on this table.</span>
+<span class="sd">            from_readers_pool (bool): If ``False`` (default), the query runs</span>
+<span class="sd">                on the main writer connection. If ``True``, a connection from</span>
+<span class="sd">                the reader pool is used, allowing non‑blocking reads.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: A dictionary with two keys:</span>
+<span class="sd">                - ``&#39;name&#39;`` (str): the index name (same as *index_name*).</span>
+<span class="sd">                - ``&#39;indexed_columns&#39;`` (list[str]): the column names that</span>
+<span class="sd">                are part of the index, in the order they appear in the</span>
+<span class="sd">                index definition.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database query fails (e.g., the index does not</span>
+<span class="sd">                exist) or the reader‑pool connection cannot be acquired. The</span>
+<span class="sd">                original error from the driver thread is re‑raised.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;mydb.sqlite3&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; info = users.get_index_info(&quot;idx_email&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; print(info[&#39;name&#39;])</span>
+<span class="sd">            idx_email</span>
+<span class="sd">            &gt;&gt;&gt; print(info[&#39;indexed_columns&#39;])</span>
+<span class="sd">            [&#39;email&#39;]</span>
+
+<span class="sd">            Using a reader‑pool connection:</span>
+<span class="sd">            &gt;&gt;&gt; info = users.get_index_info(&quot;idx_email&quot;, from_readers_pool=True)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;PRAGMA index_info(</span><span class="si">{</span><span class="n">index_name</span><span class="si">}</span><span class="s1">);&#39;</span><span class="p">,)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">from_readers_pool</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span><span class="n">index_name</span><span class="p">,</span> <span class="s1">&#39;indexed_columns&#39;</span><span class="p">:[</span><span class="n">i</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)]}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">queueCallBack</span><span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span> 
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">queueCallBack</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queueCallBack</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span><span class="n">index_name</span><span class="p">,</span> <span class="s1">&#39;indexed_columns&#39;</span><span class="p">:[</span><span class="n">i</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]]}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Table.bulk_insert">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.bulk_insert">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bulk_insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">],</span> <span class="n">data_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Inserts multiple rows into the table in a single batch operation.</span>
+
+<span class="sd">        Builds a parameterized ``INSERT`` statement with placeholders for the</span>
+<span class="sd">        specified columns and uses ``executemany`` to execute all rows at once,</span>
+<span class="sd">        which is significantly faster than individual inserts in a loop.</span>
+<span class="sd">        The operation runs on the writer connection and commits automatically</span>
+<span class="sd">        on success.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            columns (list[Column]): A list of :class:`Column` objects defining</span>
+<span class="sd">                the columns to be populated. The order must match the values</span>
+<span class="sd">                provided in each element of ``data_list``.</span>
+<span class="sd">            data_list (list[list | tuple]): A list of rows, where each row is</span>
+<span class="sd">                an iterable (e.g., list or tuple) of values corresponding to</span>
+<span class="sd">                ``columns``. All rows must have the same number of elements.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The method returns ``None`` after all rows have been</span>
+<span class="sd">            successfully inserted.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails (e.g., constraint</span>
+<span class="sd">                violation, type mismatch, or connection error). The original</span>
+<span class="sd">                exception from the writer thread is re‑raised.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            Simple usage – insert two rows into the &quot;users&quot; table.</span>
+
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;app.db&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; users.bulk_insert(</span>
+<span class="sd">            ...     [users.name, users.age],</span>
+<span class="sd">            ...     [(&quot;Alice&quot;, 30), (&quot;Bob&quot;, 25)]</span>
+<span class="sd">            ... )</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;INSERT INTO </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1">) VALUES (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;?&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1">);&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qmb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">data_list</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Table.bulk_update">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.bulk_update">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">bulk_update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span><span class="p">,</span> <span class="n">data_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Performs a batch UPDATE of multiple rows with varying values in one transaction.</span>
+
+<span class="sd">        Constructs an ``UPDATE`` statement with ``?`` placeholders and executes it using</span>
+<span class="sd">        SQLite&#39;s ``executemany``. The ``update`` dictionary maps :class:`Column` objects</span>
+<span class="sd">        to the new values or expressions. Literal values become ``?`` in the template;</span>
+<span class="sd">        :class:`Column` references are used directly; :class:`ColumnsOperation`</span>
+<span class="sd">        expressions are inserted as SQL. The ``where`` condition is built from a</span>
+<span class="sd">        :class:`ColumnsOperation`.</span>
+
+<span class="sd">        Because ``executemany`` also relies on ``?``, the method temporarily replaces all</span>
+<span class="sd">        ``?`` in the template with :attr:`Table.PLACE_HOLDER` (default</span>
+<span class="sd">        ``&#39;_MY_S4ULT3D_PL4C3_H0LD3R_?_&#39;``) to avoid interference. After building the</span>
+<span class="sd">        query string, the placeholder is swapped back to ``?`` before execution. The</span>
+<span class="sd">        order of values in each tuple of ``data_list`` must match the order of ``?``</span>
+<span class="sd">        placeholders that appear in the final query (including those from the ``where``</span>
+<span class="sd">        clause if it contains bindings).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            update (dict[:class:`Column`, Any]): A dictionary where each key is a</span>
+<span class="sd">                :class:`Column` to update. Values can be:</span>
+<span class="sd">                - a literal (int, float, str, bytes, etc.) – becomes ``?``,</span>
+<span class="sd">                - a :class:`Column` – references another column,</span>
+<span class="sd">                - a :class:`ColumnsOperation` – an SQL expression.</span>
+<span class="sd">            where (:class:`ColumnsOperation`): The condition selecting which rows to</span>
+<span class="sd">                update (e.g., ``table.id == some_value``).</span>
+<span class="sd">            data_list (list[tuple]): A list of tuples, each containing the values that</span>
+<span class="sd">                replace all ``?`` placeholders in the generated query, in the order they</span>
+<span class="sd">                appear. The length of each tuple must exactly match the number of ``?``</span>
+<span class="sd">                markers.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            None: The updates are committed on the writer thread.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the database operation fails. A special descriptive error is</span>
+<span class="sd">                raised when the number of bindings in a ``data_list`` element does not</span>
+<span class="sd">                match the number of ``?`` placeholders, possibly because the literal</span>
+<span class="sd">                string :attr:`Table.PLACE_HOLDER` appeared in the data.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            **Simple example**: update the ``age`` column for multiple users.</span>
+
+<span class="sd">            &gt;&gt;&gt; db = Driver(&#39;mydb.sqlite3&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; # Update ages: user id 1 → 30, id 2 → 25, id 3 → 35</span>
+<span class="sd">            &gt;&gt;&gt; users.bulk_update(</span>
+<span class="sd">            ...     update={users.age: users.PLACE_HOLDER},</span>
+<span class="sd">            ...     where=users.id == users.PLACE_HOLDER,</span>
+<span class="sd">            ...     data_list=[</span>
+<span class="sd">            ...         (30, 1),</span>
+<span class="sd">            ...         (25, 2),</span>
+<span class="sd">            ...         (35, 3)</span>
+<span class="sd">            ...     ]</span>
+<span class="sd">            ... )</span>
+
+<span class="sd">            **Complex example**: increase salary by a bonus that varies per user, but only</span>
+<span class="sd">            for those whose department name matches a given value.</span>
+
+<span class="sd">            &gt;&gt;&gt; dept = db.departments</span>
+<span class="sd">            &gt;&gt;&gt; employees = db.employees</span>
+<span class="sd">            &gt;&gt;&gt; # update: salary = salary + bonus, where department name = ?</span>
+<span class="sd">            &gt;&gt;&gt; employees.bulk_update(</span>
+<span class="sd">            ...     update={employees.salary: employees.salary + db.PLACE_HOLDER},</span>
+<span class="sd">            ...     where=(employees.dept_id == dept.id) &amp; (dept.name == db.PLACE_HOLDER),</span>
+<span class="sd">            ...     data_list=[</span>
+<span class="sd">            ...         (100.0, &#39;Engineering&#39;),</span>
+<span class="sd">            ...         (200.0, &#39;Sales&#39;),</span>
+<span class="sd">            ...         (150.0, &#39;Engineering&#39;)</span>
+<span class="sd">            ...     ]</span>
+<span class="sd">            ... )</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">temp_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="p">[</span><span class="kc">None</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span> <span class="p">,</span> <span class="n">Column</span><span class="p">)</span> <span class="k">else</span> <span class="n">temp_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">ColumnsOperation</span><span class="p">)</span> <span class="k">else</span> <span class="n">temp_list</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">update</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="n">query_splited</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;UPDATE </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> SET </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1"> = </span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="n">Column</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">ColumnsOperation</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">first_name</span><span class="si">}</span><span class="s1">=</span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;?&#39;</span><span class="p">,</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nb">list</span><span class="p">(</span><span class="n">update</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span><span class="si">}</span><span class="s1"> WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;?&#39;</span><span class="p">,</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="p">)</span><span class="si">}</span><span class="s1">;&#39;</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="p">)</span>
+        <span class="n">query</span><span class="o">=</span> <span class="n">query_splited</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">a</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">temp_list</span><span class="o">+</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="n">query</span> <span class="o">+</span><span class="p">(</span> <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">&quot;&#39;</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">i</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span><span class="o">+</span> <span class="n">query_splited</span><span class="p">[</span><span class="n">a</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="c1">#All &quot;? || &#39;%&#39;&quot; thing are because of Column.contain() method and .startswith() and .endswith() that have &quot;%&quot; in output value</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qmb&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="p">,</span> <span class="s1">&#39;?&#39;</span><span class="p">),</span> <span class="n">data_list</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;Incorrect number of bindings&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;number of `PLACE_HOLDERS` must be equals to number of items in each of `data_list` items.</span><span class="se">\n</span><span class="s1"> if it is so, make sure that there is no &quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">PLACE_HOLDER</span><span class="si">}</span><span class="s1">&quot; literal string in your query because it is reserved for this orm. you can change it on you own need with `mytable.PLACE_HOLDER = &quot;you own idea&quot;`&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span></div>
+
+
+<div class="viewcode-block" id="Table.join">
+<a class="viewcode-back" href="../../../../api/Ormophine.Sqlite.html#Ormophine.Sqlite.Table.join">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">join</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">columns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Column&#39;</span><span class="p">],</span>
+        <span class="n">joins_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s1">&#39;Join.Inner | Join.Left | Join.Right&#39;</span><span class="p">],</span>
+        <span class="n">where</span><span class="p">:</span> <span class="s1">&#39;ColumnsOperation&#39;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">order_by</span><span class="p">:</span> <span class="s1">&#39;Column&#39;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">from_readers_pool</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Executes a SELECT query with one or more JOIN clauses on this table.</span>
+
+<span class="sd">        Builds and runs a SQL query that selects the given columns from this</span>
+<span class="sd">        table, joining other tables as specified. Column expressions can be</span>
+<span class="sd">        raw :class:`Column` instances or :class:`ColumnsOperation` objects</span>
+<span class="sd">        (e.g., the result of arithmetic or string operations). The method</span>
+<span class="sd">        automatically generates aliases to avoid name collisions.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            columns: A list of columns to retrieve. Each element can be a</span>
+<span class="sd">                :class:`Column` (which will be aliased as</span>
+<span class="sd">                ``{tablename}_{columnname}``) or a :class:`ColumnsOperation`</span>
+<span class="sd">                (the expression is used directly, aliased similarly).</span>
+<span class="sd">            joins_list: A list of join objects created with :class:`Join.Inner`,</span>
+<span class="sd">                :class:`Join.Left`, or :class:`Join.Right`. Each specifies the</span>
+<span class="sd">                table and the join condition (a :class:`ColumnsOperation`).</span>
+<span class="sd">            where: An optional :class:`ColumnsOperation` representing the</span>
+<span class="sd">                ``WHERE`` clause. Defaults to ``None`` (no filter).</span>
+<span class="sd">            order_by: An optional :class:`Column` by which to sort the results.</span>
+<span class="sd">                Defaults to ``None`` (no explicit ordering).</span>
+<span class="sd">            from_readers_pool: If ``True``, the query is executed on one of the</span>
+<span class="sd">                reader‑pool connections, allowing concurrent reads without</span>
+<span class="sd">                blocking the writer. Defaults to ``False`` (uses the main</span>
+<span class="sd">                writer connection).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[tuple]: The fetched rows as tuples. Each tuple corresponds to</span>
+<span class="sd">            the order of ``columns``. If an error occurs, an exception is</span>
+<span class="sd">            raised rather than returning a value.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If the query fails (syntax error, constraint violation,</span>
+<span class="sd">                reader‑pool exhaustion, etc.). The original error is re‑raised.</span>
+
+<span class="sd">        Examples:</span>
+<span class="sd">            Simple join between two tables:</span>
+
+<span class="sd">            &gt;&gt;&gt; db = Driver(&quot;store.db&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; users = db.users</span>
+<span class="sd">            &gt;&gt;&gt; orders = db.orders</span>
+<span class="sd">            &gt;&gt;&gt; # INNER JOIN users with orders on user_id</span>
+<span class="sd">            &gt;&gt;&gt; result = users.join(</span>
+<span class="sd">            ...     columns=[users.name, orders.total],</span>
+<span class="sd">            ...     joins_list=[Join.Inner(orders, users.id == orders.user_id)]</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; for row in result:</span>
+<span class="sd">            ...     print(row)</span>
+<span class="sd">            (&#39;Alice&#39;, 150.0)</span>
+<span class="sd">            (&#39;Bob&#39;, 200.0)</span>
+
+<span class="sd">            Complex example with multiple joins, expressions, and filtering:</span>
+
+<span class="sd">            &gt;&gt;&gt; # Using column operations (string concatenation) and LEFT JOIN</span>
+<span class="sd">            &gt;&gt;&gt; full_name = users.first_name + &#39; &#39; + users.last_name</span>
+<span class="sd">            &gt;&gt;&gt; condition = (orders.total &gt; 100) &amp; (orders.status == &#39;active&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; result = users.join(</span>
+<span class="sd">            ...     columns=[full_name, orders.total, products.name],</span>
+<span class="sd">            ...     joins_list=[</span>
+<span class="sd">            ...         Join.Inner(orders, users.id == orders.user_id),</span>
+<span class="sd">            ...         Join.Left(products, orders.product_id == products.id)</span>
+<span class="sd">            ...     ],</span>
+<span class="sd">            ...     where=condition,</span>
+<span class="sd">            ...     order_by=orders.total</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; for row in result:</span>
+<span class="sd">            ...     print(row)</span>
+<span class="sd">            (&#39;Alice Smith&#39;, 150.0, &#39;Widget&#39;)</span>
+<span class="sd">            (&#39;Bob Johnson&#39;, 200.0, &#39;Gadget&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tl</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="p">[</span><span class="n">tl</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">ColumnsOperation</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+        <span class="p">[</span><span class="n">tl</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">joins_list</span><span class="p">]</span>
+        <span class="n">query</span><span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">Column</span><span class="p">)</span><span class="w">  </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;(&quot;</span><span class="p">)</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;)&quot;</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">joins_list</span><span class="p">)</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;WHERE </span><span class="si">{</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">where</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">tl</span><span class="o">+</span><span class="n">where</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="n">where</span> <span class="k">else</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">Column</span><span class="p">)</span><span class="w">  </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;(&quot;</span><span class="p">)</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;)&quot;</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">joins_list</span><span class="p">)</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">tl</span><span class="p">)</span> <span class="k">if</span> <span class="n">tl</span> <span class="k">else</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;SELECT </span><span class="si">{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">Column</span><span class="p">)</span><span class="w">  </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;(&#39;</span><span class="p">)</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;)&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="si">}</span><span class="s1"> AS </span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">table_obj</span><span class="o">.</span><span class="n">name_</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="o">.</span><span class="n">col_obj</span><span class="o">.</span><span class="n">first_name</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s1"> FROM </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name_</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_output</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">joins_list</span><span class="p">)</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="sa">f</span><span class="s1">&#39;ORDER BY </span><span class="si">{</span><span class="n">order_by</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">order_by</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,)</span>
+        <span class="c1"># The above line is approximately 1000 characters, which is not standard, but it is written this way</span>
+        <span class="c1"># to improve performance in the Driver class and to avoid checking whether the second item in the query</span>
+        <span class="c1"># is an empty list for each input.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">from_readers_pool</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">(</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">queueCallBack</span><span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
+            <span class="n">connection_queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">connection_queue</span><span class="o">.</span><span class="n">put</span><span class="p">([</span><span class="s1">&#39;qf&#39;</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">queueCallBack</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db_obj</span><span class="o">.</span><span class="n">pool_holder</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">connection_queue</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">callback</span> <span class="o">:=</span> <span class="n">queueCallBack</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">))[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">callback</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, M.J.Nazify.Yummy.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
