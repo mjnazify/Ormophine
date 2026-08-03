@@ -14,8 +14,11 @@ extensions = [
     'sphinx.ext.viewcode',
 ]
 
-# 1. اضافه کردن مسیر ریشه پروژه (بسیار مهم)
-sys.path.insert(0, os.path.abspath('../../'))
+DOCS_DIR = os.path.abspath(os.path.dirname(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(DOCS_DIR, '..', '..'))
+
+# 1. اضافه کردن مسیر ریشه پروژه به صورت ایمن و مستقل از cwd (RTD/Local)
+sys.path.insert(0, PROJECT_ROOT)
 
 # 2. شبیه‌سازی پکیج‌هایی که در محیط لینوکسی RTD نصب نیستند یا خطا می‌دهند
 autodoc_mock_imports = [
@@ -24,6 +27,10 @@ autodoc_mock_imports = [
     'psycopg2', 
     'psycopg2_binary'
 ]
+
+autodoc_member_order = 'bysource'
+autodoc_class_signature = 'separated'
+autodoc_typehints = 'description'
 
 templates_path = ['_templates']
 exclude_patterns = []

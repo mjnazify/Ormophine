@@ -19,6 +19,8 @@ Driver
    :members:
    :undoc-members:
    :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
 TableStructure
 --------------
@@ -27,6 +29,8 @@ TableStructure
    :members:
    :undoc-members:
    :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
 DataTypes
 ---------
@@ -35,6 +39,8 @@ DataTypes
    :members:
    :undoc-members:
    :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
 Table
 -----
@@ -43,6 +49,8 @@ Table
    :members:
    :undoc-members:
    :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
 Join
 ----
@@ -51,6 +59,8 @@ Join
    :members:
    :undoc-members:
    :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
 SetPragma
 ---------
@@ -59,3 +69,5 @@ SetPragma
    :members:
    :undoc-members:
    :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
