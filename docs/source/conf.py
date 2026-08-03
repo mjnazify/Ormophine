@@ -5,7 +5,7 @@ import sys
 project = 'Ormophine'
 copyright = '2026, M.J.Nazify.Yummy'
 author = 'M.J.Nazify.Yummy'
-release = '0.7.1'
+release = '0.7.6'
 
 # -- General configuration ---------------------------------------------------
 extensions = [
@@ -13,9 +13,16 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
 ]
+
+# 1. اضافه کردن مسیر ریشه پروژه (بسیار مهم)
+sys.path.insert(0, os.path.abspath('../../'))
+
+# 2. شبیه‌سازی پکیج‌هایی که در محیط لینوکسی RTD نصب نیستند یا خطا می‌دهند
 autodoc_mock_imports = [
-    "mysqlclient",
-    "psycopg2-binary",
+    'MySQLdb', 
+    'mysqlclient', 
+    'psycopg2', 
+    'psycopg2_binary'
 ]
 
 templates_path = ['_templates']
@@ -40,5 +47,3 @@ napoleon_use_rtype = True
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
-
-sys.path.insert(0, os.path.abspath('../../'))

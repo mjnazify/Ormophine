@@ -14,7 +14,7 @@ as ``startswith()``, ``endswith()``, and slicing such as ``column[2:5]``.
 Driver
 ------
 
-.. autoclass:: Driver
+.. autoclass:: Ormophine.Postgresql.driver.Driver
    :members:
    :undoc-members:
    :show-inheritance:
@@ -22,7 +22,7 @@ Driver
 TableStructure
 --------------
 
-.. autoclass:: TableStructure
+.. autoclass:: Ormophine.Postgresql.Core.tablestructure.TableStructure
    :members:
    :undoc-members:
    :show-inheritance:
@@ -30,7 +30,7 @@ TableStructure
 DataTypes
 ---------
 
-.. autoclass:: DataTypes
+.. autoclass:: Ormophine.Postgresql.Core.tablestructure.DataTypes
    :members:
    :undoc-members:
    :show-inheritance:
@@ -38,7 +38,7 @@ DataTypes
 Table
 -----
 
-.. autoclass:: Table
+.. autoclass:: Ormophine.Postgresql.Core.table.Table
    :members:
    :undoc-members:
    :show-inheritance:
@@ -46,7 +46,7 @@ Table
 Join
 ----
 
-.. autoclass:: Join
+.. autoclass:: Ormophine.Postgresql.Core.join.Join
    :members:
    :undoc-members:
    :show-inheritance:

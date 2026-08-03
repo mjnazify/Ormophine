@@ -15,7 +15,7 @@ remain natural to read.
 Driver
 ------
 
-.. autoclass:: Driver
+.. autoclass:: Ormophine.Sqlite.driver.Driver
    :members:
    :undoc-members:
    :show-inheritance:
@@ -23,7 +23,7 @@ Driver
 TableStructure
 --------------
 
-.. autoclass:: TableStructure
+.. autoclass:: Ormophine.Sqlite.Core.tablestructure.TableStructure
    :members:
    :undoc-members:
    :show-inheritance:
@@ -31,7 +31,7 @@ TableStructure
 DataTypes
 ---------
 
-.. autoclass:: DataTypes
+.. autoclass:: Ormophine.Sqlite.Core.tablestructure.DataTypes
    :members:
    :undoc-members:
    :show-inheritance:
@@ -39,7 +39,7 @@ DataTypes
 Table
 -----
 
-.. autoclass:: Table
+.. autoclass:: Ormophine.Sqlite.Core.table.Table
    :members:
    :undoc-members:
    :show-inheritance:
@@ -47,7 +47,7 @@ Table
 Join
 ----
 
-.. autoclass:: Join
+.. autoclass:: Ormophine.Sqlite.Core.join.Join
    :members:
    :undoc-members:
    :show-inheritance:
@@ -55,7 +55,7 @@ Join
 SetPragma
 ---------
 
-.. autoclass:: SetPragma
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. autoclass:: Ormophine.Sqlite.Core.setpragma.SetPragma
+   :members:
+   :undoc-members:
+   :show-inheritance:
