@@ -13,6 +13,10 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
 ]
+autodoc_mock_imports = [
+    "mysqlclient",
+    "psycopg2-binary",
+]
 
 templates_path = ['_templates']
 exclude_patterns = []
@@ -37,3 +41,4 @@ napoleon_use_rtype = True
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
 
+sys.path.insert(0, os.path.abspath('../../'))
