@@ -448,7 +448,7 @@ def Ormophine_single_operations(rng):
     con.close()
 
     db = Driver(host=MYSQL_CONFIG['host'], username=MYSQL_CONFIG['user'], password=MYSQL_CONFIG['password'], db_name=MYSQL_CONFIG['database'], port=3306)
-    tb = db.testtable_ormophine
+    tb = db.TestTable_Ormophine
 
     # Create
     T0 = time()
@@ -498,7 +498,7 @@ def Ormophine_batch_operations(rng):
     con.close()
 
     db = Driver(host=MYSQL_CONFIG['host'], username=MYSQL_CONFIG['user'], password=MYSQL_CONFIG['password'], db_name=MYSQL_CONFIG['database'], port=3306)
-    tb = db.testtable_ormophine
+    tb = db.TestTable_Ormophine
 
     # Batch Create
     T0 = time()
