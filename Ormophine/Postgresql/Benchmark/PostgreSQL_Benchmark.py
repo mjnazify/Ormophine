@@ -13,6 +13,7 @@ from urllib.parse import quote_plus
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.transforms import blended_transform_factory
 
 # PostgreSQL connection configuration
 POSTGRES_CONFIG = {
@@ -533,73 +534,60 @@ def Ormophine_batch_operations(rng):
     db.disconnect()
     return elapsed_inserts, elapsed_updates, elapsed_deletes
 
-def plot_benchmark_results(title, labels, insert_means, update_means, read_means=None, delete_means=None):
-    """Generate a bar chart to compare ORM means (values in milliseconds)."""
-    x = np.arange(len(labels))
-    width = 0.2
-
-    insert_means_ms = [v * 1000 for v in insert_means]
-    update_means_ms = [v * 1000 for v in update_means]
-    if delete_means is not None:
-        delete_means_ms = [v * 1000 for v in delete_means]
-    if read_means is not None:
-        read_means_ms = [v * 1000 for v in read_means]
-
-    fig, ax = plt.subplots(figsize=(12, 7))
-
-    color_insert = 'blue'
-    color_update = 'orange'
-    color_read = 'green'
-    color_delete = 'red'
-
-    if read_means is not None and delete_means is not None:
-        rects1 = ax.bar(x - 1.5*width, insert_means_ms, width, label='Inserts', color=color_insert)
-        rects2 = ax.bar(x - 0.5*width, update_means_ms, width, label='Updates', color=color_update)
-        rects3 = ax.bar(x + 0.5*width, read_means_ms, width, label='Reads', color=color_read)
-        rects4 = ax.bar(x + 1.5*width, delete_means_ms, width, label='Deletes', color=color_delete)
-        rects = [rects1, rects2, rects3, rects4]
-    elif delete_means is not None:
-        rects1 = ax.bar(x - width, insert_means_ms, width, label='Inserts', color=color_insert)
-        rects2 = ax.bar(x, update_means_ms, width, label='Updates', color=color_update)
-        rects3 = ax.bar(x + width, delete_means_ms, width, label='Deletes', color=color_delete)
-        rects = [rects1, rects2, rects3]
-    else:
-        rects1 = ax.bar(x - width/2, insert_means_ms, width, label='Inserts', color=color_insert)
-        rects2 = ax.bar(x + width/2, update_means_ms, width, label='Updates', color=color_update)
-        rects = [rects1, rects2]
-
-    ax.set_ylabel('Time (milliseconds) - Lower is Better')  
-    ax.set_title(title)
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels)
-    ax.legend()
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
-
-    def autolabel(rects):
-        for rect in rects:
-            height = rect.get_height()
-            ax.annotate(f'{height:.3f}',
-                        xy=(rect.get_x() + rect.get_width() / 2, height),
-                        xytext=(0, 3),  
+def plot_benchmark_results(title_prefix, labels, operations_data):
+    """Generate separate bar charts for each operation to compare ORM means."""
+    base_index = 0 # Ormophine is the first label
+    colors = ['#4CAF50', '#FF9800', '#2196F3', '#F44336'] # Green, Orange, Blue, Red
+    
+    for op_name, means in operations_data.items():
+        # Create a new figure for each operation
+        fig, ax = plt.subplots(figsize=(8, 7))
+        
+        # Convert seconds to milliseconds
+        means_ms = [v * 1000 for v in means]
+        
+        bars = ax.bar(labels, means_ms, color=colors[:len(labels)], width=0.5)
+        ax.set_ylabel('Time (ms) - Lower is Better', fontsize=12)
+        ax.set_title(f'{title_prefix} - {op_name}', fontsize=14, fontweight='bold')
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+        
+        # Set y-axis limit to make room for labels on top
+        max_val = max(means_ms) if means_ms else 0
+        ax.set_ylim(0, max_val * 1.2)
+        
+        # Annotate exact values on top of bars
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height:.2f}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 5),
                         textcoords="offset points",
-                        ha='center', va='bottom', fontsize=9)
+                        ha='center', va='bottom', fontsize=11, fontweight='bold')
+                        
+        # Annotate percentage difference below x-axis
+        trans = blended_transform_factory(ax.transData, ax.transAxes)
+        base_time = means[base_index]
+        
+        for i, label in enumerate(labels):
+            if i == base_index:
+                ax.text(i, -0.15, "Ormophine\n(Baseline)", ha='center', va='top', transform=trans, fontsize=10, fontweight='bold', color='#4CAF50')
+            else:
+                other_time = means[i]
+                if base_time > 0:
+                    diff = ((other_time - base_time) / base_time) * 100
+                    if diff > 0:
+                        text = f"{diff:.1f}% faster\nthan {label}"
+                        color = '#2E7D32' # Dark Green
+                    else:
+                        text = f"{abs(diff):.1f}% slower\nthan {label}"
+                        color = '#C62828' # Dark Red
+                    ax.text(i, -0.15, text, ha='center', va='top', transform=trans, fontsize=10, fontweight='bold', color=color)
 
-    for r in rects:
-        autolabel(r)
-
-    fig.tight_layout()
-    plt.show()
+        plt.subplots_adjust(bottom=0.25) # Make room for two lines of text below
+        plt.show()
 
 def run_single_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_size: int= 10):
-    """Run the single-operation CRUD benchmark for all ORMs.
-
-    This test measures the overhead of the ORM and the database connection
-    when executing queries one by one. To ensure the benchmark is fair:
-    - Standard ORMs (SQLAlchemy, Peewee, PonyORM) execute a commit() after every single query.
-    - PonyORM inherently uses a Unit of Work pattern (Identity Map). For updates, it performs a 
-      SELECT followed by an UPDATE, which is its standard behavior.
-    - Ormophine utilizes an auto-commit mechanism.
-    """
+    """Run the single-operation CRUD benchmark for all ORMs."""
     pony_inserts, esq_inserts, sqlalchemy_inserts, peewee_inserts = [], [], [], []
     pony_updates, esq_updates, sqlalchemy_updates, peewee_updates = [], [], [], []
     pony_reads, esq_reads, sqlalchemy_reads, peewee_reads = [], [], [], []
@@ -684,11 +672,13 @@ def run_single_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_s
     print(f"Ormophine vs Peewee: {calculate_percentage_diff(esq_del_mean, pee_del_mean):.2f}%")
 
     labels = ['Ormophine', 'Pony ORM', 'SQLAlchemy', 'Peewee']
-    plot_benchmark_results('PostgreSQL Single Operation Benchmark Results (CRUD)', labels, 
-                           [esq_ins_mean, pony_ins_mean, sal_ins_mean, pee_ins_mean],
-                           [esq_upd_mean, pony_upd_mean, sal_upd_mean, pee_upd_mean],
-                           read_means=[esq_rd_mean, pony_rd_mean, sal_rd_mean, pee_rd_mean],
-                           delete_means=[esq_del_mean, pony_del_mean, sal_del_mean, pee_del_mean])
+    operations_data = {
+        'Inserts': [esq_ins_mean, pony_ins_mean, sal_ins_mean, pee_ins_mean],
+        'Updates': [esq_upd_mean, pony_upd_mean, sal_upd_mean, pee_upd_mean],
+        'Reads': [esq_rd_mean, pony_rd_mean, sal_rd_mean, pee_rd_mean],
+        'Deletes': [esq_del_mean, pony_del_mean, sal_del_mean, pee_del_mean]
+    }
+    plot_benchmark_results('PostgreSQL Single Operation Benchmark', labels, operations_data)
     
     # --- Execution Report ---
     total_queries = repeats * chunk_size
@@ -699,28 +689,14 @@ def run_single_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_s
     print(f"\n- Test Type: Single Operations (Commit executed after EVERY query)")
     print(f"- Operations Tested: Full CRUD (Inserts, Updates, Reads, Deletes)")
     print(f"- Total Queries per Operation: {total_queries} queries ({chunk_size} queries/repeat * {repeats} repeats)")
-    print(f"\n📈 HOW TO READ THE CHART:")
-    print("The bar chart displays the Mean Execution Time in milliseconds (ms) for each ORM.")
+    print(f"\n📈 HOW TO READ THE CHARTS:")
+    print("Each chart displays the Mean Execution Time in milliseconds (ms) for a specific operation.")
     print("A LOWER bar indicates BETTER performance (the ORM took less time to execute the queries).")
-    print("Variance and Standard Deviation (shown in the text output above) indicate the stability of the results;")
-    print("lower numbers mean the ORM performed consistently across all repetitions.")
-    print("\nⓘ NOTE ON METHODOLOGY:")
-    print("- PonyORM inherently uses a Unit of Work pattern (Identity Map) for updates, meaning it performs a SELECT")
-    print("  followed by an UPDATE inside the loop, unlike direct bulk-update queries used by other ORMs.")
-    print("- Ormophine utilizes an auto-commit mechanism and a queue sync to ensure operations are fully executed.")
+    print("Below each chart, the percentage difference shows how much faster Ormophine is compared to the other ORMs.")
     print("="*60 + "\n")
 
 def run_batch_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_size: int= 10000):
-    """Run the batch-operation CUD benchmark for all ORMs.
-
-    This test measures the throughput of ORMs when processing large amounts of data.
-    To ensure the benchmark is fair:
-    - Standard ORMs (SQLAlchemy, Peewee, PonyORM) execute a commit() only ONCE at the end 
-      of the loop (or within a single transaction).
-    - Ormophine utilizes a batch queue.
-    - A heavy workload (chunk_size=10000) is used to minimize the impact of connection 
-      overhead and emphasize actual ORM processing and I/O efficiency.
-    """
+    """Run the batch-operation CUD benchmark for all ORMs."""
     pony_inserts, esq_inserts, sqlalchemy_inserts, peewee_inserts = [], [], [], []
     pony_updates, esq_updates, sqlalchemy_updates, peewee_updates = [], [], [], []
     pony_deletes, esq_deletes, sqlalchemy_deletes, peewee_deletes = [], [], [], []
@@ -792,10 +768,12 @@ def run_batch_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_si
     print(f"Ormophine vs Peewee: {calculate_percentage_diff(esq_del_mean, pee_del_mean):.2f}%")
 
     labels = ['Ormophine', 'Pony ORM', 'SQLAlchemy', 'Peewee']
-    plot_benchmark_results('PostgreSQL Batch Operation Benchmark Results (CUD)', labels, 
-                           [esq_ins_mean, pony_ins_mean, sal_ins_mean, pee_ins_mean],
-                           [esq_upd_mean, pony_upd_mean, sal_upd_mean, pee_upd_mean],
-                           delete_means=[esq_del_mean, pony_del_mean, sal_del_mean, pee_del_mean])
+    operations_data = {
+        'Batch Inserts': [esq_ins_mean, pony_ins_mean, sal_ins_mean, pee_ins_mean],
+        'Batch Updates': [esq_upd_mean, pony_upd_mean, sal_upd_mean, pee_upd_mean],
+        'Batch Deletes': [esq_del_mean, pony_del_mean, sal_del_mean, pee_del_mean]
+    }
+    plot_benchmark_results('PostgreSQL Batch Operation Benchmark', labels, operations_data)
     
     # --- Execution Report ---
     total_queries = repeats * chunk_size
@@ -806,16 +784,10 @@ def run_batch_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_si
     print(f"\n- Test Type: Batch Operations (Commit executed ONCE at the end of the chunk)")
     print(f"- Operations Tested: CUD (Inserts, Updates, Deletes)")
     print(f"- Total Queries per Operation: {total_queries} queries ({chunk_size} queries/repeat * {repeats} repeats)")
-    print(f"\n📈 HOW TO READ THE CHART:")
-    print("The bar chart displays the Mean Execution Time in milliseconds (ms) for processing the batch of queries.")
+    print(f"\n📈 HOW TO READ THE CHARTS:")
+    print("Each chart displays the Mean Execution Time in milliseconds (ms) for processing the batch of queries.")
     print("A LOWER bar indicates BETTER performance (the ORM took less time to process the entire batch).")
-    print("Batch operations are significantly faster than single operations because they minimize network round-trips and disk I/O operations.")
-    print("Variance and Standard Deviation (shown in the text output above) indicate the stability of the results;")
-    print("lower numbers mean the ORM performed consistently across all repetitions.")
-    print("\nⓘ NOTE ON METHODOLOGY:")
-    print("- PonyORM inherently uses a Unit of Work pattern (Identity Map) for updates, meaning it performs a SELECT")
-    print("  followed by an UPDATE inside the loop, unlike direct bulk-update queries used by other ORMs.")
-    print("- Ormophine utilizes a batch queue and runs a sync check at the end to ensure operations are fully executed.")
+    print("Below each chart, the percentage difference shows how much faster Ormophine is compared to the other ORMs.")
     print("="*60 + "\n")
 
 print('Benchmark functions defined successfully!')
