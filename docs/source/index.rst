@@ -1,5 +1,61 @@
-AI-Powered Assistance
+Ormophine Documentation
 =======================
+
+Ormophine is a lightweight, fast, and highly Pythonic ORM for modern database-driven
+applications. It provides a unified programming model for SQLite, MySQL, and PostgreSQL
+while keeping SQL generation and database interaction straightforward for Python developers.
+
+The design goal is to feel natural in Python rather than like a separate query DSL. In
+practice, this means you work with dynamic table and column objects, build filters with
+Python operators, and use expression helpers that behave like familiar Python string APIs.
+
+For example, the project simulates Python string behavior for expressions such as
+``"a" + "b"`` together with helpers like ``lower()``, ``upper()``, ``startswith()``,
+``endswith()``, ``strip()``, and slice syntax like ``column[2:5]``. The same style is also
+used for arithmetic operations, so the query syntax stays close to regular Python code.
+
+.. code-block:: python
+
+   from Ormophine.Sqlite import Driver, TableStructure, DataTypes
+
+   # 1. Connect to the database
+   db = Driver('app.db')
+
+   # 2. Access tables dynamically as attributes
+   users = db.users
+
+   # 3. Query using Pythonic operators and string methods
+   results = users.get_row(
+       which_columns=[users.id, users.name],
+       where=(users.name.startswith('A')) & (users.age > 18)
+   )
+
+   # 4. Disconnect gracefully
+   db.disconnect()
+
+Installation
+------------
+
+You can install Ormophine via pip:
+
+.. code-block:: bash
+
+   pip install ormophine
+
+Key Features
+------------
+
+- **Thread-safe database access**: Dedicated writer queue for SQLite and connection pooling for MySQL/PostgreSQL.
+- **Optional reader-pool support**: Non-blocking read operations for high-performance workloads.
+- **Pythonic Expressions**: Overloaded Python operators and string methods (e.g., ``startswith()``, ``column[2:5]``) translate directly to SQL.
+- **Fluent Schema Construction**: Build tables programmatically using ``TableStructure`` and ``DataTypes``.
+- **Dynamic Table Objects**: Existing tables are automatically discovered and exposed as attributes on the driver instance (e.g., ``db.users``).
+- **Batch Transactions**: Efficient grouped inserts and updates.
+- **Advanced Join Helpers**: Intuitive multi-table querying.
+- **Database Administration**: Built-in PRAGMA management for SQLite, and user/permission management for MySQL/PostgreSQL.
+
+AI-Powered Assistance
+---------------------
 
 To help you write queries and debug your Ormophine code, we provide reference files that contain the full source code of the ORM for each backend:
 
@@ -18,9 +74,7 @@ For example, if you installed the package in a virtual environment, you can find
 
    path/to/venv/lib/python3.x/site-packages/Ormophine/{Sqlite,MySQL,PostgreSQL}.AI.Reference.txt
 
-When working directly from the source repository, they are simply at the top‑level folder.
-
-**Recommended prompt**
+**Recommended Prompt**
 
 .. code-block:: text
 
@@ -29,66 +83,19 @@ When working directly from the source repository, they are simply at the top‑l
    Answer all questions based solely on this code.
    Be concise, practical and include relevant code examples.
 
-**Example usage**
-
-#. Locate the reference file for your database (e.g., ``Sqlite.AI.Reference.txt``) in the Ormophine installation directory.
-#. Open your preferred AI chat.
-#. Paste the prompt above, replacing ``{SQLite/MySQL/PostgreSQL}`` with your backend.
-#. Attach the ``.txt`` file.
-#. Ask your question – for instance, *"How do I perform a bulk update with dynamic values?"*
-
-The AI will then consult the real implementation and provide an accurate, version‑specific answer.
-
-Ormophine Documentation
-=======================
-
-Ormophine is a lightweight, fast, and highly Pythonic ORM for modern database-driven
-applications. It provides a unified programming model for SQLite, MySQL, and PostgreSQL
-while keeping SQL generation and database interaction straightforward for Python developers.
-
-The design goal is to feel natural in Python rather than like a separate query DSL. In
-practice this means you work with dynamic table and column objects, build filters with
-Python operators, and use expression helpers that behave like familiar Python string APIs.
-For example, the project simulates Python string behavior for expressions such as
-``"a" + "b"`` together with helpers like ``lower()``, ``upper()``, ``startswith()``,
-``endswith()``, ``strip()``, ``lstrip()``, ``rstrip()``, and ``replace()``. The same
-style is also used for slice expressions such as ``column[2:5]`` so the query syntax stays
-close to regular Python code. Additional Python-style string methods are planned to be
-simulated in future releases.
-
-The public API should be imported from the database-specific package root, for example:
-
-.. code-block:: python
-
-   from Ormophine.Sqlite import Driver, Table, TableStructure, DataTypes
-
-This documentation focuses on the supported public classes and helpers that developers
-actually use when building applications with Ormophine.
-
-Overview
---------
-
-Ormophine offers a practical set of features for high-performance database work:
-
-- Thread-safe database access through a dedicated writer queue
-- Optional reader-pool support for non-blocking read operations
-- Fluent schema construction with ``TableStructure`` and ``DataTypes``
-- Dynamic table objects exposed directly from the driver instance
-- Pythonic column expression building with operator-overloaded conditions
-- Built-in-like string helpers such as ``startswith()``, ``endswith()``, and slice syntax
-  like ``column[2:5]``
-- Batch transaction support for grouped inserts and updates
-- Join helpers for multi-table queries
-- Direct SQL execution helpers for advanced use cases
-- PRAGMA management for SQLite tuning and operational control
-
-The source code and API reference in this guide are organized around the public package
-exports rather than the internal ``Core`` module implementation details.
-
-Documentation map
-------------------
+Documentation Map
+-----------------
 
 .. toctree::
    :maxdepth: 2
+   :caption: Quick Start Guides
+
+   Ormophine.Sqlite.QuikStart
+   Ormophine.Mysql.QuikStart
+   Ormophine.Postgresql.QuikStart
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference
 
    api/modules

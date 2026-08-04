@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active%20Development-orange)](https://github.com/yourusername/ormophine)
-[![PyPI](https://img.shields.io/badge/PyPI-Coming%20Soon-lightgrey?logo=pypi)](https://pypi.org/)
+[![PyPI](https://img.shields.io/badge/PyPI-Latest-blue?logo=pypi)](https://pypi.org/project/Ormophine/)
 
 *Write database queries the way you think — in plain Python.*
 
@@ -37,8 +37,10 @@ with engine.connect() as conn:
 
 **Ormophine:**
 ```python
-my_db = Ormophine.Sqlite('my_db')
-users = my_db.users
+from Ormophine.Sqlite import Driver
+
+db = Driver('my_db.db')
+users = db.users
 phone, name, age = users.phone, users.name, users.age
 
 users.get_row(
@@ -48,18 +50,18 @@ users.get_row(
 )
 ```
 
-Same result. No boilerplate. No imports. No ceremony.
+Same result. No boilerplate. No imports for every logical operator. No ceremony.
 
 ---
 
 ## Why Ormophine?
 
 - **Intuitive syntax** — columns behave like Python variables with full operator overloading (`>`, `&`, `|`, `+`, `[]`, `.startswith()`, etc.)
-- **Fast** — built on a dedicated writer thread + read-only connection pool; no ORM overhead on the hot path
-- **Multi-database** — one API across all supported backends
-- **Connection pooling built-in** — parallel reads, serialized writes, no configuration needed
-- **WAL mode support** (SQLite) — automatic checkpointing for maximum write throughput
-- **Blocking and non-blocking** — fire-and-forget writes or wait for commit confirmation
+- **Fast & Thread-Safe** — built on a dedicated writer queue (SQLite) and robust connection pooling (MySQL/PostgreSQL); parallel reads, serialized writes.
+- **Multi-database** — one unified API across SQLite, MySQL, and PostgreSQL. Switch databases by changing your import.
+- **Dynamic Schema Mapping** — tables and columns are discovered automatically and attached to the driver instance.
+- **WAL mode support** (SQLite) — automatic checkpointing for maximum write throughput.
+- **AI-Ready** — includes backend-specific source code reference files to feed to LLMs like ChatGPT or Claude for instant, accurate ORM assistance.
 
 ---
 
@@ -68,17 +70,27 @@ Same result. No boilerplate. No imports. No ceremony.
 | Database     | Status              |
 |--------------|---------------------|
 | SQLite       | ✅ Available         |
-| MySQL        | 🔧 In development   |
-| MariaDB      | 🔧 In development   |
-| PostgreSQL   | 🔧 In development   |
+| MySQL        | ✅ Available         |
+| PostgreSQL   | ✅ Available         |
+| MariaDB      | ✅ Available (via MySQL driver) |
 
 The API is identical across all backends. Switch databases by changing one line.
 
 ---
 
+## Video Tutorials
+
+> 🎥 **Coming Soon!** 
+> We are preparing a comprehensive video series to help you get started with Ormophine, from basic connections to advanced concurrent read/write pooling and schema management. 
+> 
+> *Stay tuned—links will be posted here soon.*
+
+---
+
 ## Benchmark Results
 
-> 📊 **Coming soon** — benchmark results comparing Ormophine against SQLAlchemy, Tortoise ORM, and raw DB-API 2.0 will be published here across INSERT, SELECT, bulk operations, and concurrent read workloads.
+> 📊 **Coming Soon!** 
+> Benchmark results comparing Ormophine against SQLAlchemy, Tortoise ORM, and raw DB-API 2.0 will be published here. We are testing INSERT throughput, SELECT latency, bulk operations, and concurrent read workloads across all three backends.
 
 ---
 
@@ -87,9 +99,9 @@ The API is identical across all backends. Switch databases by changing one line.
 ### Connect and access tables
 
 ```python
-import Ormophine
+from Ormophine.Sqlite import Driver
 
-db = Ormophine.Sqlite('company.db')
+db = Driver('company.db')
 
 # Tables and columns are discovered automatically
 users   = db.users
@@ -139,7 +151,7 @@ users.bulk_insert(
 ### Joins
 
 ```python
-from Ormophine import Join
+from Ormophine.Sqlite import Join
 
 result = orders.join(
     columns    = [users.name, orders.amount, orders.date],
@@ -149,34 +161,25 @@ result = orders.join(
 )
 ```
 
-### Batch operations (single transaction)
-
-```python
-(users.batch()
-    .insert({users.name: 'Eve', users.age: 28})
-    .update({users.age: 29}, where=users.name == 'Eve')
-    .run())
-```
-
 ### Schema management
 
 ```python
-from Ormophine import TableStructure
+from Ormophine.Sqlite import TableStructure, DataTypes
 
 schema = TableStructure('products', strict=True)
-schema.add_column('id',    int,   primary_key=True)
-schema.add_column('title', str,   not_null=True, unique=True)
-schema.add_column('price', float, default_value=0.0)
+schema.add_column('id',    DataTypes.INTEGER(), primary_key=True)
+schema.add_column('title', DataTypes.TEXT(max_length=100), not_null=True, unique=True)
+schema.add_column('price', DataTypes.REAL(), default_value=0.0)
 
 products = db.create_table(schema)
 
-# Add / rename / drop columns
-products.add_column('stock', int, default_value=0, not_null=True)
+# Add / rename / drop columns dynamically
+products.add_column('stock', DataTypes.INTEGER(), default_value=0, not_null=True)
 products.rename_column(products.stock, 'inventory')
 products.delete_column(products.inventory, True, True, True)
 ```
 
-### WAL mode and performance tuning
+### WAL mode and performance tuning (SQLite)
 
 ```python
 db.set_WAL_mode(True, wal_timer=60)   # automatic checkpoint every 60 s
@@ -190,7 +193,7 @@ db.SetPragma.foreign_keys(True)
 
 ## Operator Reference
 
-Ormophine columns support native Python expressions — all values are automatically parameterized.
+Ormophine columns support native Python expressions — all values are automatically parameterized to prevent SQL injection.
 
 | Expression                          | SQL equivalent                          |
 |-------------------------------------|-----------------------------------------|
@@ -205,13 +208,18 @@ Ormophine columns support native Python expressions — all values are automatic
 
 ---
 
+## AI-Powered Assistance
+
+To help you write queries and debug your code, Ormophine ships with AI reference files (`Sqlite.AI.Reference.txt`, `MySQL.AI.Reference.txt`, `PostgreSQL.AI.Reference.txt`). 
+
+You can attach these files to ChatGPT, Claude, or Gemini, ask your question, and the AI will respond using the exact API and behavior of your Ormophine version.
+
+---
+
 ## Installation
 
-> 🚧 **PyPI release coming soon.**
-
 ```bash
-# Not yet available — star the repo to get notified
-pip install ormophine
+pip install Ormophine
 ```
 
 ---
@@ -219,21 +227,22 @@ pip install ormophine
 ## Roadmap
 
 - [x] SQLite backend with full ORM
+- [x] MySQL backend with connection pooling
+- [x] PostgreSQL backend with connection pooling
 - [x] Operator overloading for columns
-- [x] Read-only connection pool
+- [x] Read-only connection pool / Non-blocking reads
 - [x] WAL mode + automatic checkpointing
 - [x] Batch / bulk operations
-- [ ] MySQL / MariaDB backend
-- [ ] PostgreSQL backend
-- [ ] Async support
-- [ ] PyPI release
+- [x] AI Reference files for LLM assistance
+- [ ] Video Tutorials
 - [ ] Benchmark suite publication
+- [ ] Async support
 
 ---
 
 ## Contributing
 
-The codebase is currently in active development and not yet public. Once released, contributions, bug reports, and feature requests will be very welcome.
+The codebase is currently in active development. Contributions, bug reports, and feature requests are very welcome! Please feel free to open an issue or submit a pull request.
 
 ---
 
