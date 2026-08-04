@@ -1483,7 +1483,7 @@ class Driver():
     ISOLATION_LEVEL = Literal['READ UNCOMMITTED', 'READ COMMITTED', 'REPEATABLE READ', 'SERIALIZABLE']
     INNODB_FLUSH_LOG = Literal[0,1,2]
     PRIVILEGES = Literal['ALL PRIVILEGES', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 'INDEX', 'REFERENCES', 'EXECUTE', 'GRANT OPTION', 'TRIGGER']
-    def __init__(self, host: str, port: int, username: str, password: str, db_name: str, create_new_db: bool = False, pool_size: int = 5, connect_timeout: int = 10, charset: CHARSET = "utf8mb4", collate: COLLATE = "utf8mb4_bin", sql_modes: list = None, isolation_level: ISOLATION_LEVEL = 'REPEATABLE READ', innodb_flush_log_at_trx_commit: INNODB_FLUSH_LOG = 1):
+    def __init__(self, host: str, port: int, username: str, password: str, db_name: str, create_new_db: bool = False, pool_size: int = 5, connect_timeout: int = 10, charset: CHARSET = "utf8mb4", collate: COLLATE = "utf8mb4_bin", sql_modes: list = None, isolation_level: ISOLATION_LEVEL = 'REPEATABLE READ'):
         self.CONNECTION_ERRORS = (2002, 2003, 2005, 2006, 2012, 2013, 2026, 2049, 2055, 2000)
         self.PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_%s_'
         self.host = host
@@ -1504,7 +1504,7 @@ class Driver():
             "db":self.db_name,
             "charset":self.charset,
             "connect_timeout":self.connect_timeout,
-            "init_command": f'SET SESSION TRANSACTION ISOLATION LEVEL {isolation_level}; SET SESSION innodb_flush_log_at_trx_commit = {innodb_flush_log_at_trx_commit};'
+            "init_command": f'SET SESSION TRANSACTION ISOLATION LEVEL {isolation_level};'
         }
         self.connection_pool = SimpleQueue()
         self.connection_pool_storage = []

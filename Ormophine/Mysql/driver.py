@@ -210,8 +210,7 @@ class Driver():
         charset: CHARSET = "utf8mb4",
         collate: COLLATE = "utf8mb4_bin",
         sql_modes: list = None,
-        isolation_level: ISOLATION_LEVEL = 'REPEATABLE READ',
-        innodb_flush_log_at_trx_commit: INNODB_FLUSH_LOG = 1
+        isolation_level: ISOLATION_LEVEL = 'REPEATABLE READ'
     ):
         """
         Initialize a new MySQL database driver with connection pooling and table ORM.
@@ -310,7 +309,7 @@ class Driver():
             "db":self.db_name,
             "charset":self.charset,
             "connect_timeout":self.connect_timeout,
-            "init_command": f'SET SESSION TRANSACTION ISOLATION LEVEL {isolation_level}; SET SESSION innodb_flush_log_at_trx_commit = {innodb_flush_log_at_trx_commit};'
+            "init_command": f'SET SESSION TRANSACTION ISOLATION LEVEL {isolation_level};'
         }
         self.connection_pool = SimpleQueue()
         self.connection_pool_storage = []
