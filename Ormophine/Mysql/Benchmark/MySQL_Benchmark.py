@@ -568,12 +568,18 @@ def plot_benchmark_results(title_prefix, labels, operations_data):
                 other_time = means[i]
                 if base_time > 0:
                     diff = ((other_time - base_time) / base_time) * 100
-                    if diff > 0:
+                    
+                    # بررسی اختلاف زیر 5 درصد
+                    if abs(diff) < 5:
+                        text = "تقریبا برابر است"
+                        color = '#808080' # رنگ خاکستری
+                    elif diff > 0:
                         text = f"{diff:.1f}% faster\nthan {label}"
                         color = '#2E7D32' # Dark Green
                     else:
                         text = f"{abs(diff):.1f}% slower\nthan {label}"
                         color = '#C62828' # Dark Red
+                        
                     ax.text(i, -0.15, text, ha='center', va='top', transform=trans, fontsize=10, fontweight='bold', color=color)
 
         plt.subplots_adjust(bottom=0.25) # Make room for two lines of text below
