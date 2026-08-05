@@ -1,5 +1,3 @@
-<div align="center">
-
 # Ormophine
 
 **The most Pythonic ORM. Fast, intuitive, and gets out of your way.**
@@ -195,12 +193,146 @@ Same results. No boilerplate. No complex function mapping. Just Python.
 
 ---
 
-## Benchmark Results
 
-> 📊 **Coming Soon!** 
-> Ormophine is not just about clean syntax—it is engineered for extreme performance. Early internal tests show it is **significantly faster** than other popular Python ORMs. 
-> 
-> Detailed benchmark results comparing Ormophine against SQLAlchemy, Django ORM, Tortoise ORM, and raw DB-API 2.0 will be published here soon. We are testing INSERT throughput, SELECT latency, bulk operations, and concurrent read workloads across all three backends.
+## ⚡ Benchmark Results
+
+To demonstrate Ormophine's raw performance, we benchmarked it against popular Python ORMs (SQLAlchemy, PonyORM, and Peewee) across SQLite, PostgreSQL, and MySQL.
+
+### Methodology
+We evaluate two distinct scenarios to measure both transactional overhead and bulk efficiency:
+
+1. **Single Operations:** Measures the time taken to execute CRUD queries where a `COMMIT` is issued immediately after *every single* insert, update, and delete. This tests the ORM's baseline overhead and connection management for isolated transactions.
+2. **Batch Operations:** Measures the time taken to execute a block of CUD (Create, Update, Delete) queries where all statements are executed first, and a single `COMMIT` is issued at the end. This tests the ORM's efficiency in bulk transactional processing.
+
+> **Note on Variance & Equivalence:** Due to natural system fluctuations, each test run can have a variance of up to ±10%. Therefore, performance differences of less than 5% are considered statistically insignificant (margin of error). In the charts below, differences under 5% are displayed in **gray** and marked as "≈ Equal", rather than claiming a marginal advantage.
+
+You can access the benchmark Jupyter notebooks in the project repository at `Ormophine/{Sqlite, Postgresql, Mysql}/Benchmark` to run the tests on your own hardware.
+
+You can also use this Google Colab notebooks:
+**Sqlite:** https://colab.research.google.com/drive/1KK3sr8H_Crd29fmnq3VmpmE88aLNT3Yr?usp=sharing
+**MySQL:** https://colab.research.google.com/drive/1ndwmN0C9UTZHTNmLh8-fT9rEg-DSrzHQ?usp=sharing
+**PostgeSQL:** https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sharing
+
+---
+
+### PostgreSQL Results
+
+**Single Operations Test** 
+*(Executed 10,000 queries total — 200 repeats × 50 chunk size — for each CRUD operation per ORM)*
+
+**Inserts:**
+
+<img width="400" height="400" alt="Postgre-SingleOp-Insert" src="https://github.com/user-attachments/assets/e2e08264-e1ff-4eb4-85a7-033d8ca2e28e" />
+
+**Updates:**
+
+<img width="400" height="400" alt="Postgre-SingleOp-Update" src="https://github.com/user-attachments/assets/c124dc1f-dbd6-47a3-bcd3-cefa30cb20f2" />
+
+**Reads:**
+
+<img width="400" height="400" alt="Postgre-SingleOp-Read" src="https://github.com/user-attachments/assets/6ff5a1c7-fc34-4d95-a8db-fa4e091830c5" />
+
+**Deletes:**
+
+<img width="400" height="400" alt="Postgre-SingleOp-Delete" src="https://github.com/user-attachments/assets/e95e1cbf-a0d7-4873-9fac-da0517319ffc" />
+
+---
+
+**Batch Operation Test** 
+*(Executed 500 queries total — 5 repeats × 100 statements per chunk — for each CUD operation per ORM)*
+
+**Inserts:**
+
+<img width="400" height="400" alt="Postgre-BatchOp-Insert" src="https://github.com/user-attachments/assets/de37f0a0-0bbf-40a2-9446-d5929b82b417" />
+
+**Updates:**
+
+<img width="400" height="400" alt="Postgre-BatchOp-Update" src="https://github.com/user-attachments/assets/029eb1d1-7a1b-4820-84bb-d21a53d0e64a" />
+
+**Deletes:**
+
+<img width="400" height="400" alt="Postgre-BatchOp-Delete" src="https://github.com/user-attachments/assets/4cec72b7-4c38-4305-8175-be67562be4ee" />
+
+---
+
+### Sqlite Results
+
+**Single Operations Test** 
+*(Executed 10,000 queries total — 200 repeats × 50 chunk size — for each CRUD operation per ORM)*
+
+**Inserts:**
+
+<img width="400" height="400" alt="Sqlite-SingleOp-Insert" src="https://github.com/user-attachments/assets/00d9b75b-6ac2-421a-a633-2024143b6c25" />
+
+**Updates:**
+
+<img width="400" height="400" alt="Sqlite-SingleOp-Update" src="https://github.com/user-attachments/assets/803050b7-cf23-48c9-9cd5-e9ebeaa448c9" />
+
+**Reads:**
+
+<img width="400" height="400" alt="Sqlite-SingleOp-Read" src="https://github.com/user-attachments/assets/257fdc41-1c56-47d7-a9a5-a23d2fb1764b" />
+
+**Deletes:**
+
+<img width="400" height="400" alt="Sqlite-SingleOp-Delete" src="https://github.com/user-attachments/assets/d1efb031-068f-41d2-a671-155e31e623c2" />
+
+---
+
+**Batch Operation Test** 
+*(Executed 500 queries total — 5 repeats × 100 statements per chunk — for each CUD operation per ORM)*
+
+**Inserts:**
+
+<img width="400" height="400" alt="Sqlite-BatchOp-Insert" src="https://github.com/user-attachments/assets/89572529-3859-4b34-9c69-b6eb8c566bc6" />
+
+**Updates:**
+
+<img width="400" height="400" alt="Sqlite-BatchOp-Update" src="https://github.com/user-attachments/assets/25ce020d-92d4-4dac-8876-08780657b624" />
+
+**Deletes:**
+
+<img width="400" height="400" alt="Sqlite-BatchOp-Delete" src="https://github.com/user-attachments/assets/35fcee8e-2c5f-4761-adce-84ddc40b4ccf" />
+
+---
+
+### MySQL Results
+
+**Single Operations Test** 
+*(Executed 10,000 queries total — 200 repeats × 50 chunk size — for each CRUD operation per ORM)*
+
+**Inserts:**
+
+<img width="400" height="400" alt="MySQL-SingleOp-Insert" src="https://github.com/user-attachments/assets/89061de4-8888-45a2-b264-c1c4b1e7d619" />
+
+**Updates:**
+
+<img width="400" height="400" alt="MySQL-SingleOp-Update" src="https://github.com/user-attachments/assets/cd605592-c333-4107-9996-f77a6be63b99" />
+
+**Reads:**
+
+<img width="400" height="400" alt="MySQL-SingleOp-Read" src="https://github.com/user-attachments/assets/f45642db-0f7c-47e4-a4d9-a61bc179e780" />
+
+**Deletes:**
+
+<img width="400" height="400" alt="MySQL-SingleOp-Delete" src="https://github.com/user-attachments/assets/3e781d61-b548-4499-80b9-be90ad39ed05" />
+
+---
+
+
+**Batch Operation Test** 
+*(Executed 500 queries total — 5 repeats × 100 statements per chunk — for each CUD operation per ORM)*
+
+**Inserts:**
+
+<img width="400" height="400" alt="MySQL-BatchOp-Insert" src="https://github.com/user-attachments/assets/894c9774-8ba0-47c5-889c-be09b2854c23" />
+
+**Updates:**
+
+<img width="400" height="400" alt="MySQL-BatchOp-Update" src="https://github.com/user-attachments/assets/087109b6-3d6e-480a-816d-8abc0a110bd1" />
+
+**Deletes:**
+
+<img width="400" height="400" alt="MySQL-BatchOp-Delete" src="https://github.com/user-attachments/assets/9cdd1b75-ad44-4ac1-bbd9-9881140fc748" />
 
 ---
 
