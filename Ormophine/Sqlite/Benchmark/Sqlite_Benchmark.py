@@ -595,10 +595,9 @@ def plot_benchmark_results(title_prefix, labels, operations_data):
                 if base_time > 0:
                     diff = ((other_time - base_time) / base_time) * 100
                     
-                    # بررسی اختلاف زیر 5 درصد
                     if abs(diff) < 5:
-                        text = "تقریبا برابر است"
-                        color = '#808080' # رنگ خاکستری
+                        text = f"{diff:.1f}% almost the same as {label}"
+                        color = '#808080' 
                     elif diff > 0:
                         text = f"{diff:.1f}% faster\nthan {label}"
                         color = '#2E7D32' # Dark Green
