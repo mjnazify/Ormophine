@@ -13,28 +13,8 @@ remain natural to read.
 
 Driver
 ------
-
-.. autoclass:: Ormophine.Mysql.driver.Driver
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-   :member-order: bysource
-
-TableStructure
---------------
-
-.. autoclass:: Ormophine.Mysql.Core.tablestructure.TableStructure
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-   :member-order: bysource
-
-DataTypes
----------
-
-.. autoclass:: Ormophine.Mysql.Core.tablestructure.DataTypes
+.. autoclass:: Driver
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -43,8 +23,18 @@ DataTypes
 
 Table
 -----
+.. autoclass:: Table
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
-.. autoclass:: Ormophine.Mysql.Core.table.Table
+BatchOperation
+--------------
+.. autoclass:: BatchOperation
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -53,32 +43,48 @@ Table
 
 ColumnsOperation
 ----------------
-
-.. autoclass:: Ormophine.Mysql.Core.columnsoperation.ColumnsOperation
+.. autoclass:: ColumnsOperation
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
 Column
 ------
-
-.. autoclass:: Ormophine.Mysql.Core.columnsoperation.Column
+.. autoclass:: Column
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
-
-BatchOperation
---------------
-
-.. autoclass:: Ormophine.Mysql.Core.columnsoperation.BatchOperation
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
 Join
 ----
+.. autoclass:: Join
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
-.. autoclass:: Ormophine.Mysql.Core.join.Join
+TableStructure
+--------------
+.. autoclass:: TableStructure
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
+
+DataTypes
+---------
+.. autoclass:: DataTypes
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:

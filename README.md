@@ -24,64 +24,52 @@ To help you write queries and debug your code, Ormophine ships with AI reference
 
 You can find these files in the root directory of the installed package. Simply attach the appropriate file to ChatGPT, Claude, or Gemini, ask your question, and the AI will respond using the exact API and behavior of your Ormophine version. It's like having an Ormophine expert on standby!
 
----
 
 ## The Problem with Other ORMs
 
 Most Python ORMs are either too verbose, too magical, or require too much boilerplate. Compare the everyday workflow of connecting, accessing tables, inserting data, and querying using popular ORMs versus Ormophine.
 
-### 1. Connecting to the Database
+### Connecting to the Database
 
-**Other ORMs:**
-
+**SQLAlchemy:**
 ```python
-# Django ORM (Requires project setup, settings.py configuration, and no direct script execution)
-# settings.py
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': 'my_db.db',
-    }
-}
-
-# SQLAlchemy
 from sqlalchemy import create_engine
 engine = create_engine('sqlite:///my_db.db')
+```
 
-# PonyORM
+**PonyORM:**
+```python
 from pony.orm import Database
 db = Database()
 db.bind(provider='sqlite', filename='my_db.db', create_db=True)
 ```
 
-**Ormophine:**
+**Peewee:**
+```python
+from peewee import SqliteDatabase
+db = SqliteDatabase('my_db.db')
+```
 
+**Ormophine:**
 ```python
 from Ormophine.Sqlite import Driver
 
-# Direct, clean instantiation. No settings files, no bind calls.
 db = Driver('my_db.db')
 ```
 
-### 2. Accessing Tables
+### Accessing Tables
 
-**Other ORMs:**
-
+**SQLAlchemy:**
+*Requires manual reflection or pre-defined models*
 ```python
-# Django ORM (Requires defining models in models.py and running migrations)
-# models.py
-class User(models.Model):
-    name = models.CharField(max_length=100)
-    age = models.IntegerField()
-# Then in your code:
-from .models import User
-
-# SQLAlchemy (Requires manual reflection or pre-defined models)
 from sqlalchemy import Table, MetaData
 metadata = MetaData()
 users = Table('users', metadata, autoload_with=engine)
+```
 
-# PonyORM (Requires defining entities)
+**PonyORM:**
+*Requires defining entities and generating mappings*
+```python
 from pony.orm import Required
 class User(db.Entity):
     name = Required(str)
@@ -89,22 +77,28 @@ class User(db.Entity):
 db.generate_mapping(create_tables=True)
 ```
 
-**Ormophine:**
+**Peewee:**
+*Requires defining models and explicitly linking them to the database*
+```python
+from peewee import Model, CharField, IntegerField
+class User(Model):
+    name = CharField()
+    age = IntegerField()
+    class Meta:
+        database = db
+```
 
+**Ormophine:**
 ```python
 # Tables and columns are discovered and mapped dynamically as attributes
 users = db.users
 ```
 
-### 3. Inserting Data
+### Inserting Data
 
-**Other ORMs:**
-
+**SQLAlchemy:**
+*Requires explicit connection context and commit*
 ```python
-# Django ORM
-User.objects.create(name='Alice', email='alice@example.com', age=30)
-
-# SQLAlchemy (Requires explicit connection and commit)
 with engine.connect() as conn:
     conn.execute(users.insert().values(
         name='Alice', 
@@ -112,15 +106,27 @@ with engine.connect() as conn:
         age=30
     ))
     conn.commit()
+```
 
-# PonyORM (Requires explicit db_session context)
+**PonyORM:**
+*Requires explicit db_session context*
+```python
 from pony.orm import db_session
 with db_session:
     User(name='Alice', email='alice@example.com', age=30)
 ```
 
-**Ormophine:**
+**Peewee:**
+*Requires calling .execute() on the query construct*
+```python
+User.insert(
+    name='Alice', 
+    email='alice@example.com', 
+    age=30
+).execute()
+```
 
+**Ormophine:**
 ```python
 # Auto-committed, uses Pythonic dictionary mapping with actual column objects
 users.insert({
@@ -130,40 +136,46 @@ users.insert({
 })
 ```
 
-### 4. Fetching Data with Complex Conditions
+### Fetching Data with Complex Conditions
 
 Let's try to fetch rows where the lowercased name starts with 'ab', AND a specific slice of the lastname equals 'connor', ordered by age.
 
-**Other ORMs:**
-
+**SQLAlchemy:**
+*Verbose function calls and manual string manipulation for slicing*
 ```python
-# Django ORM (Lacks native string slicing; requires complex Regex or raw SQL)
-from django.db.models import F
-results = User.objects.filter(
-    name__istartswith='ab'
-    #lastname[5:-2] == 'connor' is notoriously difficult without RawSQL or Regex
-).order_by('age').values('name', 'age')
-
-# SQLAlchemy (Verbose function calls and string manipulation)
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func
 stmt = select(users.c.name, users.c.age).where(
     func.lower(users.c.name).like('ab%'),
     func.substr(users.c.lastname, 6, func.length(users.c.lastname) - 7) == 'connor'
 ).order_by(users.c.age)
 with engine.connect() as conn:
     results = conn.execute(stmt).fetchall()
+```
 
-# PonyORM (Requires lambda functions and lacks intuitive slicing)
+**PonyORM:**
+*Requires lambda functions and lacks intuitive slicing*
+```python
 from pony.orm import db_session, select
 with db_session:
     query = select(u for u in User if u.name.lower().startswith('ab'))
-    # Again, string slicing like [5:-2] is not natively supported in PonyORM queries
+    # String slicing like [5:-2] is not natively supported in PonyORM queries
     query = query.order_by(lambda u: u.age)
     results = [(u.name, u.age) for u in query]
 ```
 
-**Ormophine:**
+**Peewee:**
+*Uses SQL function wrappers and lacks native Python slicing*
+```python
+from peewee import fn
+# Peewee lacks native string slicing in ORM queries
+query = User.select(User.name, User.age).where(
+    fn.LOWER(User.name).startswith('ab')
+    # User.lastname[5:-2] == 'connor' is not possible natively
+).order_by(User.age)
+results = list(query.dicts())
+```
 
+**Ormophine:**
 ```python
 # Pure Python syntax! Slicing and string methods translate directly to SQL under the hood.
 rows = users.get_row(
@@ -171,6 +183,54 @@ rows = users.get_row(
     where=(users.name.lower().startswith('ab')) & (users.lastname[5:-2] == 'connor'),
     order_by=users.age
 )
+```
+
+### Atomic / Batch Transactions
+
+Performing multiple write operations in a single, atomic transaction is crucial for data integrity and speed. Let's insert 2 users, update 1, and delete 1.
+
+**SQLAlchemy:**
+*Requires explicit connection block and manual execution for each statement*
+```python
+with engine.begin() as conn:
+    conn.execute(users.insert().values(name='Dave', email='dave@example.com', age=40))
+    conn.execute(users.insert().values(name='Eve', email='eve@example.com', age=28))
+    conn.execute(users.update().where(users.c.name == 'Alice').values(age=31))
+    conn.execute(users.delete().where(users.c.name == 'Bob'))
+```
+
+**PonyORM:**
+*Requires db_session context and imperative object manipulation for updates/deletes*
+```python
+from pony.orm import db_session
+with db_session:
+    User(name='Dave', email='dave@example.com', age=40)
+    User(name='Eve', email='eve@example.com', age=28)
+    alice = User.get(name='Alice')
+    if alice: alice.age = 31
+    bob = User.get(name='Bob')
+    if bob: bob.delete()
+```
+
+**Peewee:**
+*Requires atomic context and explicit .execute() on every query construct*
+```python
+with db.atomic():
+    User.insert(name='Dave', email='dave@example.com', age=40).execute()
+    User.insert(name='Eve', email='eve@example.com', age=28).execute()
+    User.update(age=31).where(User.name == 'Alice').execute()
+    User.delete().where(User.name == 'Bob').execute()
+```
+
+**Ormophine:**
+```python
+# Fluent batch builder: queues operations and commits atomically
+batch = users.batch()
+batch.insert({users.name: 'Dave', users.email: 'dave@example.com', users.age: 40})
+batch.insert({users.name: 'Eve', users.email: 'eve@example.com', users.age: 28})
+batch.update({users.age: 31}, where=users.name == 'Alice')
+batch.delete_row(where=users.name == 'Bob')
+batch.run() # Executes all and commits in one transaction
 ```
 
 Same results. No boilerplate. No complex function mapping. Just Python.
@@ -209,9 +269,16 @@ We evaluate two distinct scenarios to measure both transactional overhead and bu
 You can access the benchmark Jupyter notebooks in the project repository at `Ormophine/{Sqlite, Postgresql, Mysql}/Benchmark` to run the tests on your own hardware.
 
 You can also use this Google Colab notebooks:
-**Sqlite:** https://colab.research.google.com/drive/1KK3sr8H_Crd29fmnq3VmpmE88aLNT3Yr?usp=sharing
-**MySQL:** https://colab.research.google.com/drive/1ndwmN0C9UTZHTNmLh8-fT9rEg-DSrzHQ?usp=sharing
-**PostgeSQL:** https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sharing
+
+**Sqlite:** 
+https://colab.research.google.com/drive/1KK3sr8H_Crd29fmnq3VmpmE88aLNT3Yr?usp=sharing
+
+**MySQL:** 
+https://colab.research.google.com/drive/1ndwmN0C9UTZHTNmLh8-fT9rEg-DSrzHQ?usp=sharing
+
+**PostgeSQL:** 
+https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sharing
+
 
 ---
 

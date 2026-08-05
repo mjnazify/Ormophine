@@ -116,15 +116,7 @@ Documentation Map
 -----------------
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Quick Start Guides
-
-   Ormophine.Sqlite.QuikStart
-   Ormophine.Mysql.QuikStart
-   Ormophine.Postgresql.QuikStart
-
-.. toctree::
-   :maxdepth: 2
+   :maxdepth: 8
    :caption: API Reference
 
    api/modules

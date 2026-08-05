@@ -5,15 +5,14 @@ import sys
 project = 'Ormophine'
 copyright = '2026, M.J.Nazify.Yummy'
 author = 'M.J.Nazify.Yummy'
-release = '0.7.6'
+release = '0.7.22'
 
 # -- General configuration ---------------------------------------------------
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode',
+    'sphinx.ext.viewcode'
 ]
-
 DOCS_DIR = os.path.abspath(os.path.dirname(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(DOCS_DIR, '..', '..'))
 
@@ -42,7 +41,6 @@ autodoc_default_options = {
     'exclude-members': '__weakref__, __dict__, __module__, __annotations__, __doc__',
     'show-inheritance': True,
 }
-
 napoleon_google_docstring = True
 napoleon_numpy_docstring = False
 napoleon_include_init_with_doc = True

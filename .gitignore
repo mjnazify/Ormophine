@@ -1,6 +1,23 @@
+# Python cache
 __pycache__/
 *.py[cod]
-*.egg-info/
+
+# Build and distribution
 dist/
 build/
+*.egg-info/
+
+# Documentation build
 docs/build/
+
+# Sensitive files
+.pypirc
+
+# IDE (اختیاری، ولی پیشنهاد می‌شود)
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db

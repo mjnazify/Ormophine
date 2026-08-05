@@ -14,28 +14,8 @@ remain natural to read.
 
 Driver
 ------
-
-.. autoclass:: Ormophine.Sqlite.driver.Driver
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-   :member-order: bysource
-
-TableStructure
---------------
-
-.. autoclass:: Ormophine.Sqlite.Core.tablestructure.TableStructure
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-   :member-order: bysource
-
-DataTypes
----------
-
-.. autoclass:: Ormophine.Sqlite.Core.tablestructure.DataTypes
+.. autoclass:: Driver
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -44,8 +24,18 @@ DataTypes
 
 Table
 -----
+.. autoclass:: Table
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
-.. autoclass:: Ormophine.Sqlite.Core.table.Table
+BatchOperation
+--------------
+.. autoclass:: BatchOperation
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -54,33 +44,48 @@ Table
 
 ColumnsOperation
 ----------------
-
-.. autoclass:: Ormophine.Sqlite.Core.columnsoperation.ColumnsOperation
+.. autoclass:: ColumnsOperation
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
 Column
 ------
-
-.. autoclass:: Ormophine.Sqlite.Core.columnsoperation.Column
+.. autoclass:: Column
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
-
-BatchOperation
---------------
-
-.. autoclass:: Ormophine.Sqlite.Core.columnsoperation.BatchOperation
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
+   :inherited-members:
+   :member-order: bysource
 
 Join
 ----
+.. autoclass:: Join
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
-.. autoclass:: Ormophine.Sqlite.Core.join.Join
+TableStructure
+--------------
+.. autoclass:: TableStructure
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
+
+DataTypes
+---------
+.. autoclass:: DataTypes
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -89,8 +94,8 @@ Join
 
 SetPragma
 ---------
-
-.. autoclass:: Ormophine.Sqlite.Core.setpragma.SetPragma
+.. autoclass:: SetPragma
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:

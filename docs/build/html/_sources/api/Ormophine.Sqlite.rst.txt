@@ -14,28 +14,8 @@ remain natural to read.
 
 Driver
 ------
-
-.. autoclass:: Ormophine.Sqlite.driver.Driver
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-   :member-order: bysource
-
-TableStructure
---------------
-
-.. autoclass:: Ormophine.Sqlite.Core.tablestructure.TableStructure
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-   :member-order: bysource
-
-DataTypes
----------
-
-.. autoclass:: Ormophine.Sqlite.Core.tablestructure.DataTypes
+.. autoclass:: Driver
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -44,8 +24,38 @@ DataTypes
 
 Table
 -----
+.. autoclass:: Table
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
-.. autoclass:: Ormophine.Sqlite.Core.table.Table
+BatchOperation
+--------------
+.. autoclass:: BatchOperation
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
+
+ColumnsOperation
+----------------
+.. autoclass:: ColumnsOperation
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
+
+Column
+------
+.. autoclass:: Column
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -54,8 +64,28 @@ Table
 
 Join
 ----
+.. autoclass:: Join
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
-.. autoclass:: Ormophine.Sqlite.Core.join.Join
+TableStructure
+--------------
+.. autoclass:: TableStructure
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
+
+DataTypes
+---------
+.. autoclass:: DataTypes
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -64,8 +94,8 @@ Join
 
 SetPragma
 ---------
-
-.. autoclass:: Ormophine.Sqlite.Core.setpragma.SetPragma
+.. autoclass:: SetPragma
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:

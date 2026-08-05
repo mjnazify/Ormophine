@@ -13,28 +13,8 @@ as ``startswith()``, ``endswith()``, and slicing such as ``column[2:5]``.
 
 Driver
 ------
-
-.. autoclass:: Ormophine.Postgresql.driver.Driver
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-   :member-order: bysource
-
-TableStructure
---------------
-
-.. autoclass:: Ormophine.Postgresql.Core.tablestructure.TableStructure
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :inherited-members:
-   :member-order: bysource
-
-DataTypes
----------
-
-.. autoclass:: Ormophine.Postgresql.Core.tablestructure.DataTypes
+.. autoclass:: Driver
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -43,8 +23,18 @@ DataTypes
 
 Table
 -----
+.. autoclass:: Table
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
 
-.. autoclass:: Ormophine.Postgresql.Core.table.Table
+BatchOperation
+--------------
+.. autoclass:: BatchOperation
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -53,34 +43,52 @@ Table
 
 ColumnsOperation
 ----------------
-
-.. autoclass:: Ormophine.Postgresql.Core.columnsoperation.ColumnsOperation
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Column
-------
-
-.. autoclass:: Ormophine.Postgresql.Core.columnsoperation.Column
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-BatchOperation
---------------
-
-.. autoclass:: Ormophine.Postgresql.Core.columnsoperation.BatchOperation
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Join
-----
-
-.. autoclass:: Ormophine.Postgresql.Core.join.Join
+.. autoclass:: ColumnsOperation
+   :no-index:
    :members:
    :undoc-members:
    :show-inheritance:
    :inherited-members:
    :member-order: bysource
+
+Column
+------
+.. autoclass:: Column
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
+
+Join
+----
+.. autoclass:: Join
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
+
+TableStructure
+--------------
+.. autoclass:: TableStructure
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
+
+DataTypes
+---------
+.. autoclass:: DataTypes
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource
+
+

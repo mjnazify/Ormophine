@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ormophine.Mysql.driver &mdash; Ormophine 0.7.1 documentation</title>
+  <title>Ormophine.Mysql.driver &mdash; Ormophine 0.7.6 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../_static/documentation_options.js?v=5a057da9"></script>
+      <script src="../../../_static/documentation_options.js?v=918ced64"></script>
       <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
@@ -39,7 +39,8 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <ul>
+              <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">API Reference</a></li>
 </ul>
 
@@ -284,8 +285,7 @@
         <span class="n">charset</span><span class="p">:</span> <span class="n">CHARSET</span> <span class="o">=</span> <span class="s2">&quot;utf8mb4&quot;</span><span class="p">,</span>
         <span class="n">collate</span><span class="p">:</span> <span class="n">COLLATE</span> <span class="o">=</span> <span class="s2">&quot;utf8mb4_bin&quot;</span><span class="p">,</span>
         <span class="n">sql_modes</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">isolation_level</span><span class="p">:</span> <span class="n">ISOLATION_LEVEL</span> <span class="o">=</span> <span class="s1">&#39;REPEATABLE READ&#39;</span><span class="p">,</span>
-        <span class="n">innodb_flush_log_at_trx_commit</span><span class="p">:</span> <span class="n">INNODB_FLUSH_LOG</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">isolation_level</span><span class="p">:</span> <span class="n">ISOLATION_LEVEL</span> <span class="o">=</span> <span class="s1">&#39;REPEATABLE READ&#39;</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Initialize a new MySQL database driver with connection pooling and table ORM.</span>
@@ -384,7 +384,7 @@
             <span class="s2">&quot;db&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">db_name</span><span class="p">,</span>
             <span class="s2">&quot;charset&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">charset</span><span class="p">,</span>
             <span class="s2">&quot;connect_timeout&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">connect_timeout</span><span class="p">,</span>
-            <span class="s2">&quot;init_command&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;SET SESSION TRANSACTION ISOLATION LEVEL </span><span class="si">{</span><span class="n">isolation_level</span><span class="si">}</span><span class="s1">; SET SESSION innodb_flush_log_at_trx_commit = </span><span class="si">{</span><span class="n">innodb_flush_log_at_trx_commit</span><span class="si">}</span><span class="s1">;&#39;</span>
+            <span class="s2">&quot;init_command&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;SET SESSION TRANSACTION ISOLATION LEVEL </span><span class="si">{</span><span class="n">isolation_level</span><span class="si">}</span><span class="s1">;&#39;</span>
         <span class="p">}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool</span> <span class="o">=</span> <span class="n">SimpleQueue</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">connection_pool_storage</span> <span class="o">=</span> <span class="p">[]</span>

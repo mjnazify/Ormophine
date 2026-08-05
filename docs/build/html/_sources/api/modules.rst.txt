@@ -16,11 +16,12 @@ Python operators and built-in-like helpers such as ``startswith()``, ``endswith(
 slice notation like ``column[2:5]``.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :titlesonly:
 
-   Ormophine.Sqlite.QuikStart
+   Ormophine.Sqlite.QuickStart
    Ormophine.Sqlite
-   Ormophine.Mysql.QuikStart
+   Ormophine.Mysql.QuickStart
    Ormophine.Mysql
-   Ormophine.Postgresql.QuikStart
+   Ormophine.Postgresql.QuickStart
    Ormophine.Postgresql
