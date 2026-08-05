@@ -570,7 +570,7 @@ def plot_benchmark_results(title_prefix, labels, operations_data):
                     diff = ((other_time - base_time) / base_time) * 100
                     
                     if abs(diff) < 5:
-                        text = f"{diff:.1f}% almost the same as {label}"
+                        text = f"{diff:.1f}%\nalmost the same\nas {label}"
                         color = '#808080' 
                     elif diff > 0:
                         text = f"{diff:.1f}% faster\nthan {label}"
