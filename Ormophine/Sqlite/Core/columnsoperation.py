@@ -141,8 +141,9 @@ class ColumnsOperation:
                 # expr3._output[0] -> "((products.[price] + ?) + (products.[price] * ?))"
                 # expr3._output[1] -> [5, 2]
         """
-        self._output = (f'({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} + ?)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) else (f'({self._output[0]} || ?)', self._output[1]+[other if isinstance(other, str) else str(other)])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} + ?)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) else (f'({self._output[0]} || ?)', self._output[1]+[other if isinstance(other, str) else str(other)])
+        return new_op
 
     def __radd__(self, other):
         """Implement reflected addition for SQL expression generation.
@@ -208,8 +209,9 @@ class ColumnsOperation:
                 expr3 = (price_col * 2) + name_col
                 # expr3._output[0] -> "((products.[price] * ?) + products.[name])"
         """
-        self._output = (f'({other._output[0]} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? + {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(? || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? + {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(? || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
+        return new_op
 
     def __sub__(self, other):
         """Subtract a value or expression from the current column expression.
@@ -260,8 +262,9 @@ class ColumnsOperation:
                 # expr3._output[0] -> "((products.[price] - ?) - (products.[discount] * ?))"
                 # expr3._output[1] -> [5, 2]
         """
-        self._output = (f'({self._output[0]} - {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} - {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} - ?)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} - {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} - {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} - ?)', self._output[1]+[other])
+        return new_op
 
     def __rsub__(self, other):
         """Implement reverse subtraction for the column expression.
@@ -315,8 +318,9 @@ class ColumnsOperation:
                 # condition._output[0] -> "((? - products.[price]) > ?)"
                 # condition._output[1] -> [100, 50]
         """
-        self._output = (f'({other._output[0]} - {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} - {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? - {self._output[0]})', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} - {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} - {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? - {self._output[0]})', self._output[1]+[other])
+        return new_op
 
     def __mul__(self, other):
         """Multiply the current column expression by a value or expression.
@@ -368,8 +372,9 @@ class ColumnsOperation:
                 # expr3._output[0] -> "((products.[price] + ?) * ?)"
                 # expr3._output[1] -> [10, 0.9]
         """
-        self._output = (f'({self._output[0]} * {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} * {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} * ?)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} * {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} * {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} * ?)', self._output[1]+[other])
+        return new_op
 
     def __rmul__(self, other):
         """Implement reflected multiplication for the column expression.
@@ -425,8 +430,9 @@ class ColumnsOperation:
                 # discounted._output[0] -> "(? * products.[price])"
                 # discounted._output[1] -> [0.9]
         """
-        self._output = (f'({other._output[0]} * {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} * {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? * {self._output[0]})', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} * {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} * {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? * {self._output[0]})', self._output[1]+[other])
+        return new_op
 
     def __pow__(self, other):
         """Raise the column expression to a power using SQL exponentiation.
@@ -479,8 +485,9 @@ class ColumnsOperation:
                 # expr3._output[0] -> "((products.[price] + ?) ** (products.[price] * ?))"
                 # expr3._output[1] -> [5, 2]
         """
-        self._output = (f'({self._output[0]} ** {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} ** {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} ** ?)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} ** {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} ** {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} ** ?)', self._output[1]+[other])
+        return new_op
 
     def __rpow__(self, other):
         """Implement the reflected (right‑hand side) power operator for column expressions.
@@ -533,8 +540,9 @@ class ColumnsOperation:
                 expr3 = (price + 10) ** price
                 # expr3._output[0] -> "((products.[price] + ?) ** products.[price])"
         """
-        self._output = (f'({other._output[0]} ** {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} ** {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? ** {self._output[0]})', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} ** {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} ** {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? ** {self._output[0]})', self._output[1]+[other])
+        return new_op
 
     def __truediv__(self, other):
         """Divide the column expression by a value or expression.
@@ -585,8 +593,9 @@ class ColumnsOperation:
                 # expr3._output[0] -> "((products.[price] + ?) / (products.[price] * ?))"
                 # expr3._output[1] -> [10, 2]
         """
-        self._output = (f'({self._output[0]} / {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} / {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} / ?)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} / {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} / {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} / ?)', self._output[1]+[other])
+        return new_op
 
     def __rtruediv__(self, other):
         """Divide a value by the column expression (reverse division).
@@ -637,8 +646,9 @@ class ColumnsOperation:
                 # expr2._output[0] -> "(products.[discount] / (products.[price] + ?))"
                 # expr2._output[1] -> [10]
         """
-        self._output = (f'({other._output[0]} / {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} / {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? / {self._output[0]})', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} / {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} / {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? / {self._output[0]})', self._output[1]+[other])
+        return new_op
 
     def __mod__(self, other):
         """Apply the modulo operator to the column expression.
@@ -692,8 +702,9 @@ class ColumnsOperation:
                 # expr3._output[0] -> "((products.[stock] + ?) % (products.[stock] - ?))"
                 # expr3._output[1] -> [10, 5]
         """
-        self._output = (f'({self._output[0]} % {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} % {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} % ?)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} % {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} % {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} % ?)', self._output[1]+[other])
+        return new_op
 
     def __rmod__(self, other):
         """Compute the modulo of a value with the column expression (reverse modulo).
@@ -743,8 +754,9 @@ class ColumnsOperation:
                 expr2 = total_col % stock
                 # expr2._output[0] -> "(products.[total] % products.[stock])"
         """
-        self._output = (f'({other._output[0]} % {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} % {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? % {self._output[0]})', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} % {self._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} % {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? % {self._output[0]})', self._output[1]+[other])
+        return new_op
 
     def __getitem__(self, key: slice):
         """Implement string slicing on a column expression using SQLite's ``substr``.
@@ -806,45 +818,46 @@ class ColumnsOperation:
                 results = users.get_row([initial_expr], where=users.id == 1)
                 # retrieves the first character of the name for user with id=1
         """
+        new_op = ColumnsOperation(self.col_obj)
         if self._output:
             if key.start == None and key.stop ==  None:
-                self._output = (f'substr({self._output[0]} , 0 , length({self._output[0]}) + 1)', self._output[1] + self._output[1])   #
+                new_op._output = (f'substr({self._output[0]} , 0 , length({self._output[0]}) + 1)', self._output[1] + self._output[1])   #
             elif key.start == None and key.stop < 0:
-                self._output = (f'substr({self._output[0]} , 0 , length({self._output[0]}) - ?)', self._output[1] + self._output[1] + [abs(key.stop) - 1])  #
+                new_op._output = (f'substr({self._output[0]} , 0 , length({self._output[0]}) - ?)', self._output[1] + self._output[1] + [abs(key.stop) - 1])  #
             elif key.start == None and key.stop >= 0:
-                 self._output = (f'substr({self._output[0]} , 0 , ?)', self._output[1] + [key.stop + 1])  #  
+                 new_op._output = (f'substr({self._output[0]} , 0 , ?)', self._output[1] + [key.stop + 1])  #  
             elif key.start >= 0 and key.stop ==  None:
-                self._output = (f'substr({self._output[0]} , ? , length({self._output[0]}))', self._output[1] + [key.start + 1] + self._output[1])  #   
+                new_op._output = (f'substr({self._output[0]} , ? , length({self._output[0]}))', self._output[1] + [key.start + 1] + self._output[1])  #   
             elif key.start < 0 and key.stop == None:
-                self._output = (f'substr({self._output[0]} , length({self._output[0]}) - ? , length({self._output[0]}))', self._output[1] + self._output[1] + [abs(key.start) - 1] + self._output[1])  #
+                new_op._output = (f'substr({self._output[0]} , length({self._output[0]}) - ? , length({self._output[0]}))', self._output[1] + self._output[1] + [abs(key.start) - 1] + self._output[1])  #
             elif key.start >= 0 and key.stop < 0:
-                self._output = (f'substr({self._output[0]} , ? , length({self._output[0]}) - ?)', self._output[1] +  [key.start + 1] + self._output[1] + [abs(key.stop - key.start)])  #  
+                new_op._output = (f'substr({self._output[0]} , ? , length({self._output[0]}) - ?)', self._output[1] +  [key.start + 1] + self._output[1] + [abs(key.stop - key.start)])  #  
             elif key.start >= 0 and key.stop > 0:
-                self._output = (f'substr({self._output[0]} , ? , ?)', self._output[1] + [key.start + 1, key.stop - key.start])  #
+                new_op._output = (f'substr({self._output[0]} , ? , ?)', self._output[1] + [key.start + 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop < 0:
-                self._output = (f'substr({self._output[0]} , length({self._output[0]}) - ? , ?)', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop - key.start])  #
+                new_op._output = (f'substr({self._output[0]} , length({self._output[0]}) - ? , ?)', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop > 0:
-                self._output = (f'substr({self._output[0]} , length({self._output[0]}) - ? ,  ? - (length({self._output[0]}) - ?))', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop] + self._output[1] + [abs(key.start)])
+                new_op._output = (f'substr({self._output[0]} , length({self._output[0]}) - ? ,  ? - (length({self._output[0]}) - ?))', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop] + self._output[1] + [abs(key.start)])
         else:
             if key.start == None and key.stop ==  None:
-                self._output = (f'substr({self.col_obj.name} , 0 , length({self.col_obj.name}) + 1)', [])   #
+                new_op._output = (f'substr({self.col_obj.name} , 0 , length({self.col_obj.name}) + 1)', [])   #
             elif key.start == None and key.stop < 0:
-                self._output = (f'substr({self.col_obj.name} , 0 , length({self.col_obj.name}) - ?)', [abs(key.stop) - 1])  #
+                new_op._output = (f'substr({self.col_obj.name} , 0 , length({self.col_obj.name}) - ?)', [abs(key.stop) - 1])  #
             elif key.start == None and key.stop >= 0:
-                 self._output = (f'substr({self.col_obj.name} , 0 , ?)', [key.stop + 1])  #  
+                new_op._output = (f'substr({self.col_obj.name} , 0 , ?)', [key.stop + 1])  #  
             elif key.start >= 0 and key.stop ==  None:
-                self._output = (f'substr({self.col_obj.name} , ? , length({self.col_obj.name}))', [key.start + 1])  #   
+                new_op._output = (f'substr({self.col_obj.name} , ? , length({self.col_obj.name}))', [key.start + 1])  #   
             elif key.start < 0 and key.stop == None:
-                self._output = (f'substr({self.col_obj.name} , length({self.col_obj.name}) - ? , length({self.col_obj.name}))', [abs(key.start) - 1])  #
+                new_op._output = (f'substr({self.col_obj.name} , length({self.col_obj.name}) - ? , length({self.col_obj.name}))', [abs(key.start) - 1])  #
             elif key.start >= 0 and key.stop < 0:
-                self._output = (f'substr({self.col_obj.name} , ? , length({self.col_obj.name}) - ?)', [key.start + 1, abs(key.stop - key.start)])  #  
+                new_op._output = (f'substr({self.col_obj.name} , ? , length({self.col_obj.name}) - ?)', [key.start + 1, abs(key.stop - key.start)])  #  
             elif key.start >= 0 and key.stop > 0:
-                self._output = (f'substr({self.col_obj.name} , ? , ?)', [key.start + 1, key.stop - key.start])  #
+                new_op._output = (f'substr({self.col_obj.name} , ? , ?)', [key.start + 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop < 0:
-                self._output = (f'substr({self.col_obj.name} , length({self.col_obj.name}) - ? , ?)', [abs(key.start) - 1, key.stop - key.start])  #
+                new_op._output = (f'substr({self.col_obj.name} , length({self.col_obj.name}) - ? , ?)', [abs(key.start) - 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop > 0:
-                self._output = (f'substr({self.col_obj.name} , length({self.col_obj.name}) - ? ,  ? - (length({self.col_obj.name}) - ?))', [abs(key.start) - 1, key.stop, abs(key.start)])
-        return self
+                new_op._output = (f'substr({self.col_obj.name} , length({self.col_obj.name}) - ? ,  ? - (length({self.col_obj.name}) - ?))', [abs(key.start) - 1, key.stop, abs(key.start)])
+        return new_op
 
     def eq(self, value):
         """Create an equality comparison condition for the column expression.
@@ -894,8 +907,9 @@ class ColumnsOperation:
                 # Chain with AND
                 final_condition = condition & (id_col > 10)
         """
-        self._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = ?', self._output[1] + [value])
+        return new_op
 
     def __eq__(self, value):
         """Create an equality comparison condition for the column expression.
@@ -948,8 +962,9 @@ class ColumnsOperation:
                 # condition3._output[0] -> "(upper(users.[name]) = ?)"
                 # condition3._output[1] -> ['ALICE']
         """
-        self._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = ?', self._output[1] + [value])
+        return new_op
 
     def ne(self, value):
         """Create a not-equal comparison condition for the column expression.
@@ -1000,8 +1015,9 @@ class ColumnsOperation:
                 # Chain with AND
                 final_condition = condition & (users.age > 18)
         """
-        self._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != ?', self._output[1] + [value])
+        return new_op
 
     def __ne__(self, value):
         """Create a not-equal comparison condition for the column expression.
@@ -1051,8 +1067,9 @@ class ColumnsOperation:
                 results = products.get_row([price], where=condition)
                 # retrieves rows where price != 100
         """
-        self._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != ?', self._output[1] + [value])
+        return new_op
 
     def gt(self, value):
         """Create a greater-than comparison condition for the column expression.
@@ -1103,8 +1120,9 @@ class ColumnsOperation:
                 # Chain with AND
                 final_condition = condition & (price_col < 500)
         """
-        self._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > ?', self._output[1] + [value])
+        return new_op
 
     def __gt__(self, value):
         """Create a greater-than comparison condition for the column expression.
@@ -1151,8 +1169,9 @@ class ColumnsOperation:
                 # Use in a query
                 results = products.get_row([price], where=condition)
         """
-        self._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > ?', self._output[1] + [value])
+        return new_op
 
     def lt(self, value):
         """Create a less-than comparison condition for the column expression.
@@ -1203,8 +1222,9 @@ class ColumnsOperation:
                 # Use in a query
                 results = products.get_row([price], where=condition)
         """
-        self._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < ?', self._output[1] + [value])
+        return new_op
 
     def __lt__(self, value):
         """Create a less-than comparison condition for the column expression.
@@ -1254,8 +1274,9 @@ class ColumnsOperation:
                 # Use in a query
                 results = products.get_row([price], where=condition)
         """
-        self._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < ?', self._output[1] + [value])
+        return new_op
 
     def ge(self, value):
         """Create a greater-than-or-equal comparison condition for the column expression.
@@ -1306,8 +1327,9 @@ class ColumnsOperation:
                 # Use in a query
                 results = products.get_row([price], where=condition)
         """
-        self._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= ?', self._output[1] + [value])
+        return new_op
 
     def __ge__(self, value):
         """Create a greater-than-or-equal-to comparison condition for the column expression.
@@ -1360,8 +1382,9 @@ class ColumnsOperation:
                 # Use in a query
                 results = products.get_row([price], where=condition)
         """
-        self._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= ?', self._output[1] + [value])
+        return new_op
 
     def le(self, value):
         """Create a less-than-or-equal-to comparison condition for the column expression.
@@ -1412,8 +1435,9 @@ class ColumnsOperation:
                 # Use with AND
                 final_condition = condition & (orders.id > 10)
         """
-        self._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= ?', self._output[1] + [value])
+        return new_op
 
     def __le__(self, value):
         """Create a less-than-or-equal comparison condition for the column expression.
@@ -1463,8 +1487,9 @@ class ColumnsOperation:
                 # Use in a query
                 results = products.get_row([price], where=condition)
         """
-        self._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= ?', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= ?', self._output[1] + [value])
+        return new_op
 
     def __and__(self, value):
         """Combine two conditions with SQL ``AND``.
@@ -1504,8 +1529,9 @@ class ColumnsOperation:
                 results = users.get_row([users.name], where=condition)
                 # retrieves names of active users older than 18
         """
-        self._output = (f'({self._output[0]} AND {value._output[0]})', self._output[1] + value._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} AND {value._output[0]})', self._output[1] + value._output[1])
+        return new_op
 
     def __or__(self, value):
         """Combine this condition with another using SQL ``OR``.
@@ -1552,8 +1578,9 @@ class ColumnsOperation:
                 results = products.get_row([price], where=final_cond)
                 # retrieves rows where price > 100 OR price < 50
         """
-        self._output = (f'({self._output[0]} OR {value._output[0]})', self._output[1] + value._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} OR {value._output[0]})', self._output[1] + value._output[1])
+        return new_op
 
     def like(self, value):
         """Create a SQL ``LIKE`` condition for pattern matching on the column expression.
@@ -1606,8 +1633,9 @@ class ColumnsOperation:
                 # Use in a query
                 results = users.get_row([name_col], where=condition)
         """
-        self._output = (f'{self._output[0]} like {value._output[0]}', self._output[1] + value._output[1] if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} like {value.name}', self._output[1]) if isinstance(value , Column) else (f'{self._output[0]} like ?', self._output[1] + [f'{value}'])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} like {value._output[0]}', self._output[1] + value._output[1] if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} like {value.name}', self._output[1]) if isinstance(value , Column) else (f'{self._output[0]} like ?', self._output[1] + [f'{value}'])
+        return new_op
 
     def startswith(self, prefix):
         """Just like python startswith(), create a SQL ``LIKE`` condition to check if the expression starts with a prefix.
@@ -1663,8 +1691,9 @@ class ColumnsOperation:
                 condition2 = name_col.startswith(prefix_col)
                 # condition2._output[0] -> "(users.[name] like users.[prefix] || '%')"
         """
-        self._output = (f'{self._output[0]} like {prefix._output[0]}%', self._output[1] + prefix._output[1] if self._output else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f'{self._output[0]} like {prefix.name}%', self._output[1]) if isinstance(prefix , Column) else (f'{self._output[0]} like ?', self._output[1] + [f'{prefix}%'])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} like {prefix._output[0]}%', self._output[1] + prefix._output[1] if self._output else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f'{self._output[0]} like {prefix.name}%', self._output[1]) if isinstance(prefix , Column) else (f'{self._output[0]} like ?', self._output[1] + [f'{prefix}%'])
+        return new_op
 
     def endswith(self, suffix):
         """Just like python endswith(), create a SQL ``LIKE`` condition to check if the column expression ends with a suffix.
@@ -1718,8 +1747,9 @@ class ColumnsOperation:
                 condition2 = name_col.endswith(suffix_col)
                 # condition2._output[0] -> "(users.[name] like '%' || users.[suffix])"
         """
-        self._output = (f'{self._output[0]} like %{suffix._output[0]}', self._output[1] + suffix._output[1] if self._output else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f'{self._output[0]} like %{suffix.name}', self._output[1]) if isinstance(suffix , Column) else (f'{self._output[0]} like ?', self._output[1] + [f'%{suffix}'])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} like %{suffix._output[0]}', self._output[1] + suffix._output[1] if self._output else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f'{self._output[0]} like %{suffix.name}', self._output[1]) if isinstance(suffix , Column) else (f'{self._output[0]} like ?', self._output[1] + [f'%{suffix}'])
+        return new_op
 
     def contains(self, value):
         """Create a SQL ``LIKE`` condition to check if the column expression contains a substring.
@@ -1773,8 +1803,9 @@ class ColumnsOperation:
                 # Use in a query
                 results = products.get_row([name], where=condition)
         """
-        self._output = (f'{self._output[0]} like %{value._output[0]}%', self._output[1] + value._output[1] if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} like %{value.name}%', self._output[1]) if isinstance(value , Column) else (f'{self._output[0]} like ?', self._output[1] + [f'%{value}%'])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} like %{value._output[0]}%', self._output[1] + value._output[1] if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} like %{value.name}%', self._output[1]) if isinstance(value , Column) else (f'{self._output[0]} like ?', self._output[1] + [f'%{value}%'])
+        return new_op
 
     def add_end(self, content):
         """Append content to the end of the column expression using SQL concatenation.
@@ -1828,8 +1859,9 @@ class ColumnsOperation:
                 result = users.get_row([expr], where=users.id == 1)
                 # retrieves the concatenated string for the user with id=1
         """
-        self._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'({self._output[0]} || ?)', self._output[1]+[content] if self._output else [content])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'({self._output[0]} || ?)', self._output[1]+[content] if self._output else [content])
+        return new_op
 
     def add_first(self, content):
         """Prepend content to the beginning of the column expression using SQL concatenation.
@@ -1882,8 +1914,9 @@ class ColumnsOperation:
                 result = users.get_row([expr], where=users.id == 1)
                 # retrieves the concatenated string for the user with id=1
         """        
-        self._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'(? || {self._output[0]})', [content]+self._output[1] if self._output else [content])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'(? || {self._output[0]})', [content]+self._output[1] if self._output else [content])
+        return new_op
 
     def replace(self, old: str, new: str):
         """Just like python replace(), replace all occurrences of a substring within the column value.
@@ -1928,8 +1961,9 @@ class ColumnsOperation:
                 expr2 = name_col.upper().replace('A', 'X')
                 # expr2._output[0] -> "replace(upper(users.[name]) , ? , ?)"
         """
-        self._output = (f'replace({self._output[0]} , ? , ?)', self._output[1] + [old, new]) if self._output else (f'replace({self.col_obj.name} , ? , ?)', [old, new])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'replace({self._output[0]} , ? , ?)', self._output[1] + [old, new]) if self._output else (f'replace({self.col_obj.name} , ? , ?)', [old, new])
+        return new_op
 
     def upper(self):
         """Just like python upper(), convert the column expression to uppercase using SQL's UPPER function.
@@ -1969,8 +2003,9 @@ class ColumnsOperation:
                 expr2 = name_col.upper().strip()
                 # expr2._output[0] -> "trim(upper(users.[name]), ' ')"
         """
-        self._output = (f'upper({self._output[0]})', self._output[1]) if self._output else (f'upper({self.col_obj.name})', [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'upper({self._output[0]})', self._output[1]) if self._output else (f'upper({self.col_obj.name})', [])
+        return new_op
 
     def lower(self):
         """Just like python lower(), convert the column expression to lowercase using SQLite's `LOWER` function.
@@ -2011,8 +2046,9 @@ class ColumnsOperation:
                 # expr2._output[0] -> "lower((users.[name] || ?))"
                 # expr2._output[1] -> [' (test)']
         """
-        self._output = (f'lower({self._output[0]})', self._output[1]) if self._output else (f'lower({self.col_obj.name})', [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'lower({self._output[0]})', self._output[1]) if self._output else (f'lower({self.col_obj.name})', [])
+        return new_op
 
     def strip(self, chars: str = ' '):
         """Just like python strip(), remove leading and trailing characters from the column expression.
@@ -2060,8 +2096,9 @@ class ColumnsOperation:
                 expr3 = name_col.strip().upper()
                 # expr3._output[0] -> 'upper(trim(users.[name]," "))'
         """
-        self._output = (f'trim({self._output[0]},"{chars}")', self._output[1]) if self._output else (f'trim({self.col_obj.name},"{chars}")', [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'trim({self._output[0]},"{chars}")', self._output[1]) if self._output else (f'trim({self.col_obj.name},"{chars}")', [])
+        return new_op
 
     def lstrip(self, chars: str = ' '):
         """Just like python lstrip(), trim leading characters from the column expression using SQL LTRIM.
@@ -2111,8 +2148,9 @@ class ColumnsOperation:
                 # Use in a query to get cleaned names
                 result = users.get_row([expr])
         """
-        self._output = (f'ltrim({self._output[0]},"{chars}")', self._output[1]) if self._output else (f'ltrim({self.col_obj.name},"{chars}")', [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'ltrim({self._output[0]},"{chars}")', self._output[1]) if self._output else (f'ltrim({self.col_obj.name},"{chars}")', [])
+        return new_op
 
     def rstrip(self, chars: str = ' '):
         """Just like python rstrip(), remove trailing characters from the column expression using SQL rtrim.
@@ -2160,46 +2198,90 @@ class ColumnsOperation:
                 expr3 = desc_col.rstrip().upper()
                 # expr3._output[0] -> 'upper(rtrim(products.[description]," "))'
         """
-        self._output = (f'rtrim({self._output[0]},"{chars}")', self._output[1]) if self._output else (f'rtrim({self.col_obj.name},"{chars}")', [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'rtrim({self._output[0]},"{chars}")', self._output[1]) if self._output else (f'rtrim({self.col_obj.name},"{chars}")', [])
+        return new_op
 
-    def In(self, value):
-        """Generates an ``IN`` clause for the column expression.
+    def In(self, column: 'Ormophine.Sqlite.Column|Ormophine.Sqlite.ColumnsOperation' = None, where: 'Ormophine.Sqlite.ColumnsOperation' = None, data_list: list = None):
+        """Build an SQL ``IN`` clause for the current column expression.
 
-        Creates a SQL ``IN`` condition with the given value(s). If a list or
-        tuple is provided, multiple ``?`` placeholders are inserted and the
-        values are appended to the parameter list. If a single value (that is
-        not a column or expression) is given, the method falls back to an
-        equality check (``= ?``). Passing a :class:`ColumnsOperation` embeds
-        its SQL fragment directly.
+        This method supports two distinct modes for generating an ``IN`` clause:
+
+        * **Literal list mode**: When ``data_list`` is provided, generates a
+          parameterised ``IN (?, ?, ...)`` clause using the literal values.
+          For backward compatibility, if a list of plain values is passed as
+          the first positional argument (``column``), it is automatically
+          treated as ``data_list``.
+        * **Subquery mode**: When ``column`` is provided as a single
+          :class:`Column` or :class:`Ormophine.Sqlite.ColumnsOperation`, builds an
+          ``IN (SELECT ...)`` subquery. The table name is extracted from the
+          provided column object, and an optional ``where`` condition can be
+          applied inside the subquery — handled identically to
+          :meth:`Table.get_row`.
+
+        The result is stored in the instance's ``_output`` attribute as a tuple
+        ``(sql_string, parameters)``, and the instance is returned to allow
+        chaining.
 
         Args:
-            value (Any): The value(s) to match against. May be:
-                - a single scalar (int, float, str, etc.) → ``= ?``,
-                - a list or tuple of scalars → ``IN (?, ?, ...)``,
-                - a :class:`ColumnsOperation` → ``IN (<nested SQL>)``.
+            column: A single :class:`Column` or :class:`Ormophine.Sqlite.ColumnsOperation`
+                to use in the ``SELECT`` clause of the subquery. The table name
+                is determined from this object. Do not pass a list of columns;
+                if you need multiple conditions, chain them using ``&`` or ``|``.
+                If a list of literals is passed, it is treated as ``data_list``.
+            where: An optional :class:`Ormophine.Sqlite.ColumnsOperation` (or :class:`Column` for
+                boolean columns) representing the ``WHERE`` condition for the
+                subquery. Defaults to ``None``.
+            data_list: A list of literal values for a direct ``IN`` clause.
+                When provided, ``column`` and ``where`` are ignored.
 
         Returns:
-            :class:`ColumnsOperation`: The same instance with ``_output``
-            updated, allowing method chaining.
+            :class:`Ormophine.Sqlite.ColumnsOperation`: The current instance with its ``_output``
+            updated to represent the ``IN`` clause. This allows method chaining.
+
+        Raises:
+            Exception: If neither ``data_list`` nor a valid ``column``
+                is provided.
 
         Example:
-            >>> db = Driver('mydb.sqlite3')
-            >>> users = db.users
-            >>> # Single value: equality
-            >>> cond = users.name.In('Alice')
-            >>> # Multiple values: IN clause
-            >>> cond = users.age.In([25, 30, 35])
-            >>> # Use with another column expression
-            >>> subquery_op = users.salary * 2
-            >>> cond = users.salary.In(subquery_op)
-            >>> # in other tables
-            >>> rows = users.get_row([users.id], where=users.name.In(ban_table.get_row([ban_table.name])))
+            Assuming ``users`` and ``admins`` tables::
+
+                from ormophine.Sqlite import Driver
+
+                db = Driver('app.db')
+                users = db.users
+                admins = db.admins
+
+                # Literal list mode (backward compatible)
+                expr1 = users.name.In(['Alice', 'Bob'])
+                # expr1._output[0] -> "(users.[name] IN (?, ?))"
+                # expr1._output[1] -> ['Alice', 'Bob']
+
+                # Literal list mode (using keyword)
+                expr2 = users.name.In(data_list=['Alice', 'Bob'])
+
+                # Subquery mode with WHERE
+                expr3 = users.name.In(
+                    column=admins.username,
+                    where=admins.active == True
+                )
+                # expr3._output[0] -> "(users.[name] IN (SELECT admins.[username] FROM admins WHERE (admins.[active] = ?)))"
+                # expr3._output[1] -> [True]
+
+                # Subquery mode without WHERE
+                expr4 = users.name.In(column=admins.username)
+                # expr4._output[0] -> "(users.[name] IN (SELECT admins.[username] FROM admins))"
         """
-        self._output = (f"{self._output[0]} IN ({value._output[0]})", self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self._output[0]} IN ({','.join(['?'] * len(value))})", self._output[1] + list(value)) if isinstance(value, (list, tuple)) else (f"{self._output[0]} = ?", self._output[1] + [value])
-        return self
-
-
+        if isinstance(column, list):
+            data_list, column = column, None #So user can simply In(['Alice', 'Bob']) with out passing arguments
+        if not column and not data_list:
+            raise Exception("In() requires either data_list or column")
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
+            
+        return new_op
+    
+    
 class Column:
     """Represents a database column in the SQLite ORM.
 
@@ -4199,52 +4281,63 @@ class Column:
                 raise Exception(callback[1])
             self.table_obj.__delattr__(self.first_name[1:-1])
 
-    def In(self, value):
-        """Builds an ``IN`` condition for the column.
+    def In(self, column: 'Ormophine.Sqlite.Column|Ormophine.Sqlite.ColumnsOperation' = None, where: 'Ormophine.Sqlite.ColumnsOperation' = None, data_list: list = None):
+        """Build an SQL ``IN`` clause for the current column.
 
-        Generates a :class:`ColumnsOperation` that represents an ``IN`` clause.
-        If ``value`` is another :class:`ColumnsOperation`, its output is used
-        directly. If ``value`` is a list or tuple, placeholders ``?`` are created
-        for each element (e.g., ``col IN (?, ?, ?)``) and the values are
-        collected for later binding. For a single scalar value, the method falls
-        back to a simple equality condition (``col = ?``).
+        This method serves as an entry point for the :class:`Ormophine.Sqlite.ColumnsOperation`
+        ``In`` method. It initialises a :class:`Ormophine.Sqlite.ColumnsOperation` with the
+        current column's name and delegates the execution to it, enabling
+        seamless method chaining.
+
+        Supports two modes:
+        * Passing a list of literal values to ``data_list`` (or as the first
+          positional argument for backward compatibility).
+        * Passing a single :class:`Column`/:class:`Ormophine.Sqlite.ColumnsOperation` to
+          ``column`` to build a ``SELECT`` subquery, with an optional
+          ``where`` condition.
 
         Args:
-            value (ColumnsOperation | list | tuple | Any): The set of values to
-                test against. If a :class:`ColumnsOperation`, its SQL fragment
-                and bound parameters are merged. If a list or tuple, the
-                generated clause is ``IN (?, ?, ...)`` and the elements become
-                bound parameters. If a single value, an equality ``= ?`` clause
-                is produced.
+            column: A single :class:`Column` or
+                :class:`Ormophine.Sqlite.ColumnsOperation` to use in the ``SELECT`` clause of
+                the subquery. If a list of literals is passed, it is treated
+                as ``data_list``.
+            where: An optional :class:`Ormophine.Sqlite.ColumnsOperation` (or :class:`Column`)
+                representing the ``WHERE`` condition for the subquery.
+            data_list: A list of literal values for a direct ``IN`` clause.
 
         Returns:
-            :class:`ColumnsOperation`: A new operation object that encapsulates
-            the generated SQL fragment (e.g., ``[table].[col] IN (?, ?, ?)`` or
-            ``[table].[col] = ?``) and the corresponding list of bound values.
+            :class:`Ormophine.Sqlite.ColumnsOperation`: A :class:`Ormophine.Sqlite.ColumnsOperation` instance
+            representing the ``IN`` clause, allowing further chaining.
+
+        Raises:
+            Exception: If neither ``data_list`` nor a valid ``column``
+                is provided to the underlying :class:`Ormophine.Sqlite.ColumnsOperation` method.
 
         Example:
-            >>> db = Driver('mydb.sqlite3')
-            >>> users = db.users
-            >>> # Find users with IDs 1, 2, or 3
-            >>> condition = users.id.In([1, 2, 3])
-            >>> rows = users.get_row([users.name], where=condition)
-            >>>
-            >>> # Find users whose role matches one of a set of names
-            >>> roles = ['admin', 'moderator']
-            >>> condition = users.role.In(roles)
-            >>> rows = users.get_row([users.id], where=condition)
-            >>>
-            >>> # Single value falls back to equality
-            >>> condition = users.id.In(10)  # equivalent to users.id == 10
-            >>>
-            >>> # in other tables
-            >>> rows = users.get_row([users.id], where=users.name.In(ban_table.get_row([ban_table.name])))
+            Assuming ``users`` and ``admins`` tables::
+
+                from ormophine.Sqlite import Driver
+
+                db = Driver('app.db')
+                users = db.users
+                admins = db.admins
+
+                # Literal list
+                cond1 = users.age.In([25, 30, 35])
+
+                # Subquery
+                cond2 = users.name.In(
+                    column=admins.username,
+                    where=admins.active == True
+                )
+
+                # Use in a query
+                result = users.get_row([users.name], where=cond2)
         """
-        temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"{self.name} IN ({value._output[0]})", value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self.name} IN ({','.join(['?'] * len(value))})", list(value)) if isinstance(value, (list, tuple)) else (f"{self.name} = ?", [value])
-        return temp_ob
-
-
+        op = ColumnsOperation(self)
+        op._output = (self.name, [])
+        return op.In(column=column, where=where, data_list=data_list)
+        
 
 class BatchOperation:
     """

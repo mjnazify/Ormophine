@@ -113,8 +113,9 @@ class ColumnsOperation:
             method automatically chooses the appropriate operator based on
             the column's datatype.
         """
-        self._output = (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other._output[0]})", self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other.name})", self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} + %s)', self._output[1] + [other]) if isinstance(other, int) or isinstance(other, float) else (f'({self._output[0]} || %s)', self._output[1] + [other if isinstance(other, str) else str(other)])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other._output[0]})", self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other.name})", self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} + %s)', self._output[1] + [other]) if isinstance(other, int) or isinstance(other, float) else (f'({self._output[0]} || %s)', self._output[1] + [other if isinstance(other, str) else str(other)])
+        return new_op
 
     def __radd__(self, other):
         """Implement reflected addition (right-hand side addition) for column operations.
@@ -154,8 +155,9 @@ class ColumnsOperation:
             >>> salary_op = employees.salary
             >>> bonus_op = 1000 + salary_op  # SQL: (1000 + "salary")
         """
-        self._output = (f'({other._output[0]} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s + {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(%s || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s + {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(%s || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
+        return new_op
 
     def __sub__(self, other):
         """Implement subtraction operator for column expressions.
@@ -188,8 +190,9 @@ class ColumnsOperation:
             >>> # ColumnOperation - ColumnOperation
             >>> expr3 = (employees.salary * 2) - (employees.bonus + 500)
         """
-        self._output = (f'({self._output[0]} - {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} - {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} - %s)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} - {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} - {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} - %s)', self._output[1]+[other])
+        return new_op
 
     def __rsub__(self, other):
         """Implement reflected subtraction (right-hand side subtraction) for SQL expressions.
@@ -225,8 +228,9 @@ class ColumnsOperation:
             >>> print(op._output[1])  # parameters list
             []
         """
-        self._output = (f'({other._output[0]} - {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} - {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s - {self._output[0]})', [other]+self._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} - {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} - {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s - {self._output[0]})', [other]+self._output[1])
+        return new_op
 
     def __mul__(self, other):
         """Implement multiplication for SQL expressions.
@@ -264,8 +268,9 @@ class ColumnsOperation:
             >>> print(total._output[0])
             '("employees"."salary" * "employees"."hours")'
         """
-        self._output = (f'({self._output[0]} * {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} * {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} * %s)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} * {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} * {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} * %s)', self._output[1]+[other])
+        return new_op
 
     def __rmul__(self, other):
         """Implement reflected multiplication (right-hand side multiplication) for SQL expressions.
@@ -300,8 +305,9 @@ class ColumnsOperation:
             >>> print(op._output[1])  # parameters list
             []
         """
-        self._output = (f'({other._output[0]} * {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} * {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s * {self._output[0]})', [other]+self._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} * {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} * {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s * {self._output[0]})', [other]+self._output[1])
+        return new_op
 
     def __pow__(self, other):
         """Implement the exponentiation (power) operator for SQL expressions.
@@ -345,8 +351,9 @@ class ColumnsOperation:
             >>> # Generate SQL: POW(("salary" + 1000), 2)
             >>> op = (employees.salary + 1000) ** 2
         """
-        self._output = (f'POW({self._output[0]} , {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'POW({self._output[0]} , {other.name})', self._output[1]) if isinstance(other, Column) else (f'POW({self._output[0]} , %s)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'POW({self._output[0]} , {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'POW({self._output[0]} , {other.name})', self._output[1]) if isinstance(other, Column) else (f'POW({self._output[0]} , %s)', self._output[1]+[other])
+        return new_op
 
     def __rpow__(self, other):
         """Implement reflected exponentiation (right-hand side power) for SQL expressions.
@@ -383,8 +390,9 @@ class ColumnsOperation:
             >>> print(op._output[1])  # parameters list
             [2]
         """
-        self._output = (f'POW({other._output[0]} , {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'POW({other.name} , {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'POW(%s , {self._output[0]})', [other]+self._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'POW({other._output[0]} , {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'POW({other.name} , {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'POW(%s , {self._output[0]})', [other]+self._output[1])
+        return new_op
 
     def __truediv__(self, other):
         """Implement division (/) for SQL expressions.
@@ -424,8 +432,9 @@ class ColumnsOperation:
             >>> avg_hours = total_hours / employees.employee_count
             >>> # SQL: ("hours_worked" / "employee_count")
         """
-        self._output = (f'({self._output[0]} / {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} / {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} / %s)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} / {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} / {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} / %s)', self._output[1]+[other])
+        return new_op
 
     def __rtruediv__(self, other):
         """Implement reflected division (right-hand side division) for SQL expressions.
@@ -462,8 +471,9 @@ class ColumnsOperation:
             >>> print(op._output[1])  # parameters list
             []
         """
-        self._output = (f'({other._output[0]} / {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} / {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s / {self._output[0]})', [other]+self._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} / {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} / {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s / {self._output[0]})', [other]+self._output[1])
+        return new_op
 
     def __mod__(self, other):
         """Implement the modulo (remainder) operation for SQL expressions.
@@ -501,8 +511,9 @@ class ColumnsOperation:
             >>> print(op._output[1])
             [1000]
         """
-        self._output = (f'({self._output[0]} % {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} % {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} % %s)', self._output[1]+[other])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} % {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} % {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} % %s)', self._output[1]+[other])
+        return new_op
 
     def __rmod__(self, other):
         """Implement reflected modulo (right-hand side modulo) for SQL expressions.
@@ -540,8 +551,9 @@ class ColumnsOperation:
             >>> print(op._output[1])  # parameters list
             []
         """
-        self._output = (f'({other._output[0]} % {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} % {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s % {self._output[0]})', [other]+self._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({other._output[0]} % {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} % {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s % {self._output[0]})', [other]+self._output[1])
+        return new_op
 
 
     def __getitem__(self, key: slice):
@@ -604,45 +616,46 @@ class ColumnsOperation:
             >>> print(op._output[1])
             [2, 4]  # start=1 -> 2, stop=5 -> length=4
         """
+        new_op = ColumnsOperation(self.col_obj)
         if self._output:
             if key.start == None and key.stop ==  None:
-                self._output = (f'SUBSTRING({self._output[0]} , 1 , LENGTH({self._output[0]}) + 1)', self._output[1] + self._output[1])   #
+                new_op._output = (f'SUBSTRING({self._output[0]} , 1 , LENGTH({self._output[0]}) + 1)', self._output[1] + self._output[1])   #
             elif key.start == None and key.stop < 0:
-                self._output = (f'SUBSTRING({self._output[0]} , 1 , LENGTH({self._output[0]}) - %s)', self._output[1] + self._output[1] + [abs(key.stop)])  #
+                new_op._output = (f'SUBSTRING({self._output[0]} , 1 , LENGTH({self._output[0]}) - %s)', self._output[1] + self._output[1] + [abs(key.stop)])  #
             elif key.start == None and key.stop >= 0:
-                self._output = (f'SUBSTRING({self._output[0]} , 1 , %s)', self._output[1] + [key.stop])  #  
+                new_op._output = (f'SUBSTRING({self._output[0]} , 1 , %s)', self._output[1] + [key.stop])  #  
             elif key.start >= 0 and key.stop ==  None:
-                self._output = (f'SUBSTRING({self._output[0]} , %s , LENGTH({self._output[0]}))', self._output[1] + [key.start + 1] + self._output[1])  #   
+                new_op._output = (f'SUBSTRING({self._output[0]} , %s , LENGTH({self._output[0]}))', self._output[1] + [key.start + 1] + self._output[1])  #   
             elif key.start < 0 and key.stop == None:
-                self._output = (f'SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s , LENGTH({self._output[0]}))', self._output[1] + self._output[1] + [abs(key.start) - 1] + self._output[1])  #
+                new_op._output = (f'SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s , LENGTH({self._output[0]}))', self._output[1] + self._output[1] + [abs(key.start) - 1] + self._output[1])  #
             elif key.start >= 0 and key.stop < 0:
-                self._output = (f'SUBSTRING({self._output[0]} , %s , LENGTH({self._output[0]}) - %s)', self._output[1] +  [key.start + 1] + self._output[1] + [abs(key.stop - key.start)])  #  
+                new_op._output = (f'SUBSTRING({self._output[0]} , %s , LENGTH({self._output[0]}) - %s)', self._output[1] +  [key.start + 1] + self._output[1] + [abs(key.stop - key.start)])  #  
             elif key.start >= 0 and key.stop > 0:
-                self._output = (f'SUBSTRING({self._output[0]} , %s , %s)', self._output[1] + [key.start + 1, key.stop - key.start])  #
+                new_op._output = (f'SUBSTRING({self._output[0]} , %s , %s)', self._output[1] + [key.start + 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop < 0:
-                self._output = (f'SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s , %s)', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop - key.start])  #
+                new_op._output = (f'SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s , %s)', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop > 0:
-                self._output = (f'SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s ,  %s - (LENGTH({self._output[0]}) - %s))', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop] + self._output[1] + [abs(key.start)])
+                new_op._output = (f'SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s ,  %s - (LENGTH({self._output[0]}) - %s))', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop] + self._output[1] + [abs(key.start)])
         else:
             if key.start == None and key.stop ==  None:
-                self._output = (f'SUBSTRING({self.col_obj.name} , 1 , LENGTH({self.col_obj.name}) + 1)', [])   #
+                new_op._output = (f'SUBSTRING({self.col_obj.name} , 1 , LENGTH({self.col_obj.name}) + 1)', [])   #
             elif key.start == None and key.stop < 0:
-                self._output = (f'SUBSTRING({self.col_obj.name} , 1 , LENGTH({self.col_obj.name}) - %s)', [abs(key.stop)])  #
+                new_op._output = (f'SUBSTRING({self.col_obj.name} , 1 , LENGTH({self.col_obj.name}) - %s)', [abs(key.stop)])  #
             elif key.start == None and key.stop >= 0:
-                self._output = (f'SUBSTRING({self.col_obj.name} , 1 , %s)', [key.stop])  #  
+                new_op._output = (f'SUBSTRING({self.col_obj.name} , 1 , %s)', [key.stop])  #  
             elif key.start >= 0 and key.stop ==  None:
-                self._output = (f'SUBSTRING({self.col_obj.name} , %s , LENGTH({self.col_obj.name}))', [key.start + 1])  #   
+                new_op._output = (f'SUBSTRING({self.col_obj.name} , %s , LENGTH({self.col_obj.name}))', [key.start + 1])  #   
             elif key.start < 0 and key.stop == None:
-                self._output = (f'SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s , LENGTH({self.col_obj.name}))', [abs(key.start) - 1])  #
+                new_op._output = (f'SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s , LENGTH({self.col_obj.name}))', [abs(key.start) - 1])  #
             elif key.start >= 0 and key.stop < 0:
-                self._output = (f'SUBSTRING({self.col_obj.name} , %s , LENGTH({self.col_obj.name}) - %s)', [key.start + 1, abs(key.stop - key.start)])  #  
+                new_op._output = (f'SUBSTRING({self.col_obj.name} , %s , LENGTH({self.col_obj.name}) - %s)', [key.start + 1, abs(key.stop - key.start)])  #  
             elif key.start >= 0 and key.stop > 0:
-                self._output = (f'SUBSTRING({self.col_obj.name} , %s , %s)', [key.start + 1, key.stop - key.start])  #
+                new_op._output = (f'SUBSTRING({self.col_obj.name} , %s , %s)', [key.start + 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop < 0:
-                self._output = (f'SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s , %s)', [abs(key.start) - 1, key.stop - key.start])  #
+                new_op._output = (f'SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s , %s)', [abs(key.start) - 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop > 0:
-                self._output = (f'SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s ,  %s - (LENGTH({self.col_obj.name}) - %s))', [abs(key.start) - 1, key.stop, abs(key.start)])
-        return self
+                new_op._output = (f'SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s ,  %s - (LENGTH({self.col_obj.name}) - %s))', [abs(key.start) - 1, key.stop, abs(key.start)])
+        return new_op
 
     def eq(self, value):
         """Create an equality comparison SQL expression.
@@ -678,8 +691,9 @@ class ColumnsOperation:
             >>> print(condition._output[0])
             '("employees"."manager_id" = "employees"."id")'
         """
-        self._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = %s', self._output[1] + [value])
+        return new_op
 
     def __eq__(self, value):
         """Implement equality comparison for SQL expressions.
@@ -722,8 +736,9 @@ class ColumnsOperation:
             >>> print(condition2._output[1])
             ['Engineering', 60000]
         """
-        self._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = %s', self._output[1] + [value])
+        return new_op
 
     def ne(self, value):
         """Create a SQL inequality comparison (`!=`) for this column operation.
@@ -762,8 +777,9 @@ class ColumnsOperation:
             >>> # Chaining with logical operators
             >>> cond = employees.salary.ne(0) & employees.department.ne("IT")
         """
-        self._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != %s', self._output[1] + [value])
+        return new_op
 
     def __ne__(self, value):
         """Implement the inequality operator (`!=`) for SQL expressions.
@@ -801,8 +817,9 @@ class ColumnsOperation:
             >>> # Combine with another condition
             >>> cond2 = (employees.salary != 0) & (employees.department != "IT")
         """
-        self._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != %s', self._output[1] + [value])
+        return new_op
 
     def gt(self, value):
         """Create a SQL greater-than comparison (`>`) for this column operation.
@@ -841,8 +858,9 @@ class ColumnsOperation:
             >>> # Chaining with logical operators
             >>> cond = employees.salary.gt(0) & employees.department.gt("IT")
         """
-        self._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > %s', self._output[1] + [value])
+        return new_op
 
     def __gt__(self, value):
         """Create a SQL greater-than comparison (`>`) for this column operation.
@@ -879,8 +897,9 @@ class ColumnsOperation:
             >>> # Chaining with another column:
             >>> cond2 = employees.bonus > employees.salary * 0.1
         """
-        self._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > %s', self._output[1] + [value])
+        return new_op
 
     def lt(self, value):
         """Create a SQL less-than comparison (`<`) for this column operation.
@@ -919,8 +938,9 @@ class ColumnsOperation:
             >>> # Chaining with logical operators
             >>> cond = employees.salary.lt(100000) & employees.department.lt("ZZZ")
         """
-        self._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < %s', self._output[1] + [value])
+        return new_op
 
     def __lt__(self, value):
         """Implement the less-than comparison operator (`<`) for SQL expressions.
@@ -959,8 +979,9 @@ class ColumnsOperation:
             >>> # Combined condition: salary < 50000 AND department != 'IT'
             >>> final_cond = (employees.salary < 50000) & (employees.department != 'IT')
         """
-        self._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < %s', self._output[1] + [value])
+        return new_op
 
     def ge(self, value):
         """Create a SQL 'greater than or equal to' comparison (`>=`) for this column operation.
@@ -999,8 +1020,9 @@ class ColumnsOperation:
             >>> # Chaining with logical operators
             >>> cond = employees.salary.ge(30000) & employees.age.ge(25)
         """
-        self._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= %s', self._output[1] + [value])
+        return new_op
 
     def __ge__(self, value):
         """Implement the greater-than-or-equal-to comparison operator (`>=`) for SQL expressions.
@@ -1038,8 +1060,9 @@ class ColumnsOperation:
             >>> # Chaining with logical operators
             >>> cond = (employees.salary >= 30000) & (employees.age >= 25)
         """
-        self._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= %s', self._output[1] + [value])
+        return new_op
 
     def le(self, value):
         """Create a SQL 'less than or equal to' comparison (`<=`) for this column operation.
@@ -1078,8 +1101,9 @@ class ColumnsOperation:
             >>> # Chaining with logical operators
             >>> cond = employees.salary.le(100000) & employees.age.le(65)
         """
-        self._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= %s', self._output[1] + [value])
+        return new_op
 
     def __le__(self, value):
         """Implement the 'less than or equal to' comparison (`<=`) for SQL expressions.
@@ -1117,8 +1141,9 @@ class ColumnsOperation:
             >>> # Compound condition using logical AND
             >>> cond = (employees.salary <= 50000) & (employees.age <= 30)
         """
-        self._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= %s', self._output[1] + [value])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= %s', self._output[1] + [value])
+        return new_op
 
     def __and__(self, value):
         """Combine two conditions with a SQL `AND` operator.
@@ -1150,8 +1175,9 @@ class ColumnsOperation:
             >>> employees.get_row([employees.name], where=cond)
             # This generates SQL: ... WHERE (("salary" >= %s) AND ("department" = %s))
         """
-        self._output = (f'({self._output[0]} AND {value._output[0]})', self._output[1] + value._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} AND {value._output[0]})', self._output[1] + value._output[1])
+        return new_op
 
     def __or__(self, value):
         """Implement logical OR for SQL conditions.
@@ -1188,8 +1214,9 @@ class ColumnsOperation:
             with other types is not supported for `__or__`; use explicit method
             calls or wrap literals appropriately.
         """
-        self._output = (f'({self._output[0]} OR {value._output[0]})', self._output[1] + value._output[1])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} OR {value._output[0]})', self._output[1] + value._output[1])
+        return new_op
 
     def like(self, value):
         """Create a SQL `LIKE` pattern matching expression for this column operation.
@@ -1223,8 +1250,9 @@ class ColumnsOperation:
             >>> # Combining with other conditions
             >>> final_cond = cond & (employees.salary > 50000)
         """
-        self._output = (f"{self._output[0]} like {value._output[0]}", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} like {value.name}', self._output[1]) if isinstance(value , Column) else (f'{self._output[0]} like %s', self._output[1] + [f'{value}'])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f"{self._output[0]} like {value._output[0]}", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} like {value.name}', self._output[1]) if isinstance(value , Column) else (f'{self._output[0]} like %s', self._output[1] + [f'{value}'])
+        return new_op
 
     def startswith(self, prefix):
         """Just like python startswith(), create a SQL `LIKE` expression that checks if the column starts with a given prefix.
@@ -1260,8 +1288,9 @@ class ColumnsOperation:
             >>> final = cond & (employees.salary > 50000)
             >>> # The generated SQL will be like: "employees"."name" LIKE 'A%'
         """
-        self._output = (f"{self._output[0]} like {prefix._output[0]} || '%%'", (self._output[1] + prefix._output[1]) if self._output else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f"{self._output[0]} like {prefix.name} || '%%'", self._output[1]) if isinstance(prefix , Column) else (f"{self._output[0]} like %s || '%%'", self._output[1] + [f'{prefix}'])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f"{self._output[0]} like {prefix._output[0]} || '%%'", (self._output[1] + prefix._output[1]) if self._output else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f"{self._output[0]} like {prefix.name} || '%%'", self._output[1]) if isinstance(prefix , Column) else (f"{self._output[0]} like %s || '%%'", self._output[1] + [f'{prefix}'])
+        return new_op
 
     def endswith(self, suffix):
         """Just like python endswith(), create a SQL LIKE pattern matching expression for strings ending with a given suffix.
@@ -1293,8 +1322,9 @@ class ColumnsOperation:
             >>> # Combine with other conditions
             >>> final = cond & (employees.salary > 50000)
         """
-        self._output = (f"{self._output[0]} like '%%' || {suffix._output[0]}", (self._output[1] + suffix._output[1]) if self._output else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f"{self._output[0]} like '%%' || {suffix.name}", self._output[1]) if isinstance(suffix , Column) else (f"{self._output[0]} like '%%' || %s", self._output[1] + [f'{suffix}'])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f"{self._output[0]} like '%%' || {suffix._output[0]}", (self._output[1] + suffix._output[1]) if self._output else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f"{self._output[0]} like '%%' || {suffix.name}", self._output[1]) if isinstance(suffix , Column) else (f"{self._output[0]} like '%%' || %s", self._output[1] + [f'{suffix}'])
+        return new_op
 
     def contains(self, value):
         """Create a SQL `LIKE` pattern matching expression that checks if the current
@@ -1331,8 +1361,9 @@ class ColumnsOperation:
             >>> # Combine with other conditions
             >>> final_cond = cond & (employees.department == "Sales")
         """
-        self._output = (f"{self._output[0]} like '%%' || {value._output[0]} || '%%'", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self._output[0]} like '%%' || {value.name} || '%%'", self._output[1]) if isinstance(value , Column) else (f"{self._output[0]} like '%%' || %s || '%%'", self._output[1] + [f'{value}'])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f"{self._output[0]} like '%%' || {value._output[0]} || '%%'", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self._output[0]} like '%%' || {value.name} || '%%'", self._output[1]) if isinstance(value , Column) else (f"{self._output[0]} like '%%' || %s || '%%'", self._output[1] + [f'{value}'])
+        return new_op
 
     def add_end(self, content):
         """Concatenate additional content to the end of the current SQL expression.
@@ -1374,8 +1405,9 @@ class ColumnsOperation:
             >>> full_name = employees.first_name.add_end(" ").add_end(employees.last_name)
             >>> # Generates: (("first_name" || ' ') || "last_name")
         """
-        self._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'({self._output[0]} || %s)', self._output[1]+[content] if self._output else [content])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'({self._output[0]} || %s)', self._output[1]+[content] if self._output else [content])
+        return new_op
 
     def add_first(self, content):
         """Prepend content to the current string expression (SQL concatenation).
@@ -1415,8 +1447,9 @@ class ColumnsOperation:
             >>> op = employees.name.lower().add_first("Prefix: ")
             >>> # Generates SQL: (%s || LOWER("employees"."name"))
         """
-        self._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'(%s || {self._output[0]})', [content]+self._output[1] if self._output else [content])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'(%s || {self._output[0]})', [content]+self._output[1] if self._output else [content])
+        return new_op
 
     def replace(self, old: str, new: str):
         """Just like python replace(), generate a SQL `REPLACE` function call for string substitution.
@@ -1450,8 +1483,9 @@ class ColumnsOperation:
             >>> # Chain with other operations
             >>> op2 = employees.name.upper().replace('A', 'B')
         """
-        self._output = (f'REPLACE({self._output[0]} , %s , %s)', self._output[1] + [old, new]) if self._output else (f'REPLACE({self.col_obj.name} , %s , %s)', [old, new])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'REPLACE({self._output[0]} , %s , %s)', self._output[1] + [old, new]) if self._output else (f'REPLACE({self.col_obj.name} , %s , %s)', [old, new])
+        return new_op
 
     def upper(self):
         """Generate a SQL `UPPER` function call to convert the expression to uppercase.
@@ -1479,8 +1513,9 @@ class ColumnsOperation:
             >>> # Chain with other string operations
             >>> op2 = employees.name.strip().upper()
         """
-        self._output = (f'UPPER({self._output[0]})', self._output[1]) if self._output else (f'UPPER({self.col_obj.name})', [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'UPPER({self._output[0]})', self._output[1]) if self._output else (f'UPPER({self.col_obj.name})', [])
+        return new_op
 
     def lower(self):
         """just like python lower(), generate a SQL `LOWER` function call to convert text to lowercase.
@@ -1510,8 +1545,9 @@ class ColumnsOperation:
             >>> print(op2._output[0])
             'LOWER(UPPER("employees"."name"))'
         """
-        self._output = (f'LOWER({self._output[0]})', self._output[1]) if self._output else (f'LOWER({self.col_obj.name})', [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'LOWER({self._output[0]})', self._output[1]) if self._output else (f'LOWER({self.col_obj.name})', [])
+        return new_op
 
     def strip(self, chars: str = ' '):
         """just like python strip(), generate a SQL `TRIM` function call to remove characters from both ends.
@@ -1542,8 +1578,9 @@ class ColumnsOperation:
             >>> print(op._output[0])
             "TRIM(BOTH '_' FROM UPPER(\"employees\".\"name\"))"
         """
-        self._output = (f"TRIM(BOTH '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(BOTH '{chars}' FROM {self.col_obj.name})", [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f"TRIM(BOTH '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(BOTH '{chars}' FROM {self.col_obj.name})", [])
+        return new_op
 
     def lstrip(self, chars: str = ' '):
         """just like python's lstrip method, generate a SQL `TRIM(LEADING ...)` expression to remove leading characters.
@@ -1577,8 +1614,9 @@ class ColumnsOperation:
             >>> print(op._output[0])
             "TRIM(LEADING '#' FROM (\"employees\".\"code\" || \"employees\".\"suffix\"))"
         """
-        self._output = (f"TRIM(LEADING '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(LEADING '{chars}' FROM {self.col_obj.name})", [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f"TRIM(LEADING '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(LEADING '{chars}' FROM {self.col_obj.name})", [])
+        return new_op
 
     def rstrip(self, chars: str = ' '):
         """just like python's rstrip method, generate a SQL `TRIM` expression to remove trailing characters from a string.
@@ -1617,61 +1655,89 @@ class ColumnsOperation:
             >>> print(op2._output[1])
             []
         """
-        self._output = (f"TRIM(TRAILING '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(TRAILING '{chars}' FROM {self.col_obj.name})", [])
-        return self
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f"TRIM(TRAILING '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(TRAILING '{chars}' FROM {self.col_obj.name})", [])
+        return new_op
 
-    def In(self, value):
-        """Generate a SQL `IN` clause or equality for this column operation.
+    def In(self, column: 'Ormophine.Postgresql.Column|Ormophine.Postgresql.ColumnsOperation' = None, where: 'Ormophine.Postgresql.ColumnsOperation' = None, data_list: list = None):
+        """Build an SQL ``IN`` clause for the current column expression.
 
-        This method constructs a SQL `IN` expression that checks whether the current
-        column operation's value matches any value in a given set or subquery.
-        The behavior depends on the type of `value`:
+        This method supports two distinct modes for generating an ``IN`` clause:
 
-        - If `value` is a :class:`ColumnsOperation`, it generates a subquery IN clause
-        (e.g., `column IN (subquery)`).
-        - If `value` is a list or tuple, it generates `IN (?, ?, ...)` with one
-        placeholder per item, and adds all items as parameters.
-        - If `value` is a scalar (single value), it generates an equality condition
-        `= ?` instead of `IN`, which is equivalent and more efficient.
+        * **Literal list mode**: When ``data_list`` is provided, generates a
+          parameterised ``IN (%s, %s, ...)`` clause using the literal values.
+          For backward compatibility, if a list of plain values is passed as
+          the first positional argument (``column``), it is automatically
+          treated as ``data_list``.
+        * **Subquery mode**: When ``column`` is provided as a single
+          :class:`Column` or :class:`Ormophine.Postgresql.ColumnsOperation`, builds an
+          ``IN (SELECT ...)`` subquery. The table name is extracted from the
+          provided column object, and an optional ``where`` condition can be
+          applied inside the subquery — handled identically to
+          :meth:`Table.get_row`.
 
-        The result is stored internally, allowing chained operations.
+        The result is stored in the instance's ``_output`` attribute as a tuple
+        ``(sql_string, parameters)``, and the instance is returned to allow
+        chaining.
 
         Args:
-            value (Any): The set of values or subquery to check against.
-                Can be a :class:`ColumnsOperation`, :class:`Column` (though this
-                would be unusual), `list`, `tuple`, or a scalar value.
+            column: A single :class:`Column` or :class:`Ormophine.Postgresql.ColumnsOperation`
+                to use in the ``SELECT`` clause of the subquery. The table name
+                is determined from this object. Do not pass a list of columns;
+                if you need multiple conditions, chain them using ``&`` or ``|``.
+                If a list of literals is passed, it is treated as ``data_list``.
+            where: An optional :class:`Ormophine.Postgresql.ColumnsOperation` (or :class:`Column` for
+                boolean columns) representing the ``WHERE`` condition for the
+                subquery. Defaults to ``None``.
+            data_list: A list of literal values for a direct ``IN`` clause.
+                When provided, ``column`` and ``where`` are ignored.
 
         Returns:
-            ColumnsOperation: The current instance with updated internal `_output`
-            state, allowing chained operations.
+            :class:`Ormophine.Postgresql.ColumnsOperation`: The current instance with its ``_output``
+            updated to represent the ``IN`` clause. This allows method chaining.
+
+        Raises:
+            Exception: If neither ``data_list`` nor a valid ``column``
+                is provided.
 
         Example:
-            >>> from ormophine.Postgresql import Driver, Table
-            >>> driver = Driver(...)
-            >>> employees = driver.employees
-            >>> # Using a list of values
-            >>> cond = employees.department.In(['Engineering', 'Sales', 'Marketing'])
-            >>> print(cond._output[0])
-            '("employees"."department" IN (%s,%s,%s))'
-            >>> print(cond._output[1])
-            ['Engineering', 'Sales', 'Marketing']
-            >>>
-            >>> # Using a subquery (ColumnsOperation)
-            >>> subquery = driver.departments.id  # assuming a column
-            >>> cond2 = employees.dept_id.In(subquery)
-            >>> # The generated SQL will be something like:
-            >>> # ("employees"."dept_id" IN ("departments"."id"))
-            >>>
-            >>> # Scalar value produces equality
-            >>> cond3 = employees.id.In(100)
-            >>> print(cond3._output[0])
-            '("employees"."id" = %s)'
-            >>> print(cond3._output[1])
-            [100]
-        """
-        self._output = (f"{self._output[0]} IN ({value._output[0]})", self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self._output[0]} IN ({','.join(['%s'] * len(value))})",self._output[1] + list(value)) if isinstance(value, (list, tuple)) else (f"{self._output[0]} = %s",self._output[1] + [value])
-        return self
+            Assuming ``users`` and ``admins`` tables::
 
+                from ormophine.Postgresql import Driver
+
+                db = Driver("localhost", 5432, "user", "pass", "mydb")
+                users = db.users
+                admins = db.admins
+
+                # Literal list mode (backward compatible)
+                expr1 = users.name.In(['Alice', 'Bob'])
+                # expr1._output[0] -> "(users.name IN (%s, %s))"
+                # expr1._output[1] -> ['Alice', 'Bob']
+
+                # Literal list mode (using keyword)
+                expr2 = users.name.In(data_list=['Alice', 'Bob'])
+
+                # Subquery mode with WHERE
+                expr3 = users.name.In(
+                    column=admins.username,
+                    where=admins.active == True
+                )
+                # expr3._output[0] -> "(users.name IN (SELECT admins.username FROM admins WHERE (admins.active = %s)))"
+                # expr3._output[1] -> [True]
+
+                # Subquery mode without WHERE
+                expr4 = users.name.In(column=admins.username)
+                # expr4._output[0] -> "(users.name IN (SELECT admins.username FROM admins))"
+        """
+        if isinstance(column, list):
+            data_list, column = column, None #So user can simply In(['Alice', 'Bob']) with out passing arguments
+        if not column and not data_list:
+            raise Exception("In() requires either data_list or column")
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} IN ({", ".join(["%s" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split(".")[0]}{f" WHERE {where._output[0]}" if isinstance(where, ColumnsOperation) else f" WHERE {where.name}" if isinstance(where, Column) else ""}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
+        
+        return new_op
+    
 
 class Column:
     """
@@ -3376,62 +3442,63 @@ class Column:
             self.table_obj._exc(query)
             self.table_obj.__delattr__(self.first_name[1:-1])
 
-    def In(self, value):
-        """Generate a SQL `IN` clause or equality condition for this column.
+    def In(self, column: 'Ormophine.Postgresql.Column|Ormophine.Postgresql.ColumnsOperation' = None, where: 'Ormophine.Postgresql.ColumnsOperation' = None, data_list: list = None):
+        """Build an SQL ``IN`` clause for the current column.
 
-        This method creates a :class:`ColumnsOperation` that represents a SQL `IN`
-        expression, checking whether the column's value matches any value in a set
-        or subquery. The behavior depends on the type of `value`:
+        This method serves as an entry point for the :class:`ColumnsOperation`
+        ``In`` method. It initialises a :class:`ColumnsOperation` with the
+        current column's name and delegates the execution to it, enabling
+        seamless method chaining.
 
-        - If `value` is a :class:`ColumnsOperation`, it generates an `IN` clause with
-        a subquery (e.g., `column IN (subquery)`).
-        - If `value` is a list or tuple, it generates `IN (?, ?, ...)` with one
-        placeholder per item, and adds all items to the parameter list.
-        - If `value` is a scalar (single value), it generates an equality condition
-        `= ?` instead of `IN`, which is equivalent and more efficient.
-
-        The result is a :class:`ColumnsOperation` that can be used directly in
-        `WHERE` clauses or combined with other conditions using logical operators.
+        Supports two modes:
+        * Passing a list of literal values to ``data_list`` (or as the first
+          positional argument for backward compatibility).
+        * Passing a single :class:`Column`/:class:`ColumnsOperation` to
+          ``column`` to build a ``SELECT`` subquery, with an optional
+          ``where`` condition.
 
         Args:
-            value (Any): The set of values or subquery to check against. Can be a
-                :class:`ColumnsOperation` (subquery), a list or tuple of values,
-                or a scalar (int, float, str, etc.).
+            column: A single :class:`Column` or
+                :class:`Ormophine.Postgresql.ColumnsOperation` to use in the ``SELECT`` clause of
+                the subquery. If a list of literals is passed, it is treated
+                as ``data_list``.
+            where: An optional :class:`Ormophine.Postgresql.ColumnsOperation` (or :class:`Column`)
+                representing the ``WHERE`` condition for the subquery.
+            data_list: A list of literal values for a direct ``IN`` clause.
 
         Returns:
-            ColumnsOperation: A :class:`ColumnsOperation` instance representing the
-            `IN` or equality expression, ready for chaining or use in queries.
+            :class:`Ormophine.Postgresql.ColumnsOperation`: A :class:`ColumnsOperation` instance
+            representing the ``IN`` clause, allowing further chaining.
+
+        Raises:
+            Exception: If neither ``data_list`` nor a valid ``column``
+                is provided to the underlying :class:`ColumnsOperation` method.
 
         Example:
-            >>> from ormophine.Postgresql import Driver, Table
-            >>> driver = Driver(...)
-            >>> employees = driver.employees
-            >>> departments = driver.departments
-            >>>
-            >>> # Using a list of values
-            >>> cond = employees.department.In(['Engineering', 'Sales', 'Marketing'])
-            >>> print(cond._output[0])
-            '("employees"."department" IN (%s,%s,%s))'
-            >>> print(cond._output[1])
-            ['Engineering', 'Sales', 'Marketing']
-            >>>
-            >>> # Using a subquery (ColumnsOperation)
-            >>> # Assuming we have a column from another table
-            >>> subquery = departments.id  # Column object, which will be wrapped
-            >>> cond2 = employees.dept_id.In(subquery)
-            >>> # This generates: ("employees"."dept_id" IN ("departments"."id"))
-            >>>
-            >>> # Scalar value produces equality
-            >>> cond3 = employees.id.In(100)
-            >>> print(cond3._output[0])
-            '("employees"."id" = %s)'
-            >>> print(cond3._output[1])
-            [100]
-        """
-        temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"{self.name} IN ({value._output[0]})",value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self.name} IN ({','.join(['%s'] * len(value))})",list(value)) if isinstance(value, (list, tuple)) else (f"{self.name} = %s",[value])
-        return temp_ob
+            Assuming ``users`` and ``admins`` tables::
 
+                from ormophine.Postgresql import Driver
+
+                db = Driver("localhost", 5432, "user", "pass", "mydb")
+                users = db.users
+                admins = db.admins
+
+                # Literal list
+                cond1 = users.age.In([25, 30, 35])
+
+                # Subquery
+                cond2 = users.name.In(
+                    column=admins.username,
+                    where=admins.active == True
+                )
+
+                # Use in a query
+                result = users.get_row([users.name], where=cond2)
+        """
+        temp_obj = ColumnsOperation(self)
+        temp_obj._output = (self.name, [])
+        return temp_obj.In(column=column, where=where, data_list=data_list)
+    
 
 class BatchOperation:
     """A builder for batch executing multiple SQL operations in a single transaction.
