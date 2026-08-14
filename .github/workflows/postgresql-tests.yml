@@ -31,15 +31,20 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.12'
+        python-version: '3.12' 
 
-    - name: Install dependencies
+    - name: Install system dependencies for psycopg
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpq-dev
+
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e .
-        pip install pytest 
-        pip install psycopg-binary psycopg2-binary
-        
+        pip install pytest
+        pip install "psycopg[binary]"
+
     - name: Run PostgreSQL Tests
       env:
         PG_HOST: localhost
