@@ -72,6 +72,7 @@ class ColumnsOperation:
         """
         self._output = '' # To apply operations in a chained manner
         self.col_obj = col_obj
+        self.current_datatype = col_obj.datatype
 
     def __add__(self, other):
         """Add two column expressions or a column and a value.
@@ -114,7 +115,8 @@ class ColumnsOperation:
             the column's datatype.
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other._output[0]})", self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other.name})", self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} + %s)', self._output[1] + [other]) if isinstance(other, int) or isinstance(other, float) else (f'({self._output[0]} || %s)', self._output[1] + [other if isinstance(other, str) else str(other)])
+        new_op._output = (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} {'||' if (self.current_datatype == str) else '+'} %s)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) else (f'({self._output[0]} || %s)', self._output[1]+[other if isinstance(other, str) else str(other)])
+        new_op.current_datatype = str if (isinstance(other, ColumnsOperation) and other.current_datatype == str) or (isinstance(other, Column) and other.datatype == str) or self.current_datatype == str or ( not isinstance(other, ColumnsOperation) and not isinstance(other,Column) and not isinstance(other, int) and not isinstance(other, float)) else self.current_datatype
         return new_op
 
     def __radd__(self, other):
@@ -156,7 +158,8 @@ class ColumnsOperation:
             >>> bonus_op = 1000 + salary_op  # SQL: (1000 + "salary")
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({other._output[0]} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s + {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(%s || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
+        new_op._output = (f'({other._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s {'||' if (self.current_datatype == str) else '+'} {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(%s || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
+        new_op.current_datatype = str if (isinstance(other, ColumnsOperation) and other.current_datatype == str) or (isinstance(other, Column) and other.datatype == str) or self.current_datatype == str or ( not isinstance(other, ColumnsOperation) and not isinstance(other,Column) and not isinstance(other, int) and not isinstance(other, float)) else self.current_datatype
         return new_op
 
     def __sub__(self, other):
@@ -352,7 +355,7 @@ class ColumnsOperation:
             >>> op = (employees.salary + 1000) ** 2
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'POW({self._output[0]} , {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'POW({self._output[0]} , {other.name})', self._output[1]) if isinstance(other, Column) else (f'POW({self._output[0]} , %s)', self._output[1]+[other])
+        new_op._output = (f'(POW({self._output[0]} , {other._output[0]}))', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'(POW({self._output[0]} , {other.name}))', self._output[1]) if isinstance(other, Column) else (f'(POW({self._output[0]} , %s))', self._output[1]+[other])
         return new_op
 
     def __rpow__(self, other):
@@ -391,7 +394,7 @@ class ColumnsOperation:
             [2]
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'POW({other._output[0]} , {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'POW({other.name} , {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'POW(%s , {self._output[0]})', [other]+self._output[1])
+        new_op._output = (f'(POW({other._output[0]} , {self._output[0]}))', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'(POW({other.name} , {self._output[0]}))', self._output[1]) if isinstance(other, Column) else (f'(POW(%s , {self._output[0]}))', [other]+self._output[1])
         return new_op
 
     def __truediv__(self, other):
@@ -617,44 +620,45 @@ class ColumnsOperation:
             [2, 4]  # start=1 -> 2, stop=5 -> length=4
         """
         new_op = ColumnsOperation(self.col_obj)
+        new_op.current_datatype = str
         if self._output:
             if key.start == None and key.stop ==  None:
-                new_op._output = (f'SUBSTRING({self._output[0]} , 1 , LENGTH({self._output[0]}) + 1)', self._output[1] + self._output[1])   #
+                new_op._output = (f'(SUBSTRING({self._output[0]} , 1 , LENGTH({self._output[0]}) + 1))', self._output[1] + self._output[1])   #
             elif key.start == None and key.stop < 0:
-                new_op._output = (f'SUBSTRING({self._output[0]} , 1 , LENGTH({self._output[0]}) - %s)', self._output[1] + self._output[1] + [abs(key.stop)])  #
+                new_op._output = (f'(SUBSTRING({self._output[0]} , 1 , LENGTH({self._output[0]}) - %s))', self._output[1] + self._output[1] + [abs(key.stop)])  #
             elif key.start == None and key.stop >= 0:
-                new_op._output = (f'SUBSTRING({self._output[0]} , 1 , %s)', self._output[1] + [key.stop])  #  
+                new_op._output = (f'(SUBSTRING({self._output[0]} , 1 , %s))', self._output[1] + [key.stop])  #  
             elif key.start >= 0 and key.stop ==  None:
-                new_op._output = (f'SUBSTRING({self._output[0]} , %s , LENGTH({self._output[0]}))', self._output[1] + [key.start + 1] + self._output[1])  #   
+                new_op._output = (f'(SUBSTRING({self._output[0]} , %s , LENGTH({self._output[0]})))', self._output[1] + [key.start + 1] + self._output[1])  #   
             elif key.start < 0 and key.stop == None:
-                new_op._output = (f'SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s , LENGTH({self._output[0]}))', self._output[1] + self._output[1] + [abs(key.start) - 1] + self._output[1])  #
+                new_op._output = (f'(SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s , LENGTH({self._output[0]})))', self._output[1] + self._output[1] + [abs(key.start) - 1] + self._output[1])  #
             elif key.start >= 0 and key.stop < 0:
-                new_op._output = (f'SUBSTRING({self._output[0]} , %s , LENGTH({self._output[0]}) - %s)', self._output[1] +  [key.start + 1] + self._output[1] + [abs(key.stop - key.start)])  #  
+                new_op._output = (f'(SUBSTRING({self._output[0]} , %s , LENGTH({self._output[0]}) - %s))', self._output[1] +  [key.start + 1] + self._output[1] + [abs(key.stop - key.start)])  #  
             elif key.start >= 0 and key.stop > 0:
-                new_op._output = (f'SUBSTRING({self._output[0]} , %s , %s)', self._output[1] + [key.start + 1, key.stop - key.start])  #
+                new_op._output = (f'(SUBSTRING({self._output[0]} , %s , %s))', self._output[1] + [key.start + 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop < 0:
-                new_op._output = (f'SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s , %s)', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop - key.start])  #
+                new_op._output = (f'(SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s , %s))', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop > 0:
-                new_op._output = (f'SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s ,  %s - (LENGTH({self._output[0]}) - %s))', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop] + self._output[1] + [abs(key.start)])
+                new_op._output = (f'(SUBSTRING({self._output[0]} , LENGTH({self._output[0]}) - %s ,  %s - (LENGTH({self._output[0]}) - %s)))', self._output[1] + self._output[1] + [abs(key.start) - 1, key.stop] + self._output[1] + [abs(key.start)])
         else:
             if key.start == None and key.stop ==  None:
-                new_op._output = (f'SUBSTRING({self.col_obj.name} , 1 , LENGTH({self.col_obj.name}) + 1)', [])   #
+                new_op._output = (f'(SUBSTRING({self.col_obj.name} , 1 , LENGTH({self.col_obj.name}) + 1))', [])   #
             elif key.start == None and key.stop < 0:
-                new_op._output = (f'SUBSTRING({self.col_obj.name} , 1 , LENGTH({self.col_obj.name}) - %s)', [abs(key.stop)])  #
+                new_op._output = (f'(SUBSTRING({self.col_obj.name} , 1 , LENGTH({self.col_obj.name}) - %s))', [abs(key.stop)])  #
             elif key.start == None and key.stop >= 0:
-                new_op._output = (f'SUBSTRING({self.col_obj.name} , 1 , %s)', [key.stop])  #  
+                new_op._output = (f'(SUBSTRING({self.col_obj.name} , 1 , %s))', [key.stop])  #  
             elif key.start >= 0 and key.stop ==  None:
-                new_op._output = (f'SUBSTRING({self.col_obj.name} , %s , LENGTH({self.col_obj.name}))', [key.start + 1])  #   
+                new_op._output = (f'(SUBSTRING({self.col_obj.name} , %s , LENGTH({self.col_obj.name})))', [key.start + 1])  #   
             elif key.start < 0 and key.stop == None:
-                new_op._output = (f'SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s , LENGTH({self.col_obj.name}))', [abs(key.start) - 1])  #
+                new_op._output = (f'(SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s , LENGTH({self.col_obj.name})))', [abs(key.start) - 1])  #
             elif key.start >= 0 and key.stop < 0:
-                new_op._output = (f'SUBSTRING({self.col_obj.name} , %s , LENGTH({self.col_obj.name}) - %s)', [key.start + 1, abs(key.stop - key.start)])  #  
+                new_op._output = (f'(SUBSTRING({self.col_obj.name} , %s , LENGTH({self.col_obj.name}) - %s))', [key.start + 1, abs(key.stop - key.start)])  #  
             elif key.start >= 0 and key.stop > 0:
-                new_op._output = (f'SUBSTRING({self.col_obj.name} , %s , %s)', [key.start + 1, key.stop - key.start])  #
+                new_op._output = (f'(SUBSTRING({self.col_obj.name} , %s , %s))', [key.start + 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop < 0:
-                new_op._output = (f'SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s , %s)', [abs(key.start) - 1, key.stop - key.start])  #
+                new_op._output = (f'(SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s , %s))', [abs(key.start) - 1, key.stop - key.start])  #
             elif key.start < 0 and key.stop > 0:
-                new_op._output = (f'SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s ,  %s - (LENGTH({self.col_obj.name}) - %s))', [abs(key.start) - 1, key.stop, abs(key.start)])
+                new_op._output = (f'(SUBSTRING({self.col_obj.name} , LENGTH({self.col_obj.name}) - %s ,  %s - (LENGTH({self.col_obj.name}) - %s)))', [abs(key.start) - 1, key.stop, abs(key.start)])
         return new_op
 
     def eq(self, value):
@@ -692,7 +696,7 @@ class ColumnsOperation:
             '("employees"."manager_id" = "employees"."id")'
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} = %s)', self._output[1] + [value])
         return new_op
 
     def __eq__(self, value):
@@ -737,7 +741,7 @@ class ColumnsOperation:
             ['Engineering', 60000]
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} = {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} = {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} = %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} = %s)', self._output[1] + [value])
         return new_op
 
     def ne(self, value):
@@ -778,7 +782,7 @@ class ColumnsOperation:
             >>> cond = employees.salary.ne(0) & employees.department.ne("IT")
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} != %s)', self._output[1] + [value])
         return new_op
 
     def __ne__(self, value):
@@ -818,7 +822,7 @@ class ColumnsOperation:
             >>> cond2 = (employees.salary != 0) & (employees.department != "IT")
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} != {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} != {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} != %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} != %s)', self._output[1] + [value])
         return new_op
 
     def gt(self, value):
@@ -859,7 +863,7 @@ class ColumnsOperation:
             >>> cond = employees.salary.gt(0) & employees.department.gt("IT")
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} > {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} > {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} > %s)', self._output[1] + [value])
         return new_op
 
     def __gt__(self, value):
@@ -898,7 +902,7 @@ class ColumnsOperation:
             >>> cond2 = employees.bonus > employees.salary * 0.1
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} > {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} > {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} > %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} > {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} > {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} > %s)', self._output[1] + [value])
         return new_op
 
     def lt(self, value):
@@ -939,7 +943,7 @@ class ColumnsOperation:
             >>> cond = employees.salary.lt(100000) & employees.department.lt("ZZZ")
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} < {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} < {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} < %s)', self._output[1] + [value])
         return new_op
 
     def __lt__(self, value):
@@ -980,7 +984,7 @@ class ColumnsOperation:
             >>> final_cond = (employees.salary < 50000) & (employees.department != 'IT')
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} < {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} < {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} < %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} < {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} < {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} < %s)', self._output[1] + [value])
         return new_op
 
     def ge(self, value):
@@ -1021,7 +1025,7 @@ class ColumnsOperation:
             >>> cond = employees.salary.ge(30000) & employees.age.ge(25)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} >= {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} >= {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} >= %s)', self._output[1] + [value])
         return new_op
 
     def __ge__(self, value):
@@ -1061,7 +1065,7 @@ class ColumnsOperation:
             >>> cond = (employees.salary >= 30000) & (employees.age >= 25)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} >= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} >= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} >= %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} >= {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} >= {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} >= %s)', self._output[1] + [value])
         return new_op
 
     def le(self, value):
@@ -1102,7 +1106,7 @@ class ColumnsOperation:
             >>> cond = employees.salary.le(100000) & employees.age.le(65)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} <= {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} <= {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} <= %s)', self._output[1] + [value])
         return new_op
 
     def __le__(self, value):
@@ -1142,7 +1146,7 @@ class ColumnsOperation:
             >>> cond = (employees.salary <= 50000) & (employees.age <= 30)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'{self._output[0]} <= {value._output[0]}', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} <= {value.name}', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'{self._output[0]} <= %s', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} <= {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} <= {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} <= %s)', self._output[1] + [value])
         return new_op
 
     def __and__(self, value):
@@ -1251,7 +1255,7 @@ class ColumnsOperation:
             >>> final_cond = cond & (employees.salary > 50000)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"{self._output[0]} like {value._output[0]}", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self._output[0]} like {value.name}', self._output[1]) if isinstance(value , Column) else (f'{self._output[0]} like %s', self._output[1] + [f'{value}'])
+        new_op._output = (f"({self._output[0]} like {value._output[0]})", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} like {value.name})', self._output[1]) if isinstance(value , Column) else (f'({self._output[0]} like %s)', self._output[1] + [f'{value}'])
         return new_op
 
     def startswith(self, prefix):
@@ -1289,7 +1293,7 @@ class ColumnsOperation:
             >>> # The generated SQL will be like: "employees"."name" LIKE 'A%'
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"{self._output[0]} like {prefix._output[0]} || '%%'", (self._output[1] + prefix._output[1]) if self._output else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f"{self._output[0]} like {prefix.name} || '%%'", self._output[1]) if isinstance(prefix , Column) else (f"{self._output[0]} like %s || '%%'", self._output[1] + [f'{prefix}'])
+        new_op._output = (f"({self._output[0]} like {prefix._output[0]} || '%%')", (self._output[1] + prefix._output[1]) if self._output else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f"({self._output[0]} like {prefix.name} || '%%')", self._output[1]) if isinstance(prefix , Column) else (f"({self._output[0]} like %s || '%%')", self._output[1] + [f'{prefix}'])
         return new_op
 
     def endswith(self, suffix):
@@ -1323,7 +1327,7 @@ class ColumnsOperation:
             >>> final = cond & (employees.salary > 50000)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"{self._output[0]} like '%%' || {suffix._output[0]}", (self._output[1] + suffix._output[1]) if self._output else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f"{self._output[0]} like '%%' || {suffix.name}", self._output[1]) if isinstance(suffix , Column) else (f"{self._output[0]} like '%%' || %s", self._output[1] + [f'{suffix}'])
+        new_op._output = (f"({self._output[0]} like '%%' || {suffix._output[0]})", (self._output[1] + suffix._output[1]) if self._output else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f"({self._output[0]} like '%%' || {suffix.name})", self._output[1]) if isinstance(suffix , Column) else (f"({self._output[0]} like '%%' || %s)", self._output[1] + [f'{suffix}'])
         return new_op
 
     def contains(self, value):
@@ -1362,7 +1366,7 @@ class ColumnsOperation:
             >>> final_cond = cond & (employees.department == "Sales")
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"{self._output[0]} like '%%' || {value._output[0]} || '%%'", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self._output[0]} like '%%' || {value.name} || '%%'", self._output[1]) if isinstance(value , Column) else (f"{self._output[0]} like '%%' || %s || '%%'", self._output[1] + [f'{value}'])
+        new_op._output = (f"({self._output[0]} like '%%' || {value._output[0]} || '%%')", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self._output[0]} like '%%' || {value.name} || '%%')", self._output[1]) if isinstance(value , Column) else (f"({self._output[0]} like '%%' || %s || '%%')", self._output[1] + [f'{value}'])
         return new_op
 
     def add_end(self, content):
@@ -1407,6 +1411,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'({self._output[0]} || %s)', self._output[1]+[content] if self._output else [content])
+        new_op.current_datatype = str
         return new_op
 
     def add_first(self, content):
@@ -1449,6 +1454,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'(%s || {self._output[0]})', [content]+self._output[1] if self._output else [content])
+        new_op.current_datatype = str
         return new_op
 
     def replace(self, old: str, new: str):
@@ -1484,7 +1490,8 @@ class ColumnsOperation:
             >>> op2 = employees.name.upper().replace('A', 'B')
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'REPLACE({self._output[0]} , %s , %s)', self._output[1] + [old, new]) if self._output else (f'REPLACE({self.col_obj.name} , %s , %s)', [old, new])
+        new_op._output = (f'(REPLACE({self._output[0]} , %s , %s))', self._output[1] + [old, new]) if self._output else (f'(REPLACE({self.col_obj.name} , %s , %s))', [old, new])
+        new_op.current_datatype = str
         return new_op
 
     def upper(self):
@@ -1514,7 +1521,8 @@ class ColumnsOperation:
             >>> op2 = employees.name.strip().upper()
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'UPPER({self._output[0]})', self._output[1]) if self._output else (f'UPPER({self.col_obj.name})', [])
+        new_op._output = (f'(UPPER({self._output[0]}))', self._output[1]) if self._output else (f'(UPPER({self.col_obj.name}))', [])
+        new_op.current_datatype = str
         return new_op
 
     def lower(self):
@@ -1546,7 +1554,8 @@ class ColumnsOperation:
             'LOWER(UPPER("employees"."name"))'
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'LOWER({self._output[0]})', self._output[1]) if self._output else (f'LOWER({self.col_obj.name})', [])
+        new_op._output = (f'(LOWER({self._output[0]}))', self._output[1]) if self._output else (f'(LOWER({self.col_obj.name}))', [])
+        new_op.current_datatype = str
         return new_op
 
     def strip(self, chars: str = ' '):
@@ -1579,7 +1588,8 @@ class ColumnsOperation:
             "TRIM(BOTH '_' FROM UPPER(\"employees\".\"name\"))"
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"TRIM(BOTH '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(BOTH '{chars}' FROM {self.col_obj.name})", [])
+        new_op._output = (f"(TRIM(BOTH '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output else (f"(TRIM(BOTH '{chars}' FROM {self.col_obj.name}))", [])
+        new_op.current_datatype = str
         return new_op
 
     def lstrip(self, chars: str = ' '):
@@ -1615,7 +1625,8 @@ class ColumnsOperation:
             "TRIM(LEADING '#' FROM (\"employees\".\"code\" || \"employees\".\"suffix\"))"
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"TRIM(LEADING '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(LEADING '{chars}' FROM {self.col_obj.name})", [])
+        new_op._output = (f"(TRIM(LEADING '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output else (f"(TRIM(LEADING '{chars}' FROM {self.col_obj.name}))", [])
+        new_op.current_datatype = str
         return new_op
 
     def rstrip(self, chars: str = ' '):
@@ -1656,7 +1667,8 @@ class ColumnsOperation:
             []
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"TRIM(TRAILING '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(TRAILING '{chars}' FROM {self.col_obj.name})", [])
+        new_op._output = (f"(TRIM(TRAILING '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output else (f"(TRIM(TRAILING '{chars}' FROM {self.col_obj.name}))", [])
+        new_op.current_datatype = str
         return new_op
 
     def In(self, column: 'Ormophine.Postgresql.Column|Ormophine.Postgresql.ColumnsOperation' = None, where: 'Ormophine.Postgresql.ColumnsOperation' = None, data_list: list = None):
@@ -2172,7 +2184,7 @@ class Column:
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (self.name, [])
-        return temp_ob ** value
+        return value ** temp_ob
 
     def __truediv__(self, value):
         """Implement division for a column.
@@ -2902,23 +2914,23 @@ class Column:
         """
         temp_ob = ColumnsOperation(self)
         if key.start == None and key.stop ==  None:
-            temp_ob._output = (f'SUBSTRING({temp_ob.col_obj.name} , 1 , LENGTH({temp_ob.col_obj.name}) + 1)', [])   #
+            temp_ob._output = (f'(SUBSTRING({temp_ob.col_obj.name} , 1 , LENGTH({temp_ob.col_obj.name}) + 1))', [])   #
         elif key.start == None and key.stop < 0:
-            temp_ob._output = (f'SUBSTRING({temp_ob.col_obj.name} , 1 , LENGTH({temp_ob.col_obj.name}) - %s)', [abs(key.stop)])  #
+            temp_ob._output = (f'(SUBSTRING({temp_ob.col_obj.name} , 1 , LENGTH({temp_ob.col_obj.name}) - %s))', [abs(key.stop)])  #
         elif key.start == None and key.stop >= 0:
-            temp_ob._output = (f'SUBSTRING({temp_ob.col_obj.name} , 1 , %s)', [key.stop])  #  
+             temp_ob._output = (f'(SUBSTRING({temp_ob.col_obj.name} , 1 , %s))', [key.stop])  #  
         elif key.start >= 0 and key.stop ==  None:
-            temp_ob._output = (f'SUBSTRING({temp_ob.col_obj.name} , %s , LENGTH({temp_ob.col_obj.name}))', [key.start + 1])  #   
+            temp_ob._output = (f'(SUBSTRING({temp_ob.col_obj.name} , %s , LENGTH({temp_ob.col_obj.name})))', [key.start + 1])  #   
         elif key.start < 0 and key.stop == None:
-            temp_ob._output = (f'SUBSTRING({temp_ob.col_obj.name} , LENGTH({temp_ob.col_obj.name}) - %s , LENGTH({temp_ob.col_obj.name}))', [abs(key.start) - 1])  #
+            temp_ob._output = (f'(SUBSTRING({temp_ob.col_obj.name} , LENGTH({temp_ob.col_obj.name}) - %s , LENGTH({temp_ob.col_obj.name})))', [abs(key.start) - 1])  #
         elif key.start >= 0 and key.stop < 0:
-            temp_ob._output = (f'SUBSTRING({temp_ob.col_obj.name} , %s , LENGTH({temp_ob.col_obj.name}) - %s)', [key.start + 1, abs(key.stop - key.start)])  #  
+            temp_ob._output = (f'(SUBSTRING({temp_ob.col_obj.name} , %s , LENGTH({temp_ob.col_obj.name}) - %s))', [key.start + 1, abs(key.stop - key.start)])  #  
         elif key.start >= 0 and key.stop > 0:
-            temp_ob._output = (f'SUBSTRING({temp_ob.col_obj.name} , %s , %s)', [key.start + 1, key.stop - key.start])  #
+            temp_ob._output = (f'(SUBSTRING({temp_ob.col_obj.name} , %s , %s))', [key.start + 1, key.stop - key.start])  #
         elif key.start < 0 and key.stop < 0:
-            temp_ob._output = (f'SUBSTRING({temp_ob.col_obj.name} , LENGTH({temp_ob.col_obj.name}) - %s , %s)', [abs(key.start) - 1, key.stop - key.start])  #
+            temp_ob._output = (f'(SUBSTRING({temp_ob.col_obj.name} , LENGTH({temp_ob.col_obj.name}) - %s , %s))', [abs(key.start) - 1, key.stop - key.start])  #
         elif key.start < 0 and key.stop > 0:
-            temp_ob._output = (f'SUBSTRING({temp_ob.col_obj.name} , LENGTH({temp_ob.col_obj.name}) - %s ,  %s - (LENGTH({temp_ob.col_obj.name}) - %s))', [abs(key.start) - 1, key.stop, abs(key.start)])
+            temp_ob._output = (f'(SUBSTRING({temp_ob.col_obj.name} , LENGTH({temp_ob.col_obj.name}) - %s ,  %s - (LENGTH({temp_ob.col_obj.name}) - %s)))', [abs(key.start) - 1, key.stop, abs(key.start)])
         return temp_ob
 
     def strip(self, chars: str = ' '):
@@ -2950,7 +2962,7 @@ class Column:
             >>> op2 = employees.code.strip('_')
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"TRIM(BOTH '{chars}' FROM {temp_ob._output[0]})", temp_ob._output[1]) if temp_ob._output else (f"TRIM(BOTH '{chars}' FROM {temp_ob.col_obj.name})", [])
+        temp_ob._output = (f"(TRIM(BOTH '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output else (f"(TRIM(BOTH '{chars}' FROM {temp_ob.col_obj.name}))", [])
         return temp_ob
 
     def lstrip(self, chars: str = ' '):
@@ -2984,7 +2996,7 @@ class Column:
             >>> cond = employees.name.lstrip().upper().contains('SMITH')
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"TRIM(LEADING '{chars}' FROM {temp_ob._output[0]})", temp_ob._output[1]) if temp_ob._output else (f"TRIM(LEADING '{chars}' FROM {temp_ob.col_obj.name})", [])
+        temp_ob._output = (f"(TRIM(LEADING '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output else (f"(TRIM(LEADING '{chars}' FROM {temp_ob.col_obj.name}))", [])
         return temp_ob
 
     def rstrip(self, chars: str = ' '):
@@ -3017,7 +3029,7 @@ class Column:
             "TRIM(TRAILING 'x' FROM \"employees\".\"name\")"
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"TRIM(TRAILING '{chars}' FROM {temp_ob._output[0]})", temp_ob._output[1]) if temp_ob._output else (f"TRIM(TRAILING '{chars}' FROM {temp_ob.col_obj.name})", [])
+        temp_ob._output = (f"(TRIM(TRAILING '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output else (f"(TRIM(TRAILING '{chars}' FROM {temp_ob.col_obj.name}))", [])
         return temp_ob
 
     def add_end(self, content):
@@ -3128,7 +3140,7 @@ class Column:
             >>> results = employees.get_row([employees.name], where=cond)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'LOWER({temp_ob._output[0]})', temp_ob._output[1]) if temp_ob._output else (f'LOWER({temp_ob.col_obj.name})', [])
+        temp_ob._output = (f'(LOWER({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output else (f'(LOWER({temp_ob.col_obj.name}))', [])
         return temp_ob
 
     def upper(self):
@@ -3154,7 +3166,7 @@ class Column:
             >>> cond = employees.name.upper() == 'JOHN DOE'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'UPPER({temp_ob._output[0]})', temp_ob._output[1]) if temp_ob._output else (f'UPPER({temp_ob.col_obj.name})', [])
+        temp_ob._output = (f'(UPPER({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output else (f'(UPPER({temp_ob.col_obj.name}))', [])
         return temp_ob
 
     def replace(self, old, new):
@@ -3188,7 +3200,7 @@ class Column:
             >>> op2 = employees.name.upper().replace('A', 'X')
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'REPLACE({temp_ob._output[0]} , %s , %s)', temp_ob._output[1] + [old, new]) if temp_ob._output else (f'REPLACE({temp_ob.col_obj.name} , %s , %s)', [old, new])
+        temp_ob._output = (f'(REPLACE({temp_ob._output[0]} , %s , %s))', temp_ob._output[1] + [old, new]) if temp_ob._output else (f'(REPLACE({temp_ob.col_obj.name} , %s , %s))', [old, new])
         return temp_ob
 
     def like(self, value):
@@ -3230,7 +3242,7 @@ class Column:
             >>> cond2 = employees.name.like(pattern)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"{self.name} like {value._output[0]}", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'{self.name} like {value.name}', temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f'{self.name} like %s', (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} like {value.name})', temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f'({self.name} like %s)', (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
         return temp_ob
 
     def startswith(self, value):
@@ -3276,7 +3288,7 @@ class Column:
             >>> final_cond = cond & (employees.salary > 50000)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"{self.name} like {value._output[0]} || '%%'", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self.name} like {value.name} || '%%'", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"{self.name} like %s || '%%'", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like {value._output[0]} || '%%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like {value.name} || '%%')", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like %s || '%%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
         return temp_ob
     
     def endswith(self, value):
@@ -3322,7 +3334,7 @@ class Column:
             >>> cond3 = employees.last_name.endswith(op)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"{self.name} like '%%' || {value._output[0]}", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self.name} like '%%' || {value.name}", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"{self.name} like '%%' || %s", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like '%%' || {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%%' || {value.name})", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like '%%' || %s)", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
         return temp_ob
 
     def contains(self, value):
@@ -3363,7 +3375,7 @@ class Column:
             >>> # Generated SQL: (("first_name" || ' ') || "last_name") LIKE '%' || %s || '%'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"{self.name} like '%%' || {value._output[0]} || '%%'", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self.name} like '%%' || {value.name} || '%%'", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"{self.name} like '%%' || %s || '%%'", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like '%%' || {value._output[0]} || '%%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%%' || {value.name} || '%%')", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like '%%' || %s || '%%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
         return temp_ob
 
     def rename(self, column: 'Column', new_name: str) -> None:

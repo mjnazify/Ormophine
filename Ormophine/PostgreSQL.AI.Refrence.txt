@@ -15,6 +15,22 @@ from queue import SimpleQueue, Empty
 from typing import Literal
 
             
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
 class Driver():
     """High-level PostgreSQL driver for Ormophine.
 
@@ -1354,6 +1370,7 @@ class ColumnsOperation:
         """
         self._output = '' # To apply operations in a chained manner
         self.col_obj = col_obj
+        self.current_datatype = col_obj.datatype
 
     def __add__(self, other):
         """Add two column expressions or a column and a value.
@@ -1396,7 +1413,8 @@ class ColumnsOperation:
             the column's datatype.
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other._output[0]})", self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f"({self._output[0]} {'||' if self.col_obj.datatype == str else '+'} {other.name})", self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} + %s)', self._output[1] + [other]) if isinstance(other, int) or isinstance(other, float) else (f'({self._output[0]} || %s)', self._output[1] + [other if isinstance(other, str) else str(other)])
+        new_op._output = (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} {'||' if (self.current_datatype == str) else '+'} %s)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) else (f'({self._output[0]} || %s)', self._output[1]+[other if isinstance(other, str) else str(other)])
+        new_op.current_datatype = str if (isinstance(other, ColumnsOperation) and other.current_datatype == str) or (isinstance(other, Column) and other.datatype == str) or self.current_datatype == str or ( not isinstance(other, ColumnsOperation) and not isinstance(other,Column) and not isinstance(other, int) and not isinstance(other, float)) else self.current_datatype
         return new_op
 
     def __radd__(self, other):
@@ -1438,7 +1456,8 @@ class ColumnsOperation:
             >>> bonus_op = 1000 + salary_op  # SQL: (1000 + "salary")
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({other._output[0]} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if self.col_obj.datatype == str else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s + {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(%s || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
+        new_op._output = (f'({other._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s {'||' if (self.current_datatype == str) else '+'} {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(%s || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
+        new_op.current_datatype = str if (isinstance(other, ColumnsOperation) and other.current_datatype == str) or (isinstance(other, Column) and other.datatype == str) or self.current_datatype == str or ( not isinstance(other, ColumnsOperation) and not isinstance(other,Column) and not isinstance(other, int) and not isinstance(other, float)) else self.current_datatype
         return new_op
 
     def __sub__(self, other):
@@ -1899,6 +1918,7 @@ class ColumnsOperation:
             [2, 4]  # start=1 -> 2, stop=5 -> length=4
         """
         new_op = ColumnsOperation(self.col_obj)
+        new_op.current_datatype = str
         if self._output:
             if key.start == None and key.stop ==  None:
                 new_op._output = (f'SUBSTRING({self._output[0]} , 1 , LENGTH({self._output[0]}) + 1)', self._output[1] + self._output[1])   #
@@ -2689,6 +2709,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'({self._output[0]} || %s)', self._output[1]+[content] if self._output else [content])
+        new_op.current_datatype = str
         return new_op
 
     def add_first(self, content):
@@ -2731,6 +2752,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'(%s || {self._output[0]})', [content]+self._output[1] if self._output else [content])
+        new_op.current_datatype = str
         return new_op
 
     def replace(self, old: str, new: str):
@@ -2767,6 +2789,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f'REPLACE({self._output[0]} , %s , %s)', self._output[1] + [old, new]) if self._output else (f'REPLACE({self.col_obj.name} , %s , %s)', [old, new])
+        new_op.current_datatype = str
         return new_op
 
     def upper(self):
@@ -2797,6 +2820,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f'UPPER({self._output[0]})', self._output[1]) if self._output else (f'UPPER({self.col_obj.name})', [])
+        new_op.current_datatype = str
         return new_op
 
     def lower(self):
@@ -2829,6 +2853,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f'LOWER({self._output[0]})', self._output[1]) if self._output else (f'LOWER({self.col_obj.name})', [])
+        new_op.current_datatype = str
         return new_op
 
     def strip(self, chars: str = ' '):
@@ -2862,6 +2887,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f"TRIM(BOTH '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(BOTH '{chars}' FROM {self.col_obj.name})", [])
+        new_op.current_datatype = str
         return new_op
 
     def lstrip(self, chars: str = ' '):
@@ -2898,6 +2924,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f"TRIM(LEADING '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(LEADING '{chars}' FROM {self.col_obj.name})", [])
+        new_op.current_datatype = str
         return new_op
 
     def rstrip(self, chars: str = ' '):
@@ -2939,6 +2966,7 @@ class ColumnsOperation:
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f"TRIM(TRAILING '{chars}' FROM {self._output[0]})", self._output[1]) if self._output else (f"TRIM(TRAILING '{chars}' FROM {self.col_obj.name})", [])
+        new_op.current_datatype = str
         return new_op
 
     def In(self, column: 'Ormophine.Postgresql.Column|Ormophine.Postgresql.ColumnsOperation' = None, where: 'Ormophine.Postgresql.ColumnsOperation' = None, data_list: list = None):
@@ -3454,7 +3482,7 @@ class Column:
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (self.name, [])
-        return temp_ob ** value
+        return value ** temp_ob
 
     def __truediv__(self, value):
         """Implement division for a column.
