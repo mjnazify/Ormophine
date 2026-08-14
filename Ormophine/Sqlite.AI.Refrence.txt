@@ -36,6 +36,16 @@ from typing import Any, Literal
 from threading import Thread, Event
 from queue import SimpleQueue
 
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
 class Driver:
     """
     Comprehensive SQLite Driver for Ormophine.
@@ -4415,23 +4425,23 @@ class Column:
 
         temp_ob = ColumnsOperation(self)
         if key.start == None and key.stop ==  None:
-            temp_ob._output = (f'substr({temp_ob.col_obj.name} , 0 , length({temp_ob.col_obj.name}) + 1)', [])   #
+            temp_ob._output = (f'(substr({temp_ob.col_obj.name} , 0 , length({temp_ob.col_obj.name}) + 1))', [])   #
         elif key.start == None and key.stop < 0:
-            temp_ob._output = (f'substr({temp_ob.col_obj.name} , 0 , length({temp_ob.col_obj.name}) - ?)', [abs(key.stop) - 1])  #
+            temp_ob._output = (f'(substr({temp_ob.col_obj.name} , 0 , length({temp_ob.col_obj.name}) - ?))', [abs(key.stop) - 1])  #
         elif key.start == None and key.stop >= 0:
-             temp_ob._output = (f'substr({temp_ob.col_obj.name} , 0 , ?)', [key.stop + 1])  #  
+             temp_ob._output = (f'(substr({temp_ob.col_obj.name} , 0 , ?))', [key.stop + 1])  #  
         elif key.start >= 0 and key.stop ==  None:
-            temp_ob._output = (f'substr({temp_ob.col_obj.name} , ? , length({temp_ob.col_obj.name}))', [key.start + 1])  #   
+            temp_ob._output = (f'(substr({temp_ob.col_obj.name} , ? , length({temp_ob.col_obj.name})))', [key.start + 1])  #   
         elif key.start < 0 and key.stop == None:
-            temp_ob._output = (f'substr({temp_ob.col_obj.name} , length({temp_ob.col_obj.name}) - ? , length({temp_ob.col_obj.name}))', [abs(key.start) - 1])  #
+            temp_ob._output = (f'(substr({temp_ob.col_obj.name} , length({temp_ob.col_obj.name}) - ? , length({temp_ob.col_obj.name})))', [abs(key.start) - 1])  #
         elif key.start >= 0 and key.stop < 0:
-            temp_ob._output = (f'substr({temp_ob.col_obj.name} , ? , length({temp_ob.col_obj.name}) - ?)', [key.start + 1, abs(key.stop - key.start)])  #  
+            temp_ob._output = (f'(substr({temp_ob.col_obj.name} , ? , length({temp_ob.col_obj.name}) - ?))', [key.start + 1, abs(key.stop - key.start)])  #  
         elif key.start >= 0 and key.stop > 0:
-            temp_ob._output = (f'substr({temp_ob.col_obj.name} , ? , ?)', [key.start + 1, key.stop - key.start])  #
+            temp_ob._output = (f'(substr({temp_ob.col_obj.name} , ? , ?))', [key.start + 1, key.stop - key.start])  #
         elif key.start < 0 and key.stop < 0:
-            temp_ob._output = (f'substr({temp_ob.col_obj.name} , length({temp_ob.col_obj.name}) - ? , ?)', [abs(key.start) - 1, key.stop - key.start])  #
+            temp_ob._output = (f'(substr({temp_ob.col_obj.name} , length({temp_ob.col_obj.name}) - ? , ?))', [abs(key.start) - 1, key.stop - key.start])  #
         elif key.start < 0 and key.stop > 0:
-            temp_ob._output = (f'substr({temp_ob.col_obj.name} , length({temp_ob.col_obj.name}) - ? ,  ? - (length({temp_ob.col_obj.name}) - ?))', [abs(key.start) - 1, key.stop, abs(key.start)])
+            temp_ob._output = (f'(substr({temp_ob.col_obj.name} , length({temp_ob.col_obj.name}) - ? ,  ? - (length({temp_ob.col_obj.name}) - ?)))', [abs(key.start) - 1, key.stop, abs(key.start)])
         return temp_ob
 
     def strip(self, chars: str = ' '):
@@ -4474,7 +4484,7 @@ class Column:
                 # returns rows where the trimmed name contains 'john'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'trim({temp_ob._output[0]},"{chars}")', temp_ob._output[1]) if temp_ob._output else (f'trim({temp_ob.col_obj.name},"{chars}")', [])
+        temp_ob._output = (f'(trim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output else (f'(trim({temp_ob.col_obj.name},"{chars}"))', [])
         return temp_ob
 
     def lstrip(self, chars: str = ' '):
