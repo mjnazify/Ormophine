@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Literal
+import re
 
 class DataTypes:
     """
@@ -113,6 +114,8 @@ class DataTypes:
             >>> print(table.get_structure())
             CREATE TABLE [products] ( [id] INTEGER CHECK([id] >= 0), [price] INTEGER CHECK([price] >= 0 AND [price] <= 9999),) ;
         """
+        if min_val is not None and max_val is not None and min_val > max_val:
+            raise ValueError("min_val cannot be greater than max_val")
         checks = []
         if unsigned and min_val is None:
             checks.append("my_saulted_x >= 0")
@@ -163,6 +166,8 @@ class DataTypes:
                 # which is then replaced with the column name 'price' to produce:
                 # [price] REAL CHECK([price] >= 0.0 AND [price] <= 999.99)
         """
+        if unsigned and min_val is not None and min_val < 0:
+            raise ValueError("Cannot use unsigned=True with negative min_val")
         checks = []
         if unsigned:
             checks.append("my_saulted_x >= 0")
@@ -327,10 +332,15 @@ class DataTypes:
                 ts.add_column('score', DataTypes.DECIMAL(precision=5, scale=2, unsigned=True))
                 # Produces: "my_saulted_x REAL CHECK(my_saulted_x >= 0 AND my_saulted_x BETWEEN 0 AND 999.99)"
         """
+        if precision is not None and precision < 1:
+            raise ValueError("precision must be at least 1")
+        if scale is not None and scale < 0:
+            raise ValueError("scale must be >= 0")
+        if precision is not None and scale is not None and scale > precision:
+            raise ValueError("scale cannot be greater than precision")
         checks = []
         if unsigned:
             checks.append("my_saulted_x >= 0")
-        # Compute default range from precision/scale if provided and no custom bounds
         if precision is not None and scale is not None:
             default_max = 10 ** (precision - scale) - 10 ** (-scale)
             default_min = 0 if unsigned else -default_max
@@ -343,8 +353,14 @@ class DataTypes:
             actual_min = min_val if min_val is not None else default_min
             actual_max = max_val if max_val is not None else default_max
             checks.append(f"my_saulted_x BETWEEN {actual_min} AND {actual_max}")
+        elif scale is not None:  # <-- افزودن این حالت
+            # اگر فقط scale داده شده، یک محدوده پیش‌فرض در نظر بگیرید
+            default_max = 10 ** (10 - scale) - 10 ** (-scale)  # فرض precision=10
+            default_min = 0 if unsigned else -default_max
+            actual_min = min_val if min_val is not None else default_min
+            actual_max = max_val if max_val is not None else default_max
+            checks.append(f"my_saulted_x BETWEEN {actual_min} AND {actual_max}")
         else:
-            # No precision/scale: apply custom min/max if given
             if min_val is not None:
                 checks.append(f"my_saulted_x >= {min_val}")
             if max_val is not None:
@@ -915,7 +931,9 @@ class DataTypes:
                     datatype=DataTypes.ENUM('admin', 'user', 'guest')
                 )
                 # Generates a separate CHECK constraint for the role column.
-        """
+        """        
+        if not values:
+            raise ValueError("ENUM requires at least one value")
         quoted = ", ".join(f"'{v}'" for v in values)
         return f"my_saulted_x TEXT CHECK(my_saulted_x IN ({quoted}))"
 
@@ -1001,6 +1019,8 @@ class DataTypes:
                 )
                 # Generated column: my_saulted_x JSON
         """
+        if not type_name:
+            raise ValueError("type_name cannot be empty")
         if check:
             return f"my_saulted_x {type_name} CHECK({check})"
         return f"my_saulted_x {type_name}"
@@ -1215,9 +1235,19 @@ class TableStructure:
                 raise Exception('You have added this column befor\nif you wanna modify this column , delete this column and then add a new one with desired options') if item.split(' ')[0] == column_name else None
         if type(default_value) == bytes:
             raise Exception('Cant set bytes object as default value')
+        if default_value is not None:
+            if isinstance(default_value, bool):
+                default_value_sql = "1" if default_value else "0"
+            elif isinstance(default_value, str):
+                default_value_sql = f"'{default_value}'"
+            else:
+                default_value_sql = str(default_value)
+            default_clause = f" DEFAULT {default_value_sql}"
+        else:
+            default_clause = ""
         self.primary_keys.append(column_name) if primary_key else None
         self.items[column_name] = [datatype, default_value, unique, unique_on_conflict, not_null, not_null_on_conflict, primary_key]
-        self.table_query = self.table_query + f' {datatype.replace('my_saulted_x' , f'[{column_name.strip()}]')}{f' UNIQUE ON CONFLICT {unique_on_conflict}' if unique else ''}{f' NOT NULL ON CONFLICT {not_null_on_conflict}' if not_null else ''}{f' DEFAULT {f"'{default_value}'" if type(default_value) == str else default_value}' if default_value else ''},'
+        self.table_query = self.table_query + f' {datatype.replace('my_saulted_x' , f'[{column_name.strip()}]')}{f' UNIQUE ON CONFLICT {unique_on_conflict}' if unique else ''}{f' NOT NULL ON CONFLICT {not_null_on_conflict}' if not_null else ''}{default_clause},'
         return self
 
     def delete_column(self, column_name: str):
@@ -1259,14 +1289,14 @@ class TableStructure:
                 # Create the table without the 'age' column
                 db.create_table(structure)
         """
-        query_list = self.table_query.split(',')
-        self.items.pop(column_name)
-        for item in query_list:
-            if item.startswith(column_name):
-                query_list.remove(item)
-                self.table_query = ','.join(query_list)
-                return self
-        raise Exception(f'No column found with name ({column_name})')
+        if column_name not in self.items:
+            raise Exception(f"No column found with name ({column_name})")
+        pattern = r'\s*\[{}\]\s+[^,]+(?:,|$)'.format(re.escape(column_name.strip()))
+        self.table_query = re.sub(pattern, '', self.table_query).rstrip(',')
+        if not self.table_query.strip():
+            self.table_query = ''
+        self.items.pop(column_name, None)
+        return self
 
     def get_columns(self):
         """Retrieve metadata for all columns defined in the table structure.
@@ -1406,7 +1436,16 @@ class TableStructure:
                 db.create_table(orders_structure)
                 # This ensures referential integrity between orders and customers.
         """
-        self.foreigns.append(f'FOREIGN KEY ({column}) REFERENCES {refrences_table.name_} ({refrences_column.first_name}){f' ON DELETE {on_delete}' if on_delete else ''}{f' ON UPDATE {on_update}' if on_update else ''}{' DEFERRABLE' if deferrable else ' NOT DEFERRABLE'}{f' INITIALLY {initially}' if initially else ''}')
+        fk = f'FOREIGN KEY({column}) REFERENCES {refrences_table.name_}({refrences_column.first_name})'
+        if on_delete:
+            fk += f' ON DELETE {on_delete}'
+        if on_update:
+            fk += f' ON UPDATE {on_update}'
+        if deferrable is not None:
+            fk += ' DEFERRABLE' if deferrable else ' NOT DEFERRABLE'
+            if initially is not None:
+                fk += f' INITIALLY {initially}'
+        self.foreigns.append(fk)
         return self
 
     def get_structure(self):
@@ -1446,5 +1485,7 @@ class TableStructure:
                 #   PRIMARY KEY([id]) ON CONFLICT ABORT
                 # ) STRICT;
         """
+        if not self.table_query.strip():
+            raise Exception("You must add at least one column")
         return f'CREATE TABLE [{self.name}] ({self.table_query[:-1]}{',' if self.primary_keys else ''}{f'PRIMARY KEY({', '.join(self.primary_keys)}) ON CONFLICT {self.pkonc}' if self.primary_keys else ''}{',' if self.foreigns else ''}{','.join(self.foreigns) if self.foreigns else ''}) {'STRICT' if self.strict else ''};'
 

@@ -4,6 +4,7 @@ from threading import Event,Thread
 from time import sleep
 from traceback import print_exc
 from typing import Any, Literal
+import re
 
 class ColumnsOperation():
     def __init__(self, col_obj):
@@ -128,8 +129,12 @@ class ColumnsOperation():
         return new_op
 
     def __eq__(self, value):
+        if value is None:
+            new_op = ColumnsOperation(self.col_obj)
+            new_op._output = (f'({self._output[0]} IS NULL)', self._output[1])
+            return new_op
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} = ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} = ?)', self._output[1] + [value])
         return new_op
 
     def ne(self, value):
@@ -138,8 +143,12 @@ class ColumnsOperation():
         return new_op
 
     def __ne__(self, value):
+        if value is None:
+            new_op = ColumnsOperation(self.col_obj)
+            new_op._output = (f'({self._output[0]} IS NOT NULL)', self._output[1])
+            return new_op
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} != ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} != ?)', self._output[1] + [value])
         return new_op
 
     def gt(self, value):
@@ -341,21 +350,37 @@ class Column:
         return value % temp_ob
 
     def eq(self, value):
+        if value is None:
+            temp_ob = ColumnsOperation(self)
+            temp_ob._output = (f'({self.name} IS NULL)', [])
+            return temp_ob
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} = ?)', [value])
         return temp_ob
 
     def __eq__(self, value):
+        if value is None:
+            temp_ob = ColumnsOperation(self)
+            temp_ob._output = (f'({self.name} IS NULL)', [])
+            return temp_ob
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} = ?)', [value])
         return temp_ob
-
+    
     def ne(self, value):
+        if value is None:
+            temp_ob = ColumnsOperation(self)
+            temp_ob._output = (f'({self.name} IS NOT NULL)', [])
+            return temp_ob
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} != ?)', [value])
         return temp_ob
 
     def __ne__(self, value):
+        if value is None:
+            temp_ob = ColumnsOperation(self)
+            temp_ob._output = (f'({self.name} IS NOT NULL)', [])
+            return temp_ob
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} != ?)', [value])
         return temp_ob
@@ -512,12 +537,22 @@ class BatchOperation:
         self.table_obj = table_object
 
     def update(self, update: dict[Column, Any], where: ColumnsOperation, table: Table = None) -> 'BatchOperation':
+        if not update:
+            raise Exception("Update dictionary cannot be empty")
+        for v in update.values():
+            if isinstance(v, bytes):
+                raise Exception("Bytes objects cannot be used as values")
         temp_list= []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self.script.append([f'UPDATE {table.name_ if table else self.table_obj.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value , Column) else f'{key.first_name}=?' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key , value in list(update.items()))} WHERE {where._output[0]};', temp_list+where._output[1]])
         return self
 
     def insert(self, insert: dict[Column, Any], table: Table = None) -> 'BatchOperation':
+        if not insert:
+            raise Exception("Insert dictionary cannot be empty")
+        for v in insert.values():
+            if isinstance(v, bytes):
+                raise Exception("Bytes objects cannot be used as values")
         self.script.append([f'INSERT INTO {table.name_ if table else self.table_obj.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'?' for k in insert)})' , [v for v in list(insert.values())]])
         return self
 
@@ -526,11 +561,14 @@ class BatchOperation:
         return self
     
     def run(self):
+        if not self.script:
+            return
+        if not self.table_obj.db_obj._connected:
+            raise RuntimeError("Driver Disconnected")
         queue_call_back = SimpleQueue()
         self.table_obj.main_queue.put(['qsb', self.script, queue_call_back])
         if not (callback := queue_call_back.get(block=True))[0]:
             raise Exception(callback[1])
-
 
 class Join:
     
@@ -551,8 +589,11 @@ class SetPragma:
 
     def __init__(self, connector_obj):
         self.queue = connector_obj.main_queue
+        self.connector_obj: Driver = connector_obj
 
     def _exc(self, cmd: str, query: tuple):
+        if not self.connector_obj._connected:
+            raise RuntimeError("Driver Disconnected")
         queue_call_back = SimpleQueue()
         self.queue.put((cmd, query, queue_call_back))
         if (callback := queue_call_back.get(block=True))[0]:
@@ -561,9 +602,13 @@ class SetPragma:
             raise Exception(callback[1])
 
     def journal_mode(self, value: Literal["DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"]):
+        if not value in ["DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"]:
+            raise Exception('Invalid value!\nChoose from this list ["DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"]')
         self._exc('qcb', (f"PRAGMA journal_mode = {value};",))
 
     def synchronous(self, value: Literal["OFF", "NORMAL", "FULL", "EXTRA"]):
+        if not value in ["OFF", "NORMAL", "FULL", "EXTRA"]:
+            raise Exception('Invalid value!\nChoose from this list ["OFF", "NORMAL", "FULL", "EXTRA"]')
         self._exc('qcb', (f"PRAGMA synchronous = {value};",))
 
     def wal_autocheckpoint(self, pages: int):
@@ -572,9 +617,13 @@ class SetPragma:
         self._exc('qcb', (f"PRAGMA wal_autocheckpoint = {pages};",))
 
     def wal_checkpoint(self, mode: Literal["PASSIVE", "FULL", "RESTART", "TRUNCATE"] = "PASSIVE"):
+        if not mode in ["PASSIVE", "FULL", "RESTART", "TRUNCATE"]:
+            raise Exception('Invalid mode!\nChoose from this list ["PASSIVE", "FULL", "RESTART", "TRUNCATE"]')
         self._exc('qcb', (f"PRAGMA wal_checkpoint({mode});",))
 
     def foreign_keys(self, enable: bool | Literal["ON", "OFF"]):
+        if not enable in ["ON", "OFF"] and not isinstance(enable, bool):
+            raise Exception('Invalid input, try boolean or "ON", "OFF""')
         val = "ON" if enable is True or enable == "ON" else "OFF"
         self._exc('qcb', (f"PRAGMA foreign_keys = {val};",))
 
@@ -588,12 +637,16 @@ class SetPragma:
     def mmap_size(self, bytes_size: int):
         if bytes_size < 0:
             raise ValueError("mmap_size cannot be negative")
+        if bytes_size > 2147418112:
+            raise ValueError("mmap_size max = 2147418112. try smaller size.")
         self._exc('qcb', (f"PRAGMA mmap_size = {bytes_size};",))
 
     def shrink_memory(self):
         self._exc('qcb', (f"PRAGMA shrink_memory;",))
 
     def optimize(self, mask: int = 0x10002):
+        if not isinstance(mask, int):
+            raise Exception("mask must be an integer")
         self._exc('qcb', (f"PRAGMA optimize({mask});",))
 
     def automatic_index(self, enable: bool | Literal["ON", "OFF"]):
@@ -620,6 +673,8 @@ class Table:
         self.__setattr__('ROWID', Column(self, 'ROWID', int))
 
     def _exc(self, cmd: str, query: tuple):
+        if not self.db_obj._connected:
+            raise RuntimeError("Driver Disconnected")
         queue_call_back = SimpleQueue()
         self.main_queue.put((cmd, query, queue_call_back))
         if (callback := queue_call_back.get(block=True))[0]:
@@ -694,7 +749,11 @@ class Table:
         self._exc('qcb', (query, params)) if params else self._exc('qcb', (query,))
             
     def custom_execute_many(self, query: str, params: list = None) -> None:
-        self._exc('qmb', (query, params)) if params else self._exc('qmb', (query,))
+        if params is None:
+            return self._exc('qcb', (query,))
+        if not params:
+            return  
+        self._exc('qmb', (query, params))
 
     def custom_execute_with_fetch(self, query: str, params: list = None, from_readers_pool: bool = False) -> Any:
         if not from_readers_pool:
@@ -737,14 +796,14 @@ class Table:
         self.__setattr__(column_name, Column(self, column_name, int if 'INTEGER' in datatype  else str if 'TEXT' in datatype else float if 'REAL' in datatype else bytes if 'BLOB' in datatype else float if 'NUMERIC' in datatype else str))
 
     def rename_table(self, new_name: str) -> None:
-        query = f'ALTER TABLE {self.name_} RENAME TO {new_name};'
+        query = f'ALTER TABLE {self.name_} RENAME TO "{new_name}";'
         self._exc('qcb', (query,))
         self.db_obj.__delattr__(self.name_[1:-1])
-        self.db_obj.__setattr__(new_name, Table(obj=self.db_obj, table_name=new_name))
+        self.db_obj.__setattr__(new_name, Table(self.db_obj, new_name))
         self.name_ = f'[{new_name}]'
 
     def rename_column(self, column: 'Column', new_name: str) -> None:
-        query = f'ALTER TABLE {self.name_} RENAME COLUMN {column.first_name} TO {new_name};'
+        query = f'ALTER TABLE {self.name_} RENAME COLUMN {column.first_name} TO "{new_name}";'
         self._exc('qcb', (query,))
         self.__delattr__(column.first_name[1:-1])
         self.__setattr__(new_name, Column(self, new_name, column.datatype))
@@ -756,12 +815,19 @@ class Table:
         unique: bool = False,
         where: 'ColumnsOperation' = None
         ) -> None:
+        for col in columns:
+            if col.table_obj is not self:
+                raise Exception("Cannot create index on columns from other tables")
         if where:
             wr = f'WHERE {where._output[0]}'
             for i in where._output[1]:
-                wr=wr.replace('?',i if isinstance(i,str) else str(i),1)
-        
-        query = (f'CREATE {'UNIQUE ' if unique else ''}INDEX {index_name} ON {self.name_} ({','.join(i.first_name for i in columns)}) {wr if where else ''}',[])
+                if isinstance(i, str):
+                    wr = wr.replace('?', f"'{i}'", 1)
+                else:
+                    wr = wr.replace('?', str(i), 1)
+            query = (f'CREATE {"UNIQUE " if unique else ""}INDEX {index_name} ON {self.name_} ({",".join(c.first_name for c in columns)}) {wr}', [])
+        else:
+            query = (f'CREATE {"UNIQUE " if unique else ""}INDEX {index_name} ON {self.name_} ({",".join(c.first_name for c in columns)})', [])
         self._exc('qcb', query)
 
     def delete_index(self, index_name: str) -> None:
@@ -787,18 +853,22 @@ class Table:
                 raise Exception(callback[1])
 
     def get_index_info(self, index_name: str, from_readers_pool: bool = False) -> Any:
-        query = (f'PRAGMA index_info({index_name});',)
+        indexes = self.get_indexes(from_readers_pool)
+        if index_name not in indexes:
+            raise Exception(f"Index '{index_name}' does not exist")
+        query = f'PRAGMA index_info({index_name})'
         if not from_readers_pool:
-            return {'name':index_name, 'indexed_columns':[i[2] for i in self._exc('qf', query)]}
+            info = self._exc('qf', (query,))
         else:
-            queueCallBack= SimpleQueue() 
-            connection_queue = self.db_obj.pool_holder.get(block=True)
-            connection_queue.put(['qf', query, queueCallBack])
-            self.db_obj.pool_holder.put(connection_queue)
-            if (callback := queueCallBack.get(block=True))[0]:
-                return {'name':index_name, 'indexed_columns':[i[2] for i in callback[1]]}
-            else:
-                raise Exception(callback[1])
+            pass
+        unique_query = f"SELECT `unique` FROM pragma_index_list('{self.name_[1:-1]}') WHERE name = '{index_name}'"
+        unique_res = self._exc('qf', (unique_query,))
+        is_unique = bool(unique_res[0][0]) if unique_res else False
+        return {
+            'name': index_name,
+            'indexed_columns': [row[2] for row in info],
+            'unique': is_unique
+        }
 
     def bulk_insert(self, columns: list['Column'], data_list: list) -> None:
         query = f'INSERT INTO {self.name_} ({', '.join(i.first_name for i in columns)}) VALUES ({', '.join('?' for i in columns)});'
@@ -858,6 +928,8 @@ class DataTypes:
     @staticmethod
     def INTEGER(min_val: int = None, max_val: int = None, unsigned: bool = False) -> str:
         """Standard integer. Unsigned adds CHECK(my_saulted_x >= 0)."""
+        if min_val is not None and max_val is not None and min_val > max_val:
+            raise ValueError("min_val cannot be greater than max_val")
         checks = []
         if unsigned and min_val is None:
             checks.append("my_saulted_x >= 0")
@@ -876,6 +948,8 @@ class DataTypes:
         If unsigned=True, adds CHECK(my_saulted_x >= 0).
         If min_val/max_val provided, adds range CHECK.
         """
+        if unsigned and min_val is not None and min_val < 0:
+            raise ValueError("Cannot use unsigned=True with negative min_val")
         checks = []
         if unsigned:
             checks.append("my_saulted_x >= 0")
@@ -906,10 +980,15 @@ class DataTypes:
         If precision/scale given, infers default range (max = 10^(precision-scale) - 10^-scale).
         Custom min_val/max_val override defaults.
         """
+        if precision is not None and precision < 1:
+            raise ValueError("precision must be at least 1")
+        if scale is not None and scale < 0:
+            raise ValueError("scale must be >= 0")
+        if precision is not None and scale is not None and scale > precision:
+            raise ValueError("scale cannot be greater than precision")
         checks = []
         if unsigned:
             checks.append("my_saulted_x >= 0")
-        # Compute default range from precision/scale if provided and no custom bounds
         if precision is not None and scale is not None:
             default_max = 10 ** (precision - scale) - 10 ** (-scale)
             default_min = 0 if unsigned else -default_max
@@ -922,8 +1001,14 @@ class DataTypes:
             actual_min = min_val if min_val is not None else default_min
             actual_max = max_val if max_val is not None else default_max
             checks.append(f"my_saulted_x BETWEEN {actual_min} AND {actual_max}")
+        elif scale is not None:  # <-- افزودن این حالت
+            # اگر فقط scale داده شده، یک محدوده پیش‌فرض در نظر بگیرید
+            default_max = 10 ** (10 - scale) - 10 ** (-scale)  # فرض precision=10
+            default_min = 0 if unsigned else -default_max
+            actual_min = min_val if min_val is not None else default_min
+            actual_max = max_val if max_val is not None else default_max
+            checks.append(f"my_saulted_x BETWEEN {actual_min} AND {actual_max}")
         else:
-            # No precision/scale: apply custom min/max if given
             if min_val is not None:
                 checks.append(f"my_saulted_x >= {min_val}")
             if max_val is not None:
@@ -1040,6 +1125,8 @@ class DataTypes:
     @staticmethod
     def ENUM(*values: str) -> str:
         """Enumeration: allowed values list."""
+        if not values:
+            raise ValueError("ENUM requires at least one value")
         quoted = ", ".join(f"'{v}'" for v in values)
         return f"my_saulted_x TEXT CHECK(my_saulted_x IN ({quoted}))"
 
@@ -1054,6 +1141,8 @@ class DataTypes:
         Custom data type name (when strict mode OFF). Optionally add a CHECK constraint.
         Example: CUSTOM('GEOMETRY', 'my_saulted_x IS NOT NULL')
         """
+        if not type_name:
+            raise ValueError("type_name cannot be empty")
         if check:
             return f"my_saulted_x {type_name} CHECK({check})"
         return f"my_saulted_x {type_name}"
@@ -1084,20 +1173,30 @@ class TableStructure:
                 raise Exception('You have added this column befor\nif you wanna modify this column , delete this column and then add a new one with desired options') if item.split(' ')[0] == column_name else None
         if type(default_value) == bytes:
             raise Exception('Cant set bytes object as default value')
+        if default_value is not None:
+            if isinstance(default_value, bool):
+                default_value_sql = "1" if default_value else "0"
+            elif isinstance(default_value, str):
+                default_value_sql = f"'{default_value}'"
+            else:
+                default_value_sql = str(default_value)
+            default_clause = f" DEFAULT {default_value_sql}"
+        else:
+            default_clause = ""
         self.primary_keys.append(column_name) if primary_key else None
         self.items[column_name] = [datatype, default_value, unique, unique_on_conflict, not_null, not_null_on_conflict, primary_key]
-        self.table_query = self.table_query + f' {datatype.replace('my_saulted_x' , f'[{column_name.strip()}]')}{f' UNIQUE ON CONFLICT {unique_on_conflict}' if unique else ''}{f' NOT NULL ON CONFLICT {not_null_on_conflict}' if not_null else ''}{f' DEFAULT {f"'{default_value}'" if type(default_value) == str else default_value}' if default_value else ''},'
+        self.table_query = self.table_query + f' {datatype.replace('my_saulted_x' , f'[{column_name.strip()}]')}{f' UNIQUE ON CONFLICT {unique_on_conflict}' if unique else ''}{f' NOT NULL ON CONFLICT {not_null_on_conflict}' if not_null else ''}{default_clause},'
         return self
 
     def delete_column(self, column_name: str):
-        query_list = self.table_query.split(',')
-        self.items.pop(column_name)
-        for item in query_list:
-            if item.startswith(column_name):
-                query_list.remove(item)
-                self.table_query = ','.join(query_list)
-                return self
-        raise Exception(f'No column found with name ({column_name})')
+        if column_name not in self.items:
+            raise Exception(f"No column found with name ({column_name})")
+        pattern = r'\s*\[{}\]\s+[^,]+(?:,|$)'.format(re.escape(column_name.strip()))
+        self.table_query = re.sub(pattern, '', self.table_query).rstrip(',')
+        if not self.table_query.strip():
+            self.table_query = ''
+        self.items.pop(column_name, None)
+        return self
 
     def get_columns(self):
         items_list = []
@@ -1117,12 +1216,24 @@ class TableStructure:
 
     def foreign_key(self, column: str, refrences_table: 'Table',
                     refrences_column: 'Column', on_delete: ON_ACTION = None,
-                    on_update: ON_ACTION = None, deferrable: bool = True,
-                    initially: ON_INIT = 'DEFERRED'):
-        self.foreigns.append(f'FOREIGN KEY ({column}) REFERENCES {refrences_table.name_} ({refrences_column.first_name}){f' ON DELETE {on_delete}' if on_delete else ''}{f' ON UPDATE {on_update}' if on_update else ''}{' DEFERRABLE' if deferrable else ' NOT DEFERRABLE'}{f' INITIALLY {initially}' if initially else ''}')
+                    on_update: ON_ACTION = None, deferrable: bool = None,
+                    initially: ON_INIT = None):
+        """Add a foreign key constraint to the table structure..."""
+        fk = f'FOREIGN KEY({column}) REFERENCES {refrences_table.name_}({refrences_column.first_name})'
+        if on_delete:
+            fk += f' ON DELETE {on_delete}'
+        if on_update:
+            fk += f' ON UPDATE {on_update}'
+        if deferrable is not None:
+            fk += ' DEFERRABLE' if deferrable else ' NOT DEFERRABLE'
+            if initially is not None:
+                fk += f' INITIALLY {initially}'
+        self.foreigns.append(fk)
         return self
 
     def get_structure(self):
+        if not self.table_query.strip():
+            raise Exception("You must add at least one column")
         return f'CREATE TABLE [{self.name}] ({self.table_query[:-1]}{',' if self.primary_keys else ''}{f'PRIMARY KEY({', '.join(self.primary_keys)}) ON CONFLICT {self.pkonc}' if self.primary_keys else ''}{',' if self.foreigns else ''}{','.join(self.foreigns) if self.foreigns else ''}) {'STRICT' if self.strict else ''};'
 
 
@@ -1146,11 +1257,12 @@ class Driver:
         self.SetPragma= SetPragma(self)
         self.reader_pool_size = none_block_reader_pool_size
         self.pool_holder = SimpleQueue()
+        self._connected = True
         for i in range(self.reader_pool_size):
             connection_queue = SimpleQueue()
-            Thread(target=Driver.reader_driver, args=(connection_queue, self.db_path, isolation_level, cache_size)).start()
+            Thread(target=Driver.reader_driver, args=(connection_queue, self.db_path, isolation_level, cache_size), daemon=True).start()
             self.pool_holder.put(connection_queue)
-        Thread(target=Driver.simple_driver, args=(self.main_queue, self.db_path, isolation_level, cache_size)).start()
+        Thread(target=Driver.simple_driver, args=(self.main_queue, self.db_path, isolation_level, cache_size), daemon=True).start()
         QueueCallBack=SimpleQueue()
         self.main_queue.put(['qf', ('SELECT * FROM SQLITE_MASTER;',), QueueCallBack])
         if (callback:= QueueCallBack.get(block=True))[0]:
@@ -1160,6 +1272,8 @@ class Driver:
             raise Exception(callback[1])
         
     def _exc(self, cmd: str, query: tuple):
+        if not self._connected:
+            raise RuntimeError("Driver Disconnected")
         queue_call_back = SimpleQueue()
         self.main_queue.put((cmd, query, queue_call_back))
         if (callback := queue_call_back.get(block=True))[0]:
@@ -1272,7 +1386,11 @@ class Driver:
         return self._exc('qcb', (query, params)) if params else self._exc('qcb', (query,))
         
     def custom_execute_many(self, query: str, params: list = None) -> None:
-        return self._exc('qmb', (query, params)) if params else self._exc('qmb', (query,))
+        if params is None:
+            return self._exc('qcb', (query,))
+        if not params:
+            return  
+        self._exc('qmb', (query, params))
 
     def custom_execute_with_fetch(self, query: str, params: list = None,from_readers_pool: bool = False) -> Any:
         if not from_readers_pool:
@@ -1301,14 +1419,15 @@ class Driver:
         return Table(self, table_structure.name)
 
     def defragment(self) -> None:
-        self._exc('qcb', ("VACUUM;PRAGMA optimize;",))
+        self._exc('qcb', ("VACUUM;",))
+        self._exc('qcb', ("PRAGMA optimize;",))
 
-    def set_WAL_mode(self, is_set: bool, wal_timer: int = 60) -> None:
+    def set_WAL_mode(self, is_set: bool, wal_timer: int = 1) -> None:
         if is_set:
             self.wal_enabled.set()
             self.wal_stop.clear()
             self._exc('qcb', ("PRAGMA journal_mode=WAL;",))
-            Thread(target=Driver.checkpoint_timer, args=(self.main_queue, wal_timer, self.wal_stop)).start()
+            Thread(target=Driver.checkpoint_timer, args=(self.main_queue, wal_timer, self.wal_stop), daemon=True).start()
         else:
             self.wal_stop.set()
             self._exc('qcb', ("PRAGMA journal_mode=PERSIST;",))
@@ -1317,8 +1436,11 @@ class Driver:
         call_back_queue.get(block=True)
 
     def disconnect(self) -> None:
+        if not self._connected:
+            raise RuntimeError("Driver Already Disconnected")
         self.wal_stop.set()
         callback_dc = SimpleQueue()
+        self._connected = False
         if self.wal_enabled.is_set():
             call_back_queue = SimpleQueue()
             self.main_queue.put(['cp', call_back_queue])
@@ -1330,6 +1452,3 @@ class Driver:
         for i in range(self.reader_pool_size):
             connection_queue = self.pool_holder.get(block=True)
             connection_queue.put(['dc'])
-
-
-#TODO Update 

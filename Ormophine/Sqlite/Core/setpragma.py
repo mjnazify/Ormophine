@@ -76,6 +76,7 @@ class SetPragma:
             send PRAGMA commands to the database thread.
         """
         self.queue = connector_obj.main_queue
+        self.connector_obj = connector_obj
 
     def _exc(self, cmd: str, query: tuple):
         """Execute a database command and return the result.
@@ -112,6 +113,8 @@ class SetPragma:
             >>> #OR driver.Setpragma._exc('qcb', ('PRAGMA journal_mode=WAL;',))
             None
         """
+        if not self.connector_obj._connected:
+            raise RuntimeError("Driver Disconnected")
         queue_call_back = SimpleQueue()
         self.queue.put((cmd, query, queue_call_back))
         if (callback := queue_call_back.get(block=True))[0]:
@@ -158,6 +161,8 @@ class SetPragma:
                 # Switch back to DELETE mode
                 db.SetPragma.journal_mode('DELETE')
         """
+        if not value in ["DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"]:
+            raise Exception('Invalid value!\nChoose from this list ["DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"]')
         self._exc('qcb', (f"PRAGMA journal_mode = {value};",))
 
     def synchronous(self, value: Literal["OFF", "NORMAL", "FULL", "EXTRA"]):
@@ -198,6 +203,8 @@ class SetPragma:
                 # Set to OFF for maximum performance (use with caution)
                 db.SetPragma.synchronous('OFF')
         """
+        if not value in ["OFF", "NORMAL", "FULL", "EXTRA"]:
+            raise Exception('Invalid value!\nChoose from this list ["OFF", "NORMAL", "FULL", "EXTRA"]')
         self._exc('qcb', (f"PRAGMA synchronous = {value};",))
 
     def wal_autocheckpoint(self, pages: int):
@@ -279,6 +286,8 @@ class SetPragma:
                 # Or use the default passive checkpoint
                 db.SetPragma.wal_checkpoint()
         """
+        if not mode in ["PASSIVE", "FULL", "RESTART", "TRUNCATE"]:
+            raise Exception('Invalid mode!\nChoose from this list ["PASSIVE", "FULL", "RESTART", "TRUNCATE"]')
         self._exc('qcb', (f"PRAGMA wal_checkpoint({mode});",))
 
     def foreign_keys(self, enable: bool | Literal["ON", "OFF"]):
@@ -324,6 +333,8 @@ class SetPragma:
             integrity across related tables. Use this method to toggle the
             setting as needed for your operations.
         """
+        if not enable in ["ON", "OFF"] and not isinstance(enable, bool):
+            raise Exception('Invalid input, try boolean or "ON", "OFF""')
         val = "ON" if enable is True or enable == "ON" else "OFF"
         self._exc('qcb', (f"PRAGMA foreign_keys = {val};",))
 
@@ -526,6 +537,8 @@ class SetPragma:
                 # Run optimize with a custom mask
                 db.SetPragma.optimize(mask=0x0001)
         """
+        if not isinstance(mask, int):
+            raise Exception("mask must be an integer")
         self._exc('qcb', (f"PRAGMA optimize({mask});",))
 
     def automatic_index(self, enable: bool | Literal["ON", "OFF"]):

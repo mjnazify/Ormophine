@@ -177,6 +177,7 @@ class Driver:
         self.SetPragma= SetPragma(self)
         self.reader_pool_size = none_block_reader_pool_size
         self.pool_holder = SimpleQueue()
+        self._connected = True
         for i in range(self.reader_pool_size):
             connection_queue = SimpleQueue()
             Thread(target=Driver.reader_driver, args=(connection_queue, self.db_path, isolation_level, cache_size)).start()
@@ -234,7 +235,8 @@ class Driver:
                 # Fetch results from a system table
                 rows = driver._exc('qf', ('SELECT * FROM sqlite_master;',))
         """
-
+        if not self._connected:
+            raise RuntimeError("Driver Disconnected")
         queue_call_back = SimpleQueue()
         self.main_queue.put((cmd, query, queue_call_back))
         if (callback := queue_call_back.get(block=True))[0]:
@@ -575,8 +577,11 @@ class Driver:
             ...     data
             ... )
         """
-
-        return self._exc('qmb', (query, params)) if params else self._exc('qmb', (query,))
+        if params is None:
+            return self._exc('qcb', (query,))
+        if not params:
+            return  
+        self._exc('qmb', (query, params))
 
     def custom_execute_with_fetch(self, query: str, params: list = None, from_readers_pool: bool = False) -> Any:
         """Execute an arbitrary SQL query and return the fetched rows.
@@ -722,10 +727,10 @@ class Driver:
             >>> driver.defragment()
             # The database file is now compacted and optimized.
         """
+        self._exc('qcb', ("VACUUM;",))
+        self._exc('qcb', ("PRAGMA optimize;",))
 
-        self._exc('qcb', ("VACUUM;PRAGMA optimize;",))
-
-    def set_WAL_mode(self, is_set: bool, wal_timer: int = 60) -> None:
+    def set_WAL_mode(self, is_set: bool, wal_timer: int = 1) -> None:
         """Enables or disables Write‑Ahead Logging (WAL) mode.
 
         When enabled, the journal mode is set to ``WAL`` and a background
@@ -760,7 +765,7 @@ class Driver:
             self.wal_enabled.set()
             self.wal_stop.clear()
             self._exc('qcb', ("PRAGMA journal_mode=WAL;",))
-            Thread(target=Driver.checkpoint_timer, args=(self.main_queue, wal_timer, self.wal_stop)).start()
+            Thread(target=Driver.checkpoint_timer, args=(self.main_queue, wal_timer, self.wal_stop), daemon=True).start()
         else:
             self.wal_stop.set()
             self._exc('qcb', ("PRAGMA journal_mode=PERSIST;",))
@@ -791,9 +796,11 @@ class Driver:
             >>> driver = Driver('app.db')
             >>> driver.disconnect()
         """
-
+        if not self._connected:
+            raise RuntimeError("Driver Already Disconnected")
         self.wal_stop.set()
         callback_dc = SimpleQueue()
+        self._connected = False
         if self.wal_enabled.is_set():
             call_back_queue = SimpleQueue()
             self.main_queue.put(['cp', call_back_queue])
@@ -805,4 +812,3 @@ class Driver:
         for i in range(self.reader_pool_size):
             connection_queue = self.pool_holder.get(block=True)
             connection_queue.put(['dc'])
-

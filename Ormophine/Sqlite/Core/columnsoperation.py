@@ -966,10 +966,14 @@ class ColumnsOperation:
                 # condition3._output[0] -> "(upper(users.[name]) = ?)"
                 # condition3._output[1] -> ['ALICE']
         """
+        if value is None:
+            new_op = ColumnsOperation(self.col_obj)
+            new_op._output = (f'({self._output[0]} IS NULL)', self._output[1])
+            return new_op
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} = ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} = ?)', self._output[1] + [value])
         return new_op
-
+    
     def ne(self, value):
         """Create a not-equal comparison condition for the column expression.
 
@@ -1071,10 +1075,14 @@ class ColumnsOperation:
                 results = products.get_row([price], where=condition)
                 # retrieves rows where price != 100
         """
+        if value is None:
+            new_op = ColumnsOperation(self.col_obj)
+            new_op._output = (f'({self._output[0]} IS NOT NULL)', self._output[1])
+            return new_op
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} != ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} != ?)', self._output[1] + [value])
         return new_op
-
+    
     def gt(self, value):
         """Create a greater-than comparison condition for the column expression.
 
@@ -2980,6 +2988,10 @@ class Column:
             >>> # Use in a query:
             >>> rows = users.get_row([users.name], where=condition)
         """
+        if value is None:
+            temp_ob = ColumnsOperation(self)
+            temp_ob._output = (f'({self.name} IS NULL)', [])
+            return temp_ob
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} = ?)', [value])
         return temp_ob
@@ -3031,6 +3043,10 @@ class Column:
                 results = users.get_row([id_col], where=condition)
                 # retrieves rows where name == 'Alice'
         """
+        if value is None:
+            temp_ob = ColumnsOperation(self)
+            temp_ob._output = (f'({self.name} IS NULL)', [])
+            return temp_ob
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} = ?)', [value])
         return temp_ob
@@ -3066,6 +3082,10 @@ class Column:
             >>> # Use condition in a query:
             >>> users.get_row([users.name], where=condition)
         """
+        if value is None:
+            temp_ob = ColumnsOperation(self)
+            temp_ob._output = (f'({self.name} IS NOT NULL)', [])
+            return temp_ob
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} != ?)', [value])
         return temp_ob
@@ -3105,6 +3125,10 @@ class Column:
             >>> result = users.get_row([users.name], where=condition)
             # Generated SQL: SELECT [users].[name] FROM [users] WHERE ([users].[age] != ?)
         """
+        if value is None:
+            temp_ob = ColumnsOperation(self)
+            temp_ob._output = (f'({self.name} IS NOT NULL)', [])
+            return temp_ob
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} != ?)', [value])
         return temp_ob
@@ -4501,6 +4525,11 @@ class BatchOperation:
                 # This executes: UPDATE products SET price = price * 0.8, stock = stock - 1
                 # WHERE category = 'clearance';
         """
+        if not update:
+            raise Exception("Update dictionary cannot be empty")
+        for v in update.values():
+            if isinstance(v, bytes):
+                raise Exception("Bytes objects cannot be used as values")
         temp_list= []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self.script.append([f'UPDATE {table.name_ if table else self.table_obj.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value , Column) else f'{key.first_name}=?' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key , value in list(update.items()))} WHERE {where._output[0]};', temp_list+where._output[1]])
@@ -4552,6 +4581,11 @@ class BatchOperation:
                 # Execute all batched statements
                 batch.run()
         """
+        if not insert:
+            raise Exception("Insert dictionary cannot be empty")
+        for v in insert.values():
+            if isinstance(v, bytes):
+                raise Exception("Bytes objects cannot be used as values")
         self.script.append([f'INSERT INTO {table.name_ if table else self.table_obj.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'?' for k in insert)})' , [v for v in list(insert.values())]])
         return self
 
@@ -4652,8 +4686,11 @@ class BatchOperation:
                 batch.run()
                 # All operations are committed together.
         """
+        if not self.script:
+            return
+        if not self.table_obj.db_obj._connected:
+            raise RuntimeError("Driver Disconnected")
         queue_call_back = SimpleQueue()
         self.table_obj.main_queue.put(['qsb', self.script, queue_call_back])
         if not (callback := queue_call_back.get(block=True))[0]:
             raise Exception(callback[1])
-

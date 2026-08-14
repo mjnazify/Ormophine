@@ -144,6 +144,8 @@ class Table:
                 table._exc('qcb', ('UPDATE users SET name = ? WHERE id = ?', ('Alice', 1)))
                 # updates the user and returns None on success
         """
+        if not self.db_obj._connected:
+            raise RuntimeError("Driver Disconnected")
         queue_call_back = SimpleQueue()
         self.main_queue.put((cmd, query, queue_call_back))
         if (callback := queue_call_back.get(block=True))[0]:
@@ -617,7 +619,11 @@ class Table:
             This is equivalent to, but often more convenient than, building
             a :class:`BatchOperation` manually.
         """
-        self._exc('qmb', (query, params)) if params else self._exc('qmb', (query,))
+        if params is None:
+            return self._exc('qcb', (query,))
+        if not params:
+            return  
+        self._exc('qmb', (query, params))
 
     def custom_execute_with_fetch(self, query: str, params: list = None, from_readers_pool: bool = False) -> Any:
         """Execute a custom SQL query and return fetched results.
@@ -883,10 +889,10 @@ class Table:
             >>> print(db.clients.name_)
             [clients]
         """
-        query = f'ALTER TABLE {self.name_} RENAME TO {new_name};'
+        query = f'ALTER TABLE {self.name_} RENAME TO "{new_name}";'
         self._exc('qcb', (query,))
         self.db_obj.__delattr__(self.name_[1:-1])
-        self.db_obj.__setattr__(new_name, Table(obj=self.db_obj, table_name=new_name))
+        self.db_obj.__setattr__(new_name, Table(self.db_obj, new_name))
         self.name_ = f'[{new_name}]'
 
     def rename_column(self, column: 'Column', new_name: str) -> None:
@@ -921,7 +927,7 @@ class Table:
             >>> print(users.years.first_name)
             '[years]'
         """
-        query = f'ALTER TABLE {self.name_} RENAME COLUMN {column.first_name} TO {new_name};'
+        query = f'ALTER TABLE {self.name_} RENAME COLUMN {column.first_name} TO "{new_name}";'
         self._exc('qcb', (query,))
         self.__delattr__(column.first_name[1:-1])
         self.__setattr__(new_name, Column(self, new_name, column.datatype))
@@ -983,12 +989,19 @@ class Table:
             ...     where=users.status == 'active'
             ... )
         """
+        for col in columns:
+            if col.table_obj is not self:
+                raise Exception("Cannot create index on columns from other tables")
         if where:
             wr = f'WHERE {where._output[0]}'
             for i in where._output[1]:
-                wr=wr.replace('?',i if isinstance(i,str) else str(i),1)
-        
-        query = (f'CREATE {'UNIQUE ' if unique else ''}INDEX {index_name} ON {self.name_} ({','.join(i.first_name for i in columns)}) {wr if where else ''}',[])
+                if isinstance(i, str):
+                    wr = wr.replace('?', f"'{i}'", 1)
+                else:
+                    wr = wr.replace('?', str(i), 1)
+            query = (f'CREATE {"UNIQUE " if unique else ""}INDEX {index_name} ON {self.name_} ({",".join(c.first_name for c in columns)}) {wr}', [])
+        else:
+            query = (f'CREATE {"UNIQUE " if unique else ""}INDEX {index_name} ON {self.name_} ({",".join(c.first_name for c in columns)})', [])
         self._exc('qcb', query)
 
     def delete_index(self, index_name: str) -> None:
@@ -1135,18 +1148,22 @@ class Table:
             Using a reader‑pool connection:
             >>> info = users.get_index_info("idx_email", from_readers_pool=True)
         """
-        query = (f'PRAGMA index_info({index_name});',)
+        indexes = self.get_indexes(from_readers_pool)
+        if index_name not in indexes:
+            raise Exception(f"Index '{index_name}' does not exist")
+        query = f'PRAGMA index_info({index_name})'
         if not from_readers_pool:
-            return {'name':index_name, 'indexed_columns':[i[2] for i in self._exc('qf', query)]}
+            info = self._exc('qf', (query,))
         else:
-            queueCallBack= SimpleQueue() 
-            connection_queue = self.db_obj.pool_holder.get(block=True)
-            connection_queue.put(['qf', query, queueCallBack])
-            self.db_obj.pool_holder.put(connection_queue)
-            if (callback := queueCallBack.get(block=True))[0]:
-                return {'name':index_name, 'indexed_columns':[i[2] for i in callback[1]]}
-            else:
-                raise Exception(callback[1])
+            pass
+        unique_query = f"SELECT `unique` FROM pragma_index_list('{self.name_[1:-1]}') WHERE name = '{index_name}'"
+        unique_res = self._exc('qf', (unique_query,))
+        is_unique = bool(unique_res[0][0]) if unique_res else False
+        return {
+            'name': index_name,
+            'indexed_columns': [row[2] for row in info],
+            'unique': is_unique
+        }
 
     def bulk_insert(self, columns: list['Column'], data_list: list) -> None:
         """Inserts multiple rows into the table in a single batch operation.
