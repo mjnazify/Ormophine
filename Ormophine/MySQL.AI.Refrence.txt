@@ -63,6 +63,13 @@ from MySQLdb import connect, OperationalError, ProgrammingError
 from queue import SimpleQueue, Empty
 from typing import Literal
 
+
+
+from . import TableStructure, Table
+from MySQLdb import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
 class Driver():
     """
     MySQL connection manager with thread-safe connection pooling and ORM capabilities.

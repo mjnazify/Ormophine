@@ -86,6 +86,16 @@ from typing import Any, Literal
 from threading import Thread, Event
 from queue import SimpleQueue
 
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
 class Driver:
     """
     Comprehensive SQLite Driver for Ormophine.
@@ -810,7 +820,7 @@ class Driver:
         self._exc('qcb', ("VACUUM;",))
         self._exc('qcb', ("PRAGMA optimize;",))
 
-    def set_WAL_mode(self, is_set: bool, wal_timer: int = 5) -> None:
+    def set_WAL_mode(self, is_set: bool, wal_timer: int = 1) -> None:
         """Enables or disables Write‑Ahead Logging (WAL) mode.
 
         When enabled, the journal mode is set to ``WAL`` and a background
@@ -845,7 +855,7 @@ class Driver:
             self.wal_enabled.set()
             self.wal_stop.clear()
             self._exc('qcb', ("PRAGMA journal_mode=WAL;",))
-            Thread(target=Driver.checkpoint_timer, args=(self.main_queue, wal_timer, self.wal_stop)).start()
+            Thread(target=Driver.checkpoint_timer, args=(self.main_queue, wal_timer, self.wal_stop), daemon=True).start()
         else:
             self.wal_stop.set()
             self._exc('qcb', ("PRAGMA journal_mode=PERSIST;",))
@@ -9255,7 +9265,7 @@ class TableStructure:
                 db.create_table(orders_structure)
                 # This ensures referential integrity between orders and customers.
         """
-        fk = f'FOREIGN KEY ({column}) REFERENCES {refrences_table.name_[1:-1]} ({refrences_column.first_name})'
+        fk = f'FOREIGN KEY({column}) REFERENCES {refrences_table.name_}({refrences_column.first_name})'
         if on_delete:
             fk += f' ON DELETE {on_delete}'
         if on_update:
