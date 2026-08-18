@@ -127,7 +127,7 @@ class Table:
                 AND c.table_name = %s
             ORDER BY c.ordinal_position;
         """
-        return [{'cid': row[0],'name': row[1],'type': row[2],'datatype': (int if row[2].lower() in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial') else float) if row[2].lower() in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial', 'bit', 'numeric', 'decimal', 'real', 'double precision', 'money') else str if row[2].lower() in ('character varying', 'character', 'text', 'json', 'jsonb', 'uuid', 'date', 'time without time zone', 'time with time zone', 'timestamp without time zone', 'timestamp with time zone', 'interval') else bytes if row[2].lower() == 'bytea' else bool if row[2].lower() == 'boolean' else str,'notnull': bool(row[3]),'dflt_value': row[4],'pk': bool(row[5]),'full_type': row[6] if row[6] else row[2],'auto_increment': bool(row[7]),'num_precision': row[8],'num_scale': row[9],'datetime_precision': row[10],'fk_name': row[11],'fk_table': row[12],'fk_column': row[13],'fk_on_update': row[14],'fk_on_delete': row[15]} for row in self._excfp(query, (self.name_.strip('"'),))]
+        return [{'cid': row[0],'name': row[1],'type': row[2],'datatype': (int if row[2].lower() in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial') else float) if row[2].lower() in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial', 'bit', 'numeric', 'decimal', 'real', 'double precision', 'money') else bool if row[2].lower() == 'boolean' else object if row[2].lower() in ('date', 'time without time zone', 'time with time zone','timestamp without time zone', 'timestamp with time zone','interval') else bool if row[2].lower() == 'boolean' else bytes if row[2].lower() == 'bytea' else str if row[2].lower() in ('character varying', 'character', 'text', 'json', 'jsonb', 'uuid', 'date', 'time without time zone', 'time with time zone', 'timestamp without time zone', 'timestamp with time zone', 'interval') else bytes if row[2].lower() == 'bytea' else bool if row[2].lower() == 'boolean' else str,'notnull': bool(row[3]),'dflt_value': row[4],'pk': bool(row[5]),'full_type': row[6] if row[6] else row[2],'auto_increment': bool(row[7]),'num_precision': row[8],'num_scale': row[9],'datetime_precision': row[10],'fk_name': row[11],'fk_table': row[12],'fk_column': row[13],'fk_on_update': row[14],'fk_on_delete': row[15]} for row in self._excfp(query, (self.name_.strip('"'),))]
         
     def _exc(self, query):
         """Execute a SQL query with no parameters.
@@ -430,6 +430,8 @@ class Table:
             >>> # This produces: UPDATE "employees" SET "salary" = ("salary" * 1.1),
             >>> # "title" = ("title" || ' (Senior)') WHERE ("title" = 'Manager' AND "years" > 5);
         """
+        if not update:
+            return
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self._excp(f"UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value, Column) else f'{key.first_name}=%s' if not isinstance(value, ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key, value in list(update.items()))} WHERE {where._output[0]};", temp_list + where._output[1])
@@ -492,6 +494,8 @@ class Table:
             ... )
             >>> # Returns list of tuples like [(1, 'John Doe'), (2, 'Jane Smith')]
         """
+        if not which_columns:
+            return
         tl = []
         wc = []
         [wc.append(i.first_name) if isinstance(i,Column) else [wc.append(i._output[0]), tl.extend(i._output[1])] for i in which_columns]
@@ -531,6 +535,9 @@ class Table:
             ... })
             # Inserts a new row with the given values.
         """
+        if not insert:
+            self._exc(f'INSERT INTO {self.name_} DEFAULT VALUES;')
+            return
         self._excp(f'INSERT INTO {self.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'%s' for k in insert)})', [v for v in list(insert.values())])
 
     def custom_execute(self, query: str, params: list = None) -> None:
@@ -852,7 +859,7 @@ class Table:
         self._exc(f"ALTER TABLE {self.name_} ADD COLUMN {col_def};")
         self._exc(f'ALTER TABLE {self.name_} ADD PRIMARY KEY ("{column_name}");') if primary_key else None
         type_lower = data_type.lower().split("(")[0].strip()
-        self.__setattr__(column_name, Column(self, column_name, int if type_lower in ("smallint", "integer", "bigint", "smallserial", "serial", "bigserial") else float if type_lower in ("real", "double precision", "numeric", "decimal", "money") else str if type_lower in ("character varying", "character", "text", "json", "jsonb", "uuid", "date", "time without time zone", "time with time zone", "timestamp without time zone", "timestamp with time zone", "interval") else bytes if type_lower == "bytea" else bool if type_lower == "boolean" else str))
+        self.__setattr__(column_name, Column(self, column_name, int if type_lower in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial') else float) if type_lower in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial', 'bit', 'numeric', 'decimal', 'real', 'double precision', 'money') else bool if type_lower == 'boolean' else object if type_lower in ('date', 'time without time zone', 'time with time zone','timestamp without time zone', 'timestamp with time zone','interval') else bool if type_lower == 'boolean' else bytes if type_lower == 'bytea' else str if type_lower in ('character varying', 'character', 'text', 'json', 'jsonb', 'uuid', 'date', 'time without time zone', 'time with time zone', 'timestamp without time zone', 'timestamp with time zone', 'interval') else bytes if type_lower == 'bytea' else bool if type_lower == 'boolean' else str)
 
     def rename_table(self, new_name: str) -> None:
         """Rename the current table to a new name.

@@ -4526,7 +4526,7 @@ class BatchOperation:
                 # WHERE category = 'clearance';
         """
         if not update:
-            raise Exception("Update dictionary cannot be empty")
+            return self
         for v in update.values():
             if isinstance(v, bytes):
                 raise Exception("Bytes objects cannot be used as values")
@@ -4582,7 +4582,8 @@ class BatchOperation:
                 batch.run()
         """
         if not insert:
-            raise Exception("Insert dictionary cannot be empty")
+            self.script.append([f'INSERT INTO {self.table_obj.name_ if not table else table.name_} DEFAULT VALUES;', []])
+            return self
         for v in insert.values():
             if isinstance(v, bytes):
                 raise Exception("Bytes objects cannot be used as values")

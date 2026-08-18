@@ -4022,6 +4022,8 @@ class BatchOperation:
 
                 batch.run()  # Execute all batched operations
         """
+        if not update:
+            return self
         temp_list= []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self.script.append([f'UPDATE {table.name_ if table else self.table_obj.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value , Column) else f'{key.first_name}=%s' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key , value in list(update.items()))} WHERE {where._output[0]};', temp_list+where._output[1]])
@@ -4070,6 +4072,9 @@ class BatchOperation:
                 # Execute all batched operations
                 batch.run()
         """
+        if not insert:
+            self.script.append([f'INSERT INTO {self.table_obj.name_ if not table else table.name_} () VALUES ();', []])
+            return self
         self.script.append([f'INSERT INTO {table.name_ if table else self.table_obj.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'%s' for k in insert)})' , [v for v in list(insert.values())]])
         return self
 

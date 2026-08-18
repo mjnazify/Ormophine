@@ -538,7 +538,7 @@ class BatchOperation:
 
     def update(self, update: dict[Column, Any], where: ColumnsOperation, table: Table = None) -> 'BatchOperation':
         if not update:
-            raise Exception("Update dictionary cannot be empty")
+            return self
         for v in update.values():
             if isinstance(v, bytes):
                 raise Exception("Bytes objects cannot be used as values")
@@ -549,7 +549,8 @@ class BatchOperation:
 
     def insert(self, insert: dict[Column, Any], table: Table = None) -> 'BatchOperation':
         if not insert:
-            raise Exception("Insert dictionary cannot be empty")
+            self.script.append([f'INSERT INTO {self.table_obj.name_ if not table else table.name_} DEFAULT VALUES;', []])
+            return self
         for v in insert.values():
             if isinstance(v, bytes):
                 raise Exception("Bytes objects cannot be used as values")
@@ -686,6 +687,8 @@ class Table:
         return BatchOperation(self)
 
     def update(self, update: dict[Column, Any], where: 'ColumnsOperation') -> None:
+        if not update:
+            return
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         query = (f'UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value , Column) else f'{key.first_name}=?' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key , value in list(update.items()))} WHERE {where._output[0]};', temp_list+where._output[1])
@@ -705,7 +708,7 @@ class Table:
                 raise Exception(callback[1])
             self.db_obj.pool_holder.put(connection_queue)
         
-        return [{'id':i[0], 'name':i[1], 'datatype':int if 'INTEGER' in i[2]  else str if 'TEXT' in i[2] else float if 'REAL' in i[2] else bytes if 'BLOB' in i[2] else float if 'NUMERIC' in i[2] else str, 'notnull': i[3], 'default_value':i[4], 'primary_key':i[5]}for i in columns]
+        return [{'id':i[0], 'name':i[1], 'datatype':    int if 'INTEGER' in i[2]else float if 'REAL' in i[2]else bytes if 'BLOB' in i[2]else float if 'NUMERIC' in i[2]else object if any(k in i[2].upper() for k in ('DATE', 'TIME', 'TIMESTAMP', 'DATETIME'))else str, 'notnull': i[3], 'default_value':i[4], 'primary_key':i[5]}for i in columns]
 
     def get_columns_name(self, from_readers_pool: bool = False) -> list[str]:
         query = f'PRAGMA table_info({self.name_})'
@@ -724,6 +727,8 @@ class Table:
         return [i[1] for i in columns]
 
     def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column' = None,from_readers_pool: bool = False):
+        if not which_columns:
+            return
         tl = []
         wc = []
         [wc.append(i.first_name) if isinstance(i,Column) else [wc.append(i._output[0]), tl.extend(i._output[1])] for i in which_columns]
@@ -742,6 +747,9 @@ class Table:
                 raise Exception(callback[1])
 
     def insert(self, insert: dict['Column', Any]) -> None:
+        if not insert:
+            self._exc(f'INSERT INTO {self.name_} DEFAULT VALUES;')
+            return
         query = (f'INSERT INTO {self.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'?' for k in insert)})', [v for v in list(insert.values())])
         self._exc('qcb', query)
  
@@ -793,7 +801,9 @@ class Table:
     def add_column(self, column_name: str, datatype: int|str|float|bytes, default_value=None, not_null: bool=None) -> None:
         query = f'ALTER TABLE {self.name_} ADD COLUMN {datatype.replace('my_saulted_x',column_name)}{' NOT NULL' if not_null else ''}{f' DEFAULT {f"'{default_value}'" if type(default_value) == str else default_value}' if default_value else ''}'
         self._exc('qcb', (query,))
-        self.__setattr__(column_name, Column(self, column_name, int if 'INTEGER' in datatype  else str if 'TEXT' in datatype else float if 'REAL' in datatype else bytes if 'BLOB' in datatype else float if 'NUMERIC' in datatype else str))
+        type_str = datatype.split()[0] if ' ' in datatype else datatype
+        type_upper = type_str.upper()
+        self.__setattr__(column_name, Column(self, column_name, object if any(k in type_upper for k in ('DATE', 'TIME', 'TIMESTAMP', 'DATETIME')) else int if 'INTEGER' in type_upper else float if 'REAL' in type_upper or 'NUMERIC' in type_upper else bytes if 'BLOB' in type_upper else str))
 
     def rename_table(self, new_name: str) -> None:
         query = f'ALTER TABLE {self.name_} RENAME TO "{new_name}";'

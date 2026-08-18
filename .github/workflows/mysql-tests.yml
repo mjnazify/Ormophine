@@ -51,4 +51,4 @@ jobs:
         MYSQL_PASSWORD: password 
         MYSQL_DB_NAME: test_orm_db
       run: |
-        pytest tests/MySQL_Op.py -v
+        pytest tests/MySQL_Op.py tests/Mysql_test.py -v

@@ -399,6 +399,8 @@ class DataTypes:
                 table = (TableStructure('products')
                         .add_column('price', price_type, not_null=True))
         """
+        if precision < 1 or scale < 0 or scale > precision:
+            raise ValueError("Precision must be >= 1 and scale must be >= 0 and <= precision.")
         return f"DECIMAL({precision}, {scale})"
 
     @staticmethod
@@ -1540,6 +1542,29 @@ class DataTypes:
             explicitly, or rely on the convenience method in your table builder.
         """
         return "SERIAL"
+
+    @staticmethod
+    def BOOLEAN() -> str:
+        """Returns the SQL BOOLEAN type string for true/false values.
+
+        ``BOOLEAN`` represents a logical truth value, storing ``TRUE``,
+        ``FALSE``, or ``NULL``. In PostgreSQL, it is equivalent to the
+        ``bool`` type. This method simply returns the literal ``'BOOLEAN'``,
+        which can be used directly in ``CREATE TABLE`` definitions or passed
+        to methods such as :meth:`TableStructure.add_column` and
+        :meth:`Table.add_column`.
+
+        Returns:
+            str: The string ``"BOOLEAN"``, ready for use in a column
+            definition.
+
+        Example:
+            >>> from ormophine.Postgresql import DataTypes, TableStructure
+            >>> structure = TableStructure("users")
+            >>> structure.add_column("is_active", DataTypes.BOOLEAN(),
+            ...                      default=True, not_null=True)
+        """
+        return "BOOLEAN"
         
 
 class TableStructure:
@@ -1844,8 +1869,6 @@ class TableStructure:
             raise TypeError("datatype must be a string returned by DataTypes.")
 
         if primary_key:
-            if not not_null:
-                raise Exception("PRIMARY KEY columns must also be NOT NULL.")
             if unique:
                 raise Exception("PRIMARY KEY columns cannot be UNIQUE, as they are inherently unique.")
                 
@@ -1870,8 +1893,7 @@ class TableStructure:
             "NUMERIC",
             "FLOAT",
             "DOUBLE",
-            "REAL",
-            "SERIAL"
+            "REAL"
         )
 
         if auto_increment:
@@ -1885,10 +1907,6 @@ class TableStructure:
         if 'TEXT' in datatype or 'BLOB' in datatype:
             if default_value is not None:
                 raise Exception("TEXT and BLOB columns cannot have default values.")
-
-        if 'SERIAL' in datatype:
-            if not primary_key or not auto_increment or not not_null:
-                raise Exception("SERIAL implies PRIMARY KEY, AUTO_INCREMENT, and NOT NULL.")
             
     def add_column(self, column_name: str, datatype: DataTypes,
                     default_value=None, unique: bool = None,
@@ -1960,17 +1978,8 @@ class TableStructure:
                 # The structure is now ready for get_structure()
         """
         column_name = f'`{column_name.strip()}`'
-        primary_key, not_null, auto_increment = (True, True, True) if datatype == 'SERIAL' else (primary_key, not_null, auto_increment)
-        self._validate_column(
-        column_name,
-        datatype,
-        default_value,
-        unique,
-        not_null,
-        primary_key,
-        auto_increment
-        )
-
+        auto_increment , not_null, unique = (False, False, False) if 'SERIAL' in datatype else (auto_increment, not_null, unique)
+        self._validate_column(column_name,datatype,default_value,unique,not_null,primary_key,auto_increment)
         for item in self.table_query.split(','):
             if item and (column_name in item) and item.split(' ')[1] == column_name:
                 raise Exception('You have added this column befor\nif you wanna modify this column , delete this column and then add a new one with desired options')
@@ -1978,7 +1987,7 @@ class TableStructure:
             raise Exception('Cant set bytes object as default value')
         self.primary_keys.append(column_name) if primary_key else None
         self.items[column_name] = [datatype, default_value, unique, not_null, primary_key, auto_increment]
-        self.table_query = self.table_query + f' {column_name.strip()} {datatype}{" AUTO_INCREMENT" if auto_increment else ""}{" UNIQUE" if unique else ""}{" NOT NULL" if not_null else ""}{f" DEFAULT {f'"{default_value}"' if type(default_value) == str else default_value}" if default_value else ""},'
+        self.table_query = self.table_query + f' {column_name.strip()} {datatype}{" AUTO_INCREMENT" if auto_increment else ""}{" UNIQUE" if unique else ""}{" NOT NULL" if not_null else ""}{f" DEFAULT {('TRUE' if default_value else 'FALSE') if isinstance(default_value,bool) else f"'{default_value}'" if type(default_value) == str else str(default_value)}" if default_value is not None else ""},'
         return self
 
     def delete_column(self, column_name: str):

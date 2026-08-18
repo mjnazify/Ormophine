@@ -473,7 +473,7 @@ class Table:
             'cid': row[0],           # ORDINAL_POSITION
             'name': row[1],          # COLUMN_NAME
             'type': row[2],          # DATA_TYPE (MySQL type name)
-            'datatype': int if row[2].lower().split('(')[0] in ('int', 'integer', 'tinyint', 'smallint', 'mediumint', 'bigint', 'serial', 'year', 'bit') else float if row[2].lower().split('(')[0] in ('real', 'float', 'double', 'decimal', 'numeric') else str if row[2].lower().split('(')[0] in ('char', 'varchar', 'text', 'tinytext', 'mediumtext', 'longtext', 'enum', 'set', 'json', 'date', 'time', 'datetime', 'timestamp') else bytes if row[2].lower().split('(')[0] in ('blob', 'tinyblob', 'mediumblob', 'longblob', 'binary', 'varbinary', 'geometry', 'point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon', 'geometrycollection') else str,  # Python type (int, str, float, bytes)
+            'datatype': (int if row[2].lower().split('(')[0] in ('int', 'integer', 'tinyint', 'smallint', 'mediumint', 'bigint', 'serial', 'year', 'bit') else float if row[2].lower().split('(')[0] in ('real', 'float', 'double', 'decimal', 'numeric') else  bool if row[2].lower().split('(')[0] == 'boolean' else object if row[2].lower().split('(')[0] in ('date', 'time', 'datetime', 'timestamp')else str if row[2].lower().split('(')[0] in ('char', 'varchar', 'text', 'tinytext', 'mediumtext', 'longtext', 'enum', 'set', 'json')else bytes if row[2].lower().split('(')[0] in ('blob', 'tinyblob', 'mediumblob', 'longblob', 'binary', 'varbinary', 'geometry', 'point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon', 'geometrycollection') else str),
             'notnull': bool(row[3]), # True/False
             'dflt_value': row[4],    # COLUMN_DEFAULT
             'pk': bool(row[5]),      # True/False
@@ -607,6 +607,8 @@ class Table:
                 where=table.stock < 5
             )
         """
+        if not update:
+            return
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self._excp(f"UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value, Column) else f'{key.first_name}=%s' if not isinstance(value, ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key, value in list(update.items()))} WHERE {where._output[0]};", temp_list + where._output[1])
@@ -684,6 +686,8 @@ class Table:
                 )
                 # result: [('Widget', 55.0, 'WIDGET - GADGETS'), ...]
         """
+        if not which_columns:
+            return
         tl = []
         wc = []
         [wc.append(i.first_name) if isinstance(i,Column) else [wc.append(i._output[0]), tl.extend(i._output[1])] for i in which_columns]
@@ -725,6 +729,9 @@ class Table:
             The method automatically handles parameterized queries, so values are
             safely escaped.
         """
+        if not insert:
+            self._exc(f'INSERT INTO {self.name_} () VALUES ();')
+            return
         self._excp(f'INSERT INTO {self.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'%s' for k in insert)})', [v for v in list(insert.values())])
 
     def custom_execute(self, query: str, params: list = None) -> None:
@@ -1065,7 +1072,7 @@ class Table:
         """
         self._exc(f'ALTER TABLE {self.name_} ADD COLUMN {column_name} {data_type} {' NOT NULL' if not nullable else ''}{' AUTO_INCREMENT' if auto_increment else ''}{f" DEFAULT '{default}'" if default is not None and isinstance(default,str) else f' DEFAULT {default}' if default is not None else ''}{' UNIQUE' if unique else ''}{f" COMMENT '{comment}'" if comment else ''}{' FIRST' if first else f" AFTER {after.first_name[1:-1]}" if after else ''};')
         self._exc(f"ALTER TABLE {self.name_} ADD PRIMARY KEY (`{column_name}`);") if primary_key else ''
-        self.__setattr__(column_name, Column(self, column_name, int if data_type.lower().split('(')[0] in ('int', 'integer', 'tinyint', 'smallint', 'mediumint', 'bigint', 'serial', 'year', 'bit') else float if data_type.lower().split('(')[0] in ('real', 'float', 'double', 'decimal', 'numeric') else str if data_type.lower().split('(')[0] in ('char', 'varchar', 'text', 'tinytext', 'mediumtext', 'longtext', 'enum', 'set', 'json', 'date', 'time', 'datetime', 'timestamp') else bytes if data_type.lower().split('(')[0] in ('blob', 'tinyblob', 'mediumblob', 'longblob', 'binary', 'varbinary', 'geometry', 'point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon', 'geometrycollection') else str))
+        self.__setattr__(column_name, Column(self, column_name, int if data_type.lower().split('(')[0] in ('int', 'integer', 'tinyint', 'smallint', 'mediumint', 'bigint', 'serial', 'year', 'bit') else float if data_type.lower().split('(')[0] in ('real', 'float', 'double', 'decimal', 'numeric') else   bool if data_type.lower().split('(')[0] == 'boolean' else object if data_type.lower().split('(')[0] in ('date', 'time', 'datetime', 'timestamp')else str if data_type.lower().split('(')[0] in ('char', 'varchar', 'text', 'tinytext', 'mediumtext', 'longtext', 'enum', 'set', 'json')else bytes if data_type.lower().split('(')[0] in ('blob', 'tinyblob', 'mediumblob', 'longblob', 'binary', 'varbinary', 'geometry', 'point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon', 'geometrycollection') else str))
 
     def rename_table(self, new_name: str) -> None:
         """
@@ -1304,7 +1311,7 @@ class Table:
                 # Index: PRIMARY, Column: id, Unique: False
                 # Index: idx_users_email, Column: email, Unique: True
         """
-        return [{'idx_name':i[2], 'non_unique':bool(i[1]), 'seq_in_idx':i[3], 'Columns_name':i[4],'collation':i[5], 'cardinality':i[6], 'sub_part':i[7], 'packed':i[8], 'nullable':i[9], 'idx_type':i[10], 'comment':i[11]} for i in self._excf(f'SHOW INDEX FROM {self.name_}')]
+        return [{'idx_name':i[2], 'non_unique':bool(i[1]),'unique': not bool(i[1]), 'seq_in_idx':i[3], 'Columns_name':i[4],'collation':i[5], 'cardinality':i[6], 'sub_part':i[7], 'packed':i[8], 'nullable':i[9], 'idx_type':i[10], 'comment':i[11]} for i in self._excf(f'SHOW INDEX FROM {self.name_}')]
 
     def bulk_insert(self, columns: list['Column'], data_list: list) -> None:
         """

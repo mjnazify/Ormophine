@@ -432,6 +432,8 @@ class Driver():
                 finally:
                     driver.connection_pool.put((con, cur))
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         try:
             return self.connection_pool.get(block=True, timeout=0.5)
         except Empty:
@@ -485,6 +487,8 @@ class Driver():
             create a new connection (up to the pool size limit). It is safe for
             concurrent use.
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query, params)
@@ -502,7 +506,7 @@ class Driver():
                     con.commit()
                     self.connection_pool.put((con, cur))
                     return res
-                except OperationalError as e2:
+                except OperationalError:
                     self._handle_broken_connection(con)
                     raise
             else:
@@ -510,6 +514,10 @@ class Driver():
                 self.connection_pool.put((con, cur))
                 raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
         except ProgrammingError as e:
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+        except Exception as e:   # <--- اضافه کنید
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
@@ -555,6 +563,8 @@ class Driver():
 
         .. seealso:: :meth:`_excfp` for parameterized queries that return results.
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query)
@@ -580,6 +590,10 @@ class Driver():
                 self.connection_pool.put((con, cur))
                 raise Exception(f'{e}\nQuery:\n\t{query}')
         except ProgrammingError as e:
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}')
+        except Exception as e:   # <--- اضافه کنید
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}')
@@ -617,6 +631,8 @@ class Driver():
                     ("Alice", 30)
                 )
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query, params)
@@ -641,7 +657,11 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+    
     def _exc(self, query):
         """
         Execute a SQL query without parameters and commit the transaction.
@@ -674,6 +694,8 @@ class Driver():
                 # Drop a table (use with caution)
                 db._exc("DROP TABLE IF EXISTS temp;")
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query)
@@ -698,7 +720,11 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}')
+    
     def _excs(self, query_params: list):
         """
         Execute a script of multiple parameterized SQL queries in a single transaction.
@@ -737,6 +763,8 @@ class Driver():
                 ]
                 db._excs(script)
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             for q in query_params:
@@ -771,7 +799,12 @@ class Driver():
             self.connection_pool.put((con, cur))
             queries_str = '\n'.join([f'Query: {q[0]}\nParams: {q[1] if len(q)>1 else ""}' for q in query_params])
             raise Exception(f'{e}\n{queries_str}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            queries_str = '\n'.join([f'Query: {q[0]}\nParams: {q[1] if len(q)>1 else ""}' for q in query_params])
+            raise Exception(f'{e}\n{queries_str}')
+    
     def _excm(self, query, params):
         """
         Execute a parameterized query multiple times with different parameter sets.
@@ -813,6 +846,8 @@ class Driver():
                     [("Alice", 30), ("Bob", 25), ("Charlie", 35)]
                 )
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.executemany(query, params)
@@ -837,7 +872,11 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+    
     def _handle_broken_connection(self, con):
         """
         Handle a broken database connection by cleaning up and creating a replacement.
@@ -870,14 +909,14 @@ class Driver():
                         self._handle_broken_connection(connection)
                         # Retry the query with a new connection
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         try:
             con.close()
         except:
             pass
-        # حذف از storage اگر وجود دارد
         if con in self.connection_pool_storage:
             self.connection_pool_storage.remove(con)
-        # ایجاد اتصال جدید برای جایگزینی
         self._create_connection()
 
     def delete_table(self, table: Table, are_you_sure: bool, are_you_really_sure: bool, for_sure: bool):
@@ -1576,6 +1615,8 @@ class Driver():
                 db.disconnect()
                 db.get_tables()  # Raises RuntimeError: You have closed the connection...
         """
+        if not self._connected:
+            raise RuntimeError("Already disconnected")
         self._connected = False
         for i in self.connection_pool_storage:
             try:

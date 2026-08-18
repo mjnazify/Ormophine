@@ -1,6 +1,7 @@
 # Python cache
 __pycache__/
 *.py[cod]
+UpdateLocalAiRefrence.bat
 
 # Build and distribution
 dist/
@@ -13,7 +14,7 @@ docs/build/
 # Sensitive files
 .pypirc
 
-# IDE (اختیاری، ولی پیشنهاد می‌شود)
+# IDE
 .vscode/
 .idea/
 *.swp

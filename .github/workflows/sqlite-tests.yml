@@ -27,4 +27,4 @@ jobs:
 
     - name: Run SQLite Tests
       run: |
-        pytest tests/Sqlite_Op.py -v
+        pytest tests/Sqlite_Op.py tests/Sqlite_test.py -v

@@ -506,12 +506,17 @@ class BatchOperation:
         self.table_obj = table_object
 
     def update(self, update: dict[Column, Any], where: ColumnsOperation, table: Table = None) -> 'BatchOperation':
+        if not update:
+            return self
         temp_list= []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self.script.append([f'UPDATE {table.name_ if table else self.table_obj.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value , Column) else f'{key.first_name}=%s' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key , value in list(update.items()))} WHERE {where._output[0]};', temp_list+where._output[1]])
         return self
 
     def insert(self, insert: dict[Column, Any], table: Table = None) -> 'BatchOperation':
+        if not insert:
+            self.script.append([f'INSERT INTO {self.table_obj.name_ if not table else table.name_} DEFAULT VALUES;', []])
+            return self
         self.script.append([f'INSERT INTO {table.name_ if table else self.table_obj.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'%s' for k in insert)})' , [v for v in list(insert.values())]])
         return self
 
@@ -591,7 +596,7 @@ class Table:
                 AND c.table_name = %s
             ORDER BY c.ordinal_position;
         """
-        return [{'cid': row[0],'name': row[1],'type': row[2],'datatype': (int if row[2].lower() in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial') else float) if row[2].lower() in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial', 'bit', 'numeric', 'decimal', 'real', 'double precision', 'money') else str if row[2].lower() in ('character varying', 'character', 'text', 'json', 'jsonb', 'uuid', 'date', 'time without time zone', 'time with time zone', 'timestamp without time zone', 'timestamp with time zone', 'interval') else bytes if row[2].lower() == 'bytea' else bool if row[2].lower() == 'boolean' else str,'notnull': bool(row[3]),'dflt_value': row[4],'pk': bool(row[5]),'full_type': row[6] if row[6] else row[2],'auto_increment': bool(row[7]),'num_precision': row[8],'num_scale': row[9],'datetime_precision': row[10],'fk_name': row[11],'fk_table': row[12],'fk_column': row[13],'fk_on_update': row[14],'fk_on_delete': row[15]} for row in self._excfp(query, (self.name_.strip('"'),))]
+        return [{'cid': row[0],'name': row[1],'type': row[2],'datatype': (int if row[2].lower() in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial') else float) if row[2].lower() in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial', 'bit', 'numeric', 'decimal', 'real', 'double precision', 'money') else bool if row[2].lower() == 'boolean' else object if row[2].lower() in ('date', 'time without time zone', 'time with time zone','timestamp without time zone', 'timestamp with time zone','interval') else bool if row[2].lower() == 'boolean' else bytes if row[2].lower() == 'bytea' else str if row[2].lower() in ('character varying', 'character', 'text', 'json', 'jsonb', 'uuid', 'date', 'time without time zone', 'time with time zone', 'timestamp without time zone', 'timestamp with time zone', 'interval') else bytes if row[2].lower() == 'bytea' else bool if row[2].lower() == 'boolean' else str,'notnull': bool(row[3]),'dflt_value': row[4],'pk': bool(row[5]),'full_type': row[6] if row[6] else row[2],'auto_increment': bool(row[7]),'num_precision': row[8],'num_scale': row[9],'datetime_precision': row[10],'fk_name': row[11],'fk_table': row[12],'fk_column': row[13],'fk_on_update': row[14],'fk_on_delete': row[15]} for row in self._excfp(query, (self.name_.strip('"'),))]
         
     def _exc(self, query):
         self.db_obj._exc(query)
@@ -618,17 +623,24 @@ class Table:
         return BatchOperation(self)
 
     def update(self, update: dict[Column, Any], where: 'ColumnsOperation') -> None:
+        if not update:
+            return
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self._excp(f'UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value , Column) else f'{key.first_name}=%s' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key , value in list(update.items()))} WHERE {where._output[0]};', temp_list+where._output[1])
         
     def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column' = None):
+        if not which_columns:
+            return
         tl = []
         wc = []
         [wc.append(i.first_name) if isinstance(i,Column) else [wc.append(i._output[0]), tl.extend(i._output[1])] for i in which_columns]
         return [row[0] for row in (self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''};', tl+where._output[1]) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',tl) if tl else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',))] if len(which_columns) == 1 else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''};', tl+where._output[1]) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',tl) if tl else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',)
         
     def insert(self, insert: dict['Column', Any]) -> None:
+        if not insert:
+            self._exc(f'INSERT INTO {self.name_} DEFAULT VALUES;')
+            return
         self._excp(f'INSERT INTO {self.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'%s' for k in insert)})', [v for v in list(insert.values())])
 
     def custom_execute(self, query: str, params: list = None) -> None:
@@ -668,7 +680,7 @@ class Table:
         self._exc(f"ALTER TABLE {self.name_} ADD COLUMN {col_def};")
         self._exc(f'ALTER TABLE {self.name_} ADD PRIMARY KEY ("{column_name}");') if primary_key else None
         type_lower = data_type.lower().split("(")[0].strip()
-        self.__setattr__(column_name, Column(self, column_name, int if type_lower in ("smallint", "integer", "bigint", "smallserial", "serial", "bigserial") else float if type_lower in ("real", "double precision", "numeric", "decimal", "money") else str if type_lower in ("character varying", "character", "text", "json", "jsonb", "uuid", "date", "time without time zone", "time with time zone", "timestamp without time zone", "timestamp with time zone", "interval") else bytes if type_lower == "bytea" else bool if type_lower == "boolean" else str))
+        self.__setattr__(column_name, Column(self, column_name, int if type_lower in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial') else float) if type_lower in ('smallint', 'integer', 'bigint', 'serial', 'smallserial', 'bigserial', 'bit', 'numeric', 'decimal', 'real', 'double precision', 'money') else bool if type_lower == 'boolean' else object if type_lower in ('date', 'time without time zone', 'time with time zone','timestamp without time zone', 'timestamp with time zone','interval') else bool if type_lower == 'boolean' else bytes if type_lower == 'bytea' else str if type_lower in ('character varying', 'character', 'text', 'json', 'jsonb', 'uuid', 'date', 'time without time zone', 'time with time zone', 'timestamp without time zone', 'timestamp with time zone', 'interval') else bytes if type_lower == 'bytea' else bool if type_lower == 'boolean' else str)
 
     def rename_table(self, new_name: str) -> None:
         self._exc(f'ALTER TABLE {self.name_} RENAME TO "{new_name}";')
@@ -781,6 +793,8 @@ class DataTypes:
 
     @staticmethod
     def DECIMAL(precision: int = 10, scale: int = 0) -> str:
+        if precision < 1 or scale < 0 or scale > precision:
+            raise ValueError("Precision must be >= 1 and scale must be >= 0 and <= precision.")
         return f"DECIMAL({precision}, {scale})"
 
     @staticmethod
@@ -973,8 +987,6 @@ class TableStructure:
             raise TypeError("datatype must be a string returned by DataTypes.")
 
         if primary_key:
-            if not not_null:
-                raise Exception("PRIMARY KEY columns must also be NOT NULL.")
             if unique:
                 raise Exception("PRIMARY KEY columns cannot be UNIQUE, as they are inherently unique.")
 
@@ -1013,7 +1025,7 @@ class TableStructure:
         self.primary_keys.append(column_name) if primary_key else None
         self.items[column_name] = [datatype, default_value, unique, not_null, primary_key, auto_increment]
         auto_part = " GENERATED BY DEFAULT AS IDENTITY" if auto_increment and datatype not in ("SMALLSERIAL", "SERIAL", "BIGSERIAL") else ""
-        self.table_query += f' {column_name.strip()} {datatype}{auto_part}{' UNIQUE' if unique else ''}{' NOT NULL' if not_null else ''}{f' DEFAULT {f"'{default_value}'" if type(default_value) == str else default_value}' if default_value is not None else ''},'
+        self.table_query += f' {column_name.strip()} {datatype}{auto_part}{' UNIQUE' if unique else ''}{' NOT NULL' if not_null else ''}{f" DEFAULT {('TRUE' if default_value else 'FALSE') if isinstance(default_value,bool) else f"'{default_value}'" if type(default_value) == str else str(default_value)}" if default_value is not None else ""},'
         return self
 
     def delete_column(self, column_name: str):
@@ -1138,7 +1150,7 @@ class Driver():
                 connection = connect(**conf, dbname='postgres')
                 connection.autocommit = True
                 cur = connection.cursor()
-                query = f"CREATE DATABASE {self.db_name} ENCODING '{self.client_encoding}'"
+                query = f"CREATE DATABASE {self.db_name} ENCODING '{self.client_encoding}' TEMPLATE template0"
                 if self.collate:
                     query += f" LC_COLLATE = '{self.collate}' LC_CTYPE = '{self.collate}'"
                 cur.execute(query)
@@ -1158,20 +1170,24 @@ class Driver():
         try:
             con = connect(**self.config)
             cur = con.cursor()
+            cur.execute(f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {self.isolation_level};")
+            con.commit()
             self.connection_pool.put((con, cur))
             self.connection_pool_storage.append(con)
-            cur.execute(f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {self.isolation_level};")
         except OperationalError as e:
-            if e.sqlstate in self.CONNECTION_ERRORS:  
+            if e.sqlstate in self.CONNECTION_ERRORS:
                 con = connect(**self.config)
                 cur = con.cursor()
+                cur.execute(f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {self.isolation_level};")
+                con.commit()
                 self.connection_pool.put((con, cur))
                 self.connection_pool_storage.append(con)
-                cur.execute(f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {self.isolation_level};")
             else:
                 raise
 
     def _get_connection(self):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         try:
             return self.connection_pool.get(block=True, timeout=0.5)
         except Empty:
@@ -1182,6 +1198,8 @@ class Driver():
                 raise Exception(f'{e}\n\nEmpty connection pool, you better increase `pool_size`')#TODO Create get_schema() from table and db and column 
 
     def _excfp(self, query, params):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query, params)
@@ -1207,11 +1225,17 @@ class Driver():
                 self.connection_pool.put((con, cur))
                 raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
         except ProgrammingError as e:
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+        except Exception as e:   # <--- اضافه کنید
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
 
     def _excf(self, query):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query)
@@ -1240,8 +1264,14 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}')
+    
     def _excp(self, query, params):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query, params)
@@ -1266,8 +1296,14 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+    
     def _exc(self, query):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query)
@@ -1292,8 +1328,14 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}')
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}')
 
     def _excs(self, query_params: list):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             for q in query_params:
@@ -1328,8 +1370,15 @@ class Driver():
             self.connection_pool.put((con, cur))
             queries_str = '\n'.join([f'Query: {q[0]}\nParams: {q[1] if len(q)>1 else ""}' for q in query_params])
             raise Exception(f'{e}\n{queries_str}')
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            queries_str = '\n'.join([f'Query: {q[0]}\nParams: {q[1] if len(q)>1 else ""}' for q in query_params])
+            raise Exception(f'{e}\n{queries_str}')
 
     def _excm(self, query, params):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         
         try:
@@ -1357,6 +1406,8 @@ class Driver():
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
 
     def _handle_broken_connection(self, con):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         try:
             con.close()
         except:
@@ -1374,12 +1425,16 @@ class Driver():
         if are_you_sure and are_you_really_sure and for_sure:
             con, cur = self._get_connection()
             try:
+                con.rollback()
                 con.autocommit = True
                 cur.execute(f'DROP DATABASE "{database_name}";')
                 con.autocommit = False
                 self.connection_pool.put((con, cur))
             except Exception:
-                con.autocommit = False
+                try:
+                    con.autocommit = False
+                except:
+                    pass
                 self.connection_pool.put((con, cur))
                 raise
             
@@ -1406,19 +1461,29 @@ class Driver():
         tables = self.get_tables()
         con, cur = self._get_connection()
         try:
+            con.rollback()
             con.autocommit = True
             for i in tables:
                 cur.execute(f'VACUUM (ANALYZE) "{i}";')
             con.autocommit = False
             self.connection_pool.put((con, cur))
         except Exception:
-            con.autocommit = False
+            try:
+                con.autocommit = False
+            except:
+                pass
             self.connection_pool.put((con, cur))
             raise
 
     def create_user(self, username: str, password: str):
-        query = f"CREATE USER \"{username.replace('\"', '\"\"')}\" WITH PASSWORD '{password}';"
-        self._exc(query)
+        forbidden = (';', '--', '\0', "'")
+        for ch in forbidden:
+            if ch in username:
+                raise Exception(
+                    f"Invalid username: '{username}' contains forbidden character '{ch}'"
+                )
+        safe_username = username.replace('"', '""')
+        self._exc(f'CREATE USER "{safe_username}" WITH PASSWORD \'{password}\';')
 
     def drop_user(self, username: str):
         query = f'DROP USER "{username.replace('"', '""')}";'
@@ -1447,6 +1512,8 @@ class Driver():
         self._exc(query)
 
     def disconnect(self):
+        if not self._connected:
+            raise RuntimeError("Already disconnected")
         self._connected = False
         for i in self.connection_pool_storage:
             try:

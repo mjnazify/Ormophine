@@ -31,7 +31,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.12' 
+        python-version: '3.12'
 
     - name: Install system dependencies for psycopg
       run: |
@@ -53,4 +53,4 @@ jobs:
         PG_PASSWORD: "1234" 
         PG_DB_NAME: test_orm_db
       run: |
-        pytest tests/PostgreSQL_Op.py -v
+        pytest tests/PostgreSQL_Op.py tests/PostgreSQL_test.py -v

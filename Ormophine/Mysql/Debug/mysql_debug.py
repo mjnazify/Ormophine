@@ -510,12 +510,17 @@ class BatchOperation:
         self.table_obj = table_object
 
     def update(self, update: dict[Column, Any], where: ColumnsOperation, table: Table = None) -> 'BatchOperation':
+        if not update:
+            return self
         temp_list= []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self.script.append([f'UPDATE {table.name_ if table else self.table_obj.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value , Column) else f'{key.first_name}=%s' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key , value in list(update.items()))} WHERE {where._output[0]};', temp_list+where._output[1]])
         return self
 
     def insert(self, insert: dict[Column, Any], table: Table = None) -> 'BatchOperation':
+        if not insert:
+            self.script.append([f'INSERT INTO {self.table_obj.name_ if not table else table.name_} () VALUES ();', []])
+            return self
         self.script.append([f'INSERT INTO {table.name_ if table else self.table_obj.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'%s' for k in insert)})' , [v for v in list(insert.values())]])
         return self
 
@@ -616,7 +621,7 @@ class Table:
             'cid': row[0],           # ORDINAL_POSITION
             'name': row[1],          # COLUMN_NAME
             'type': row[2],          # DATA_TYPE (MySQL type name)
-            'datatype': int if row[2].lower().split('(')[0] in ('int', 'integer', 'tinyint', 'smallint', 'mediumint', 'bigint', 'serial', 'year', 'bit') else float if row[2].lower().split('(')[0] in ('real', 'float', 'double', 'decimal', 'numeric') else str if row[2].lower().split('(')[0] in ('char', 'varchar', 'text', 'tinytext', 'mediumtext', 'longtext', 'enum', 'set', 'json', 'date', 'time', 'datetime', 'timestamp') else bytes if row[2].lower().split('(')[0] in ('blob', 'tinyblob', 'mediumblob', 'longblob', 'binary', 'varbinary', 'geometry', 'point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon', 'geometrycollection') else str,  # Python type (int, str, float, bytes)
+            'datatype': (int if row[2].lower().split('(')[0] in ('int', 'integer', 'tinyint', 'smallint', 'mediumint', 'bigint', 'serial', 'year', 'bit') else float if row[2].lower().split('(')[0] in ('real', 'float', 'double', 'decimal', 'numeric') else bool if row[2].lower().split('(')[0] == 'boolean' else object if row[2].lower().split('(')[0] in ('date', 'time', 'datetime', 'timestamp')else str if row[2].lower().split('(')[0] in ('char', 'varchar', 'text', 'tinytext', 'mediumtext', 'longtext', 'enum', 'set', 'json')else bytes if row[2].lower().split('(')[0] in ('blob', 'tinyblob', 'mediumblob', 'longblob', 'binary', 'varbinary', 'geometry', 'point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon', 'geometrycollection') else str),
             'notnull': bool(row[3]), # True/False
             'dflt_value': row[4],    # COLUMN_DEFAULT
             'pk': bool(row[5]),      # True/False
@@ -638,17 +643,24 @@ class Table:
         return BatchOperation(self)
 
     def update(self, update: dict[Column, Any], where: 'ColumnsOperation') -> None:
+        if not update:
+            return
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self._excp(f'UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value , Column) else f'{key.first_name}=%s' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key , value in list(update.items()))} WHERE {where._output[0]};', temp_list+where._output[1])
         
     def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column' = None):
+        if not which_columns:
+            return
         tl = []
         wc = []
         [wc.append(i.first_name) if isinstance(i,Column) else [wc.append(i._output[0]), tl.extend(i._output[1])] for i in which_columns]
         return [row[0] for row in (self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''};', tl+where._output[1]) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',tl) if tl else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',))] if len(which_columns) == 1 else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''};', tl+where._output[1]) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',tl) if tl else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',)
         
     def insert(self, insert: dict['Column', Any]) -> None:
+        if not insert:
+            self._exc(f'INSERT INTO {self.name_} () VALUES ();')
+            return
         self._excp(f'INSERT INTO {self.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'%s' for k in insert)})', [v for v in list(insert.values())])
 
     def custom_execute(self, query: str, params: list = None) -> None:
@@ -694,7 +706,7 @@ class Table:
     ) -> None:
         self._exc(f'ALTER TABLE {self.name_} ADD COLUMN {column_name} {data_type} {' NOT NULL' if not nullable else ''}{' AUTO_INCREMENT' if auto_increment else ''}{f" DEFAULT '{default}'" if default is not None and isinstance(default,str) else f' DEFAULT {default}' if default is not None else ''}{' UNIQUE' if unique else ''}{f" COMMENT '{comment}'" if comment else ''}{' FIRST' if first else f" AFTER {after.first_name[1:-1]}" if after else ''};')
         self._exc(f"ALTER TABLE {self.name_} ADD PRIMARY KEY (`{column_name}`);") if primary_key else ''
-        self.__setattr__(column_name, Column(self, column_name, int if data_type.lower().split('(')[0] in ('int', 'integer', 'tinyint', 'smallint', 'mediumint', 'bigint', 'serial', 'year', 'bit') else float if data_type.lower().split('(')[0] in ('real', 'float', 'double', 'decimal', 'numeric') else str if data_type.lower().split('(')[0] in ('char', 'varchar', 'text', 'tinytext', 'mediumtext', 'longtext', 'enum', 'set', 'json', 'date', 'time', 'datetime', 'timestamp') else bytes if data_type.lower().split('(')[0] in ('blob', 'tinyblob', 'mediumblob', 'longblob', 'binary', 'varbinary', 'geometry', 'point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon', 'geometrycollection') else str))
+        self.__setattr__(column_name, Column(self, column_name, int if data_type.lower().split('(')[0] in ('int', 'integer', 'tinyint', 'smallint', 'mediumint', 'bigint', 'serial', 'year', 'bit') else float if data_type.lower().split('(')[0] in ('real', 'float', 'double', 'decimal', 'numeric') else bool if data_type.lower().split('(')[0] == 'boolean' else object if data_type.lower().split('(')[0] in ('date', 'time', 'datetime', 'timestamp')else str if data_type.lower().split('(')[0] in ('char', 'varchar', 'text', 'tinytext', 'mediumtext', 'longtext', 'enum', 'set', 'json')else bytes if data_type.lower().split('(')[0] in ('blob', 'tinyblob', 'mediumblob', 'longblob', 'binary', 'varbinary', 'geometry', 'point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon', 'geometrycollection') else str))
 
     def rename_table(self, new_name: str) -> None:
         self._exc(f'ALTER TABLE {self.name_} RENAME TO `{new_name}`;')
@@ -730,7 +742,7 @@ class Table:
         self._exc(f'DROP INDEX {index_name} ON {self.name_};')
 
     def get_indexes_info(self) -> Any:
-        return [{'idx_name':i[2], 'non_unique':bool(i[1]), 'seq_in_idx':i[3], 'Columns_name':i[4],'collation':i[5], 'cardinality':i[6], 'sub_part':i[7], 'packed':i[8], 'nullable':i[9], 'idx_type':i[10], 'comment':i[11]} for i in self._excf(f'SHOW INDEX FROM {self.name_}')]
+        return [{'idx_name':i[2], 'non_unique':bool(i[1]),'unique': not bool(i[1]), 'seq_in_idx':i[3], 'Columns_name':i[4],'collation':i[5], 'cardinality':i[6], 'sub_part':i[7], 'packed':i[8], 'nullable':i[9], 'idx_type':i[10], 'comment':i[11]} for i in self._excf(f'SHOW INDEX FROM {self.name_}')]
 
     def bulk_insert(self, columns: list['Column'], data_list: list) -> None:
         self._excm(f'INSERT INTO {self.name_} ({', '.join(i.first_name for i in columns)}) VALUES ({', '.join('%s' for i in columns)});',data_list)
@@ -881,8 +893,10 @@ class DataTypes:
         Exact fixed-point number.
         Example: DECIMAL(10,2)
         """
+        if precision < 1 or scale < 0 or scale > precision:
+            raise ValueError("Precision must be >= 1 and scale must be >= 0 and <= precision.")
         return f"DECIMAL({precision}, {scale})"
-
+    
     @staticmethod
     def NUMERIC(precision: int = 10, scale: int = 0) -> str:
         """
@@ -1176,7 +1190,10 @@ class DataTypes:
         Convenience for auto-increment primary key.
         """
         return "SERIAL"
-        
+    
+    @staticmethod
+    def BOOLEAN() -> str:
+        return "BOOLEAN"
 
 class TableStructure:
     ON_ACTION= Literal['CASCADE', 'SET NULL', 'SET DEFAULT', 'RESTRICT', 'NO ACTION']
@@ -1313,8 +1330,6 @@ class TableStructure:
             raise TypeError("datatype must be a string returned by DataTypes.")
 
         if primary_key:
-            if not not_null:
-                raise Exception("PRIMARY KEY columns must also be NOT NULL.")
             if unique:
                 raise Exception("PRIMARY KEY columns cannot be UNIQUE, as they are inherently unique.")
                 
@@ -1339,8 +1354,7 @@ class TableStructure:
             "NUMERIC",
             "FLOAT",
             "DOUBLE",
-            "REAL",
-            "SERIAL"
+            "REAL"
         )
 
         if auto_increment:
@@ -1350,14 +1364,10 @@ class TableStructure:
                 raise Exception("AUTO_INCREMENT column must be PRIMARY KEY or UNIQUE.")
             if default_value is not None:
                 raise Exception("AUTO_INCREMENT columns cannot have DEFAULT values.")
-            
         if 'TEXT' in datatype or 'BLOB' in datatype:
             if default_value is not None:
                 raise Exception("TEXT and BLOB columns cannot have default values.")
 
-        if 'SERIAL' in datatype:
-            if not primary_key or not auto_increment or not not_null:
-                raise Exception("SERIAL implies PRIMARY KEY, AUTO_INCREMENT, and NOT NULL.")
             
     def add_column(self, column_name: str, datatype: DataTypes,
                 default_value=None, unique: bool = None,
@@ -1365,7 +1375,7 @@ class TableStructure:
                 primary_key: bool = None,
                 auto_increment: bool = False):
         column_name = f'`{column_name.strip()}`'
-        primary_key, not_null, auto_increment = (True, True, True) if datatype == 'SERIAL' else (primary_key, not_null, auto_increment)
+        auto_increment , not_null, unique = (False, False, False) if 'SERIAL' in datatype  else (auto_increment, not_null, unique)
         self._validate_column(
         column_name,
         datatype,
@@ -1375,7 +1385,6 @@ class TableStructure:
         primary_key,
         auto_increment
         )
-
         for item in self.table_query.split(','):
             if item and (column_name in item) and item.split(' ')[1] == column_name:
                 raise Exception('You have added this column befor\nif you wanna modify this column , delete this column and then add a new one with desired options')
@@ -1383,7 +1392,7 @@ class TableStructure:
             raise Exception('Cant set bytes object as default value')
         self.primary_keys.append(column_name) if primary_key else None
         self.items[column_name] = [datatype, default_value, unique, not_null, primary_key, auto_increment]
-        self.table_query = self.table_query + f' {column_name.strip()} {datatype}{' AUTO_INCREMENT' if auto_increment else ''}{' UNIQUE' if unique else ''}{' NOT NULL' if not_null else ''}{f' DEFAULT {f"'{default_value}'" if type(default_value) == str else default_value}' if default_value else ''},'
+        self.table_query = self.table_query + f' {column_name.strip()} {datatype}{' AUTO_INCREMENT' if auto_increment else ''}{' UNIQUE' if unique else ''}{' NOT NULL' if not_null else ''}{f" DEFAULT {('TRUE' if default_value else 'FALSE') if isinstance(default_value,bool) else f"'{default_value}'" if type(default_value) == str else str(default_value)}" if default_value is not None else ""},'
         return self
 
     def delete_column(self, column_name: str):
@@ -1623,6 +1632,8 @@ class Driver():
                 raise
 
     def _get_connection(self):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         try:
             return self.connection_pool.get(block=True, timeout=0.5)
         except Empty:
@@ -1634,6 +1645,8 @@ class Driver():
 
     def _excfp(self, query, params):
         """to fetch queries"""
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query, params)
@@ -1651,7 +1664,7 @@ class Driver():
                     con.commit()
                     self.connection_pool.put((con, cur))
                     return res
-                except OperationalError as e2:
+                except OperationalError:
                     self._handle_broken_connection(con)
                     raise
             else:
@@ -1662,9 +1675,15 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+    
     def _excf(self, query):
         """to fetch queries"""
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query)
@@ -1693,9 +1712,15 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}')
+    
     def _excp(self, query, params):
         """to execute with parameters"""
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query, params)
@@ -1717,12 +1742,18 @@ class Driver():
                 self.connection_pool.put((con, cur))
                 raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
         except ProgrammingError as e:
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+        except Exception as e:   # <--- اضافه کنید
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
 
     def _exc(self, query):
         """to execute without parameters"""
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query)
@@ -1747,9 +1778,14 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}')
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}')
 
     def _excs(self, query_params: list):
-        """to execute script with parameters"""
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             for q in query_params:
@@ -1784,9 +1820,16 @@ class Driver():
             self.connection_pool.put((con, cur))
             queries_str = '\n'.join([f'Query: {q[0]}\nParams: {q[1] if len(q)>1 else ""}' for q in query_params])
             raise Exception(f'{e}\n{queries_str}')
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            queries_str = '\n'.join([f'Query: {q[0]}\nParams: {q[1] if len(q)>1 else ""}' for q in query_params])
+            raise Exception(f'{e}\n{queries_str}')
 
     def _excm(self, query, params):
         """to execute many with parameters"""
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.executemany(query, params)
@@ -1811,16 +1854,20 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
 
     def _handle_broken_connection(self, con):
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         try:
             con.close()
         except:
             pass
-        # حذف از storage اگر وجود دارد
         if con in self.connection_pool_storage:
             self.connection_pool_storage.remove(con)
-        # ایجاد اتصال جدید برای جایگزینی
         self._create_connection()
     def delete_table(self, table: Table, are_you_sure: bool, are_you_really_sure: bool, for_sure: bool):
         if are_you_sure and are_you_really_sure and for_sure:
@@ -1883,6 +1930,8 @@ class Driver():
         self._exc("FLUSH PRIVILEGES;")
 
     def disconnect(self):
+        if not self._connected:
+            raise RuntimeError("Already disconnected")
         self._connected = False
         for i in self.connection_pool_storage:
             try:

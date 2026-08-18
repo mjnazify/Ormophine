@@ -205,7 +205,7 @@ class Driver():
                 connection = connect(**conf, dbname='postgres')
                 connection.autocommit = True
                 cur = connection.cursor()
-                query = f"CREATE DATABASE {self.db_name} ENCODING '{self.client_encoding}'"
+                query = f"CREATE DATABASE {self.db_name} ENCODING '{self.client_encoding}' TEMPLATE template0"
                 if self.collate:
                     query += f" LC_COLLATE = '{self.collate}' LC_CTYPE = '{self.collate}'"
                 cur.execute(query)
@@ -260,16 +260,18 @@ class Driver():
         try:
             con = connect(**self.config)
             cur = con.cursor()
+            cur.execute(f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {self.isolation_level};")
+            con.commit()
             self.connection_pool.put((con, cur))
             self.connection_pool_storage.append(con)
-            cur.execute(f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {self.isolation_level};")
         except OperationalError as e:
-            if e.sqlstate in self.CONNECTION_ERRORS:  
+            if e.sqlstate in self.CONNECTION_ERRORS:
                 con = connect(**self.config)
                 cur = con.cursor()
+                cur.execute(f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {self.isolation_level};")
+                con.commit()
                 self.connection_pool.put((con, cur))
                 self.connection_pool_storage.append(con)
-                cur.execute(f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {self.isolation_level};")
             else:
                 raise
 
@@ -292,6 +294,8 @@ class Driver():
                 attempting to create a new connection. The exception message
                 suggests increasing the ``pool_size``.
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         try:
             return self.connection_pool.get(block=True, timeout=0.5)
         except Empty:
@@ -339,6 +343,8 @@ class Driver():
             >>> print(result)
             [('id',), ('name',), ('email',)]
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query, params)
@@ -367,7 +373,11 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+    
     def _excf(self, query):
         """Execute a parameterless query and return all fetched rows.
 
@@ -403,6 +413,8 @@ class Driver():
             >>> for row in rows:
             ...     print(row)
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query)
@@ -428,6 +440,10 @@ class Driver():
                 self.connection_pool.put((con, cur))
                 raise Exception(f'{e}\nQuery:\n\t{query}')
         except ProgrammingError as e:
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}')
+        except Exception as e:   # <--- اضافه کنید
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}')
@@ -465,6 +481,8 @@ class Driver():
             ...     ("Alice", 30)
             ... )
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query, params)
@@ -486,6 +504,10 @@ class Driver():
                 self.connection_pool.put((con, cur))
                 raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
         except ProgrammingError as e:
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+        except Exception as e:   # <--- اضافه کنید
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
@@ -518,6 +540,8 @@ class Driver():
         Example:
             >>> driver._exc("DROP TABLE users;")
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             cur.execute(query)
@@ -542,7 +566,11 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            raise Exception(f'{e}\nQuery:\n\t{query}')
+    
     def _excs(self, query_params: list):
         """Executes a batch of SQL statements within a single transaction.
 
@@ -580,6 +608,8 @@ class Driver():
             ...     ["UPDATE users SET age = %s WHERE name = %s", (30, "Alice")]
             ... ])
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         try:
             for q in query_params:
@@ -614,7 +644,12 @@ class Driver():
             self.connection_pool.put((con, cur))
             queries_str = '\n'.join([f'Query: {q[0]}\nParams: {q[1] if len(q)>1 else ""}' for q in query_params])
             raise Exception(f'{e}\n{queries_str}')
-
+        except Exception as e:   # <--- اضافه کنید
+            con.rollback()
+            self.connection_pool.put((con, cur))
+            queries_str = '\n'.join([f'Query: {q[0]}\nParams: {q[1] if len(q)>1 else ""}' for q in query_params])
+            raise Exception(f'{e}\n{queries_str}')
+    
     def _excm(self, query, params):
         """Executes a parameterized SQL statement with multiple rows using ``executemany``.
 
@@ -649,6 +684,8 @@ class Driver():
             ...     [("Alice", 30), ("Bob", 25), ("Charlie", 35)]
             ... )
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         con, cur = self._get_connection()
         
         try:
@@ -703,6 +740,8 @@ class Driver():
             ...         self._handle_broken_connection(con)
             ...         con, cur = self._get_connection()
         """
+        if not self._connected:
+            raise RuntimeError("Driver disconnected")
         try:
             con.close()
         except:
@@ -789,15 +828,19 @@ class Driver():
         if are_you_sure and are_you_really_sure and for_sure:
             con, cur = self._get_connection()
             try:
+                con.rollback()
                 con.autocommit = True
                 cur.execute(f'DROP DATABASE "{database_name}";')
                 con.autocommit = False
                 self.connection_pool.put((con, cur))
             except Exception:
-                con.autocommit = False
+                try:
+                    con.autocommit = False
+                except:
+                    pass
                 self.connection_pool.put((con, cur))
                 raise
-            
+
     def custom_execute_with_fetch(self, query, params=None):
         """Executes a raw SQL query and returns the fetched results.
 
@@ -1029,13 +1072,17 @@ class Driver():
         tables = self.get_tables()
         con, cur = self._get_connection()
         try:
+            con.rollback()
             con.autocommit = True
             for i in tables:
                 cur.execute(f'VACUUM (ANALYZE) "{i}";')
             con.autocommit = False
             self.connection_pool.put((con, cur))
         except Exception:
-            con.autocommit = False
+            try:
+                con.autocommit = False
+            except:
+                pass
             self.connection_pool.put((con, cur))
             raise
 
@@ -1067,8 +1114,14 @@ class Driver():
             >>> # Create a new user 'john_doe' with password 's3cur3!'
             >>> driver.create_user("john_doe", "s3cur3!")
         """
-        query = f"CREATE USER \"{username.replace('\"', '\"\"')}\" WITH PASSWORD '{password}';"
-        self._exc(query)
+        forbidden = (';', '--', '\0', "'")
+        for ch in forbidden:
+            if ch in username:
+                raise Exception(
+                    f"Invalid username: '{username}' contains forbidden character '{ch}'"
+                )
+        safe_username = username.replace('"', '""')
+        self._exc(f'CREATE USER "{safe_username}" WITH PASSWORD \'{password}\';')
 
     def drop_user(self, username: str):
         """Drops (deletes) a PostgreSQL user/role.
@@ -1258,6 +1311,8 @@ class Driver():
         Example:
             >>> driver.disconnect()
         """
+        if not self._connected:
+            raise RuntimeError("Already disconnected")
         self._connected = False
         for i in self.connection_pool_storage:
             try:
