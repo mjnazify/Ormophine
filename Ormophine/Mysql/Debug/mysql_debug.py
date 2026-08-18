@@ -1899,8 +1899,8 @@ class Driver():
 
     def optimize(self):
         for i in self.get_tables():
-            self._exc(f"OPTIMIZE TABLE {i};")
-            self._exc(f"ANALYZE TABLE {i}")
+            self._exc(f"OPTIMIZE TABLE `{i}`;")
+            self._exc(f"ANALYZE TABLE `{i}`")
 
     def create_user(self, username: str, password: str, host: str = 'localhost'):
         query = f"CREATE USER '{username.replace("'", "''")}'@'{host.replace("'", "''")}' IDENTIFIED BY %s;"

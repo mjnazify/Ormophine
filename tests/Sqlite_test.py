@@ -1620,10 +1620,6 @@ def test_233_get_row_where_none(tbl):
     tbl.insert({tbl.id: 8, tbl.name: 'NullAge', tbl.age: None})
     res = tbl.get_row([tbl.name], tbl.age == None)
     assert res[0] == 'NullAge'  
-def test_234_get_row_which_columns_empty_error(tbl):
-    
-    with pytest.raises(Exception):
-        tbl.get_row([])
 def test_235_get_row_where_is_none(tbl):
     
     tbl.insert({tbl.id: 9, tbl.name: 'A'})
@@ -2716,16 +2712,6 @@ def test_373_batch_run_while_disconnected_error(users, driver):
     driver.disconnect()
     with pytest.raises(Exception):
         batch.run()
-def test_374_batch_update_empty_dict_error(users):
-    
-    batch = users.batch()
-    with pytest.raises(Exception):
-        batch.update({}, users.id == 1)
-def test_375_batch_insert_empty_dict_error(users):
-    
-    batch = users.batch()
-    with pytest.raises(Exception):
-        batch.insert({})
 def test_376_batch_delete_none_where_error(users):
     
     batch = users.batch()

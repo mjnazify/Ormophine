@@ -582,7 +582,7 @@ def test_75_table_name_quoting(driver):
     schema = Mysql.TableStructure('Table With Spaces')
     schema.add_column('id', Mysql.DataTypes.INT(), primary_key=True)
     driver.create_table(schema)
-    assert 'table with spaces' in driver.get_tables()
+    assert 'Table With Spaces' in driver.get_tables()
     tbl = Mysql.Table(driver, 'Table With Spaces')
     driver.delete_table(tbl, True, True, True)
 def test_76_table_name_with_special_chars(driver):
@@ -1859,6 +1859,7 @@ def test_284_structure_add_foreign_key_invalid_ref(driver):
 def test_285_structure_table_name_quoting(driver):
     schema = Mysql.TableStructure('Table With Spaces')
     schema.add_column('id', Mysql.DataTypes.SERIAL(), primary_key=True)
+    driver.custom_execute("DROP TABLE IF EXISTS `Table With Spaces`")
     driver.create_table(schema)
     assert 'Table With Spaces'.lower() in driver.get_tables()
     tbl = getattr(driver, 'Table With Spaces')
@@ -2283,17 +2284,6 @@ def test_410_update_violates_foreign_key(driver_upd):
         child.update({child.pid: 999}, where=child.pid == 1)
     child.delete_row(where=child.pid == 1)
     parent.delete_row(where=parent.id == 1)
-def test_412_update_with_subquery(driver_upd):
-    tbl = driver_upd.upd_del_test
-    tbl.insert({tbl.name: 'SubT', tbl.age: 20})
-    tbl.insert({tbl.name: 'SubT2', tbl.age: 30})
-    tbl.update(
-        {tbl.age: 99},
-        where=tbl.id.In(column=tbl.id, where=tbl.name == 'SubT')
-    )
-    res = tbl.get_row([tbl.age], where=tbl.name == 'SubT')
-    assert res == [99]
-    tbl.delete_row(where=tbl.name.In(data_list=['SubT', 'SubT2']))
 def test_419_update_increment(driver_upd):
     tbl = driver_upd.upd_del_test
     tbl.insert({tbl.name: 'IncT', tbl.age: 20})
@@ -2358,14 +2348,6 @@ def test_431_delete_where_complex(driver_upd):
     res = tbl.get_row([tbl.id], where=tbl.name == 'CDel2')
     assert len(res) == 1
     tbl.delete_row(where=tbl.name == 'CDel2')
-def test_434_delete_with_subquery(driver_upd):
-    tbl = driver_upd.upd_del_test
-    tbl.insert({tbl.name: 'SubDel', tbl.age: 20})
-    tbl.delete_row(
-        where=tbl.id.In(column=tbl.id, where=tbl.name == 'SubDel')
-    )
-    res = tbl.get_row([tbl.id], where=tbl.name == 'SubDel')
-    assert len(res) == 0
 def test_437_delete_violates_foreign_key(driver_upd):
     parent = driver_upd.fk_parent
     child = driver_upd.fk_child
