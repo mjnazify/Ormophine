@@ -1319,6 +1319,9 @@ class Driver():
                 # Create a user 'remote_user' allowed to connect from any host
                 db.create_user('remote_user', 'pass456', host='%')
         """
+        for ch in (';', '--', '\0', "'"):
+            if ch in username:
+                raise Exception(f"Invalid username: '{username}' contains forbidden character '{ch}'")
         query = f"CREATE USER '{username.replace("'", "''")}'@'{host.replace("'", "''")}' IDENTIFIED BY %s;"
         self._excp(query, (password,))
 
