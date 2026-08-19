@@ -23,6 +23,29 @@ MYSQL_CONFIG = {
     'database': 'test'
 }
 
+def format_qps(value: float) -> str:
+    """Format a QPS value into a compact human-readable string (e.g. 12.3k, 1.2M)."""
+    if value >= 1_000_000:
+        return f'{value / 1_000_000:.2f}M'
+    if value >= 1_000:
+        return f'{value / 1_000:.1f}k'
+    return f'{value:.1f}'
+
+
+def times_to_qps(times: list[float], num_queries: int) -> list[float]:
+    """Convert per-repeat elapsed times (seconds) into per-repeat throughput (queries/second)."""
+    return [num_queries / t for t in times if t > 0]
+
+
+def print_qps_summary(title: str, labels: list[str], operations_data: dict) -> None:
+    """Print a compact table of mean QPS per ORM for every operation."""
+    print(f"\n--- {title} | Mean Throughput (Queries Per Second) ---")
+    header = f"{'Operation':<15}" + "".join(f"{name:>14}" for name in labels)
+    print(header)
+    print('-' * len(header))
+    for op_name, means in operations_data.items():
+        print(f"{op_name:<15}" + "".join(f"{format_qps(m):>14}" for m in means))
+
 def sqlalchemy_single_operations(rng):
     """Benchmark single CRUD operations using SQLAlchemy."""
     con = MySQLdb.connect(**MYSQL_CONFIG)
@@ -527,65 +550,63 @@ def Ormophine_batch_operations(rng):
     db.disconnect()
     return elapsed_inserts, elapsed_updates, elapsed_deletes
 
-def plot_benchmark_results(title_prefix, labels, operations_data):
-    """Generate separate bar charts for each operation to compare ORM means."""
-    base_index = 0 # Ormophine is the first label
-    colors = ['#4CAF50', '#FF9800', '#2196F3', '#F44336'] # Green, Orange, Blue, Red
-    
-    for op_name, means in operations_data.items():
+def plot_benchmark_results(title_prefix, labels, operations_data, queries_per_repeat: int):
+    """Generate separate bar charts comparing ORM throughput (queries per second)."""
+    base_index = 0  # Ormophine is the first label
+    colors = ['#4CAF50', '#FF9800', '#2196F3', '#F44336']  # Green, Orange, Blue, Red
+
+    for op_name, qps_means in operations_data.items():
         # Create a new figure for each operation
         fig, ax = plt.subplots(figsize=(8, 7))
-        
-        # Convert seconds to milliseconds
-        means_ms = [v * 1000 for v in means]
-        
-        bars = ax.bar(labels, means_ms, color=colors[:len(labels)], width=0.5)
-        ax.set_ylabel('Time (ms) - Lower is Better', fontsize=12)
-        ax.set_title(f'{title_prefix} - {op_name}', fontsize=14, fontweight='bold')
+
+        bars = ax.bar(labels, qps_means, color=colors[:len(labels)], width=0.5)
+        ax.set_ylabel('Queries Per Second (QPS) - Higher is Better', fontsize=12)
+        ax.set_title(f'{title_prefix} - {op_name}\n({queries_per_repeat:,} queries per repeat)',
+                     fontsize=14, fontweight='bold')
         ax.grid(axis='y', linestyle='--', alpha=0.7)
-        
+
         # Set y-axis limit to make room for labels on top
-        max_val = max(means_ms) if means_ms else 0
+        max_val = max(qps_means) if qps_means else 0
         ax.set_ylim(0, max_val * 1.2)
-        
-        # Annotate exact values on top of bars
+
+        # Annotate exact QPS values on top of bars
         for bar in bars:
             height = bar.get_height()
-            ax.annotate(f'{height:.2f}',
+            ax.annotate(format_qps(height),
                         xy=(bar.get_x() + bar.get_width() / 2, height),
                         xytext=(0, 5),
                         textcoords="offset points",
                         ha='center', va='bottom', fontsize=11, fontweight='bold')
-                        
+
         # Annotate percentage difference below x-axis
         trans = blended_transform_factory(ax.transData, ax.transAxes)
-        base_time = means[base_index]
-        
+        base_qps = qps_means[base_index]
+
         for i, label in enumerate(labels):
             if i == base_index:
-                ax.text(i, -0.15, "Ormophine\n(Baseline)", ha='center', va='top', transform=trans, fontsize=10, fontweight='bold', color='#4CAF50')
+                ax.text(i, -0.15, "Ormophine\n(Baseline)", ha='center', va='top',
+                        transform=trans, fontsize=10, fontweight='bold', color='#4CAF50')
             else:
-                other_time = means[i]
-                if base_time > 0:
-                    diff = ((other_time - base_time) / base_time) * 100
-                    
-                    if abs(diff) < 5:
-                        text = f"{diff:.1f}%\nalmost the same\nas {label}"
-                        color = '#808080' 
-                    elif diff > 0:
-                        text = f"{diff:.1f}% faster\nthan {label}"
-                        color = '#2E7D32' # Dark Green
-                    else:
-                        text = f"{abs(diff):.1f}% slower\nthan {label}"
-                        color = '#C62828' # Dark Red
-                        
-                    ax.text(i, -0.15, text, ha='center', va='top', transform=trans, fontsize=10, fontweight='bold', color=color)
+                other_qps = qps_means[i]
+                if other_qps > 0:
+                    # Positive diff -> Ormophine has higher throughput -> faster
+                    diff = ((base_qps - other_qps) / other_qps) * 100
 
-        plt.subplots_adjust(bottom=0.25) # Make room for two lines of text below
+                    if abs(diff) < 5:
+                        text, color = f"{diff:.1f}%\nalmost the same\nas {label}", '#808080'
+                    elif diff > 0:
+                        text, color = f"{diff:.1f}% faster\nthan {label}", '#2E7D32'
+                    else:
+                        text, color = f"{abs(diff):.1f}% slower\nthan {label}", '#C62828'
+
+                    ax.text(i, -0.15, text, ha='center', va='top',
+                            transform=trans, fontsize=10, fontweight='bold', color=color)
+
+        plt.subplots_adjust(bottom=0.25)  # Make room for two lines of text below
         plt.show()
 
-def run_single_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_size: int= 10):
-    """Run the single-operation CRUD benchmark for all ORMs."""
+def run_single_operation_benchmark(repeats: int, warmup_repeats: int = 3, chunk_size: int = 10):
+    """Run the single-operation CRUD benchmark for all ORMs (reported as QPS)."""
     pony_inserts, esq_inserts, sqlalchemy_inserts, peewee_inserts = [], [], [], []
     pony_updates, esq_updates, sqlalchemy_updates, peewee_updates = [], [], [], []
     pony_reads, esq_reads, sqlalchemy_reads, peewee_reads = [], [], [], []
@@ -615,56 +636,67 @@ def run_single_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_s
         pony_reads.append(pon_rd); esq_reads.append(sq_rd); sqlalchemy_reads.append(alch_rd); peewee_reads.append(pee_rd)
         pony_deletes.append(pon_del); esq_deletes.append(sq_del); sqlalchemy_deletes.append(alch_del); peewee_deletes.append(pee_del)
 
-    pony_ins_mean = mean(pony_inserts); pony_upd_mean = mean(pony_updates); pony_rd_mean = mean(pony_reads); pony_del_mean = mean(pony_deletes)
-    esq_ins_mean = mean(esq_inserts); esq_upd_mean = mean(esq_updates); esq_rd_mean = mean(esq_reads); esq_del_mean = mean(esq_deletes)
-    sal_ins_mean = mean(sqlalchemy_inserts); sal_upd_mean = mean(sqlalchemy_updates); sal_rd_mean = mean(sqlalchemy_reads); sal_del_mean = mean(sqlalchemy_deletes)
-    pee_ins_mean = mean(peewee_inserts); pee_upd_mean = mean(peewee_updates); pee_rd_mean = mean(peewee_reads); pee_del_mean = mean(peewee_deletes)
+    # ---------- Convert elapsed times (s) to throughput (queries/second) ----------
+    pony_ins_qps = times_to_qps(pony_inserts, chunk_size); pony_upd_qps = times_to_qps(pony_updates, chunk_size)
+    pony_rd_qps  = times_to_qps(pony_reads, chunk_size);   pony_del_qps = times_to_qps(pony_deletes, chunk_size)
+    esq_ins_qps  = times_to_qps(esq_inserts, chunk_size);  esq_upd_qps  = times_to_qps(esq_updates, chunk_size)
+    esq_rd_qps   = times_to_qps(esq_reads, chunk_size);    esq_del_qps  = times_to_qps(esq_deletes, chunk_size)
+    sal_ins_qps  = times_to_qps(sqlalchemy_inserts, chunk_size); sal_upd_qps = times_to_qps(sqlalchemy_updates, chunk_size)
+    sal_rd_qps   = times_to_qps(sqlalchemy_reads, chunk_size);    sal_del_qps = times_to_qps(sqlalchemy_deletes, chunk_size)
+    pee_ins_qps  = times_to_qps(peewee_inserts, chunk_size);     pee_upd_qps = times_to_qps(peewee_updates, chunk_size)
+    pee_rd_qps   = times_to_qps(peewee_reads, chunk_size);       pee_del_qps = times_to_qps(peewee_deletes, chunk_size)
 
-    print(f"\n--- Performance Statistics (N={repeats}, {chunk_size} records each) ---")
+    pony_ins_mean = mean(pony_ins_qps); pony_upd_mean = mean(pony_upd_qps); pony_rd_mean = mean(pony_rd_qps); pony_del_mean = mean(pony_del_qps)
+    esq_ins_mean  = mean(esq_ins_qps);  esq_upd_mean  = mean(esq_upd_qps);  esq_rd_mean  = mean(esq_rd_qps);  esq_del_mean  = mean(esq_del_qps)
+    sal_ins_mean  = mean(sal_ins_qps);  sal_upd_mean  = mean(sal_upd_qps);  sal_rd_mean  = mean(sal_rd_qps);  sal_del_mean  = mean(sal_del_qps)
+    pee_ins_mean  = mean(pee_ins_qps);  pee_upd_mean  = mean(pee_upd_qps);  pee_rd_mean  = mean(pee_rd_qps);  pee_del_mean  = mean(pee_del_qps)
 
-    print( '\n-------------------------   INSERTS   ------------------------------')
-    print(f"Pony ORM: Mean={pony_ins_mean:.4f}s, Variance={variance(pony_inserts):.4f}, StdDev={stdev(pony_inserts):.4f}")
-    print(f"Ormophine: Mean={esq_ins_mean:.4f}s, Variance={variance(esq_inserts):.4f}, StdDev={stdev(esq_inserts):.4f}")
-    print(f"SQLAlchemy: Mean={sal_ins_mean:.4f}s, Variance={variance(sqlalchemy_inserts):.4f}, StdDev={stdev(sqlalchemy_inserts):.4f}")
-    print(f"Peewee: Mean={pee_ins_mean:.4f}s, Variance={variance(peewee_inserts):.4f}, StdDev={stdev(peewee_inserts):.4f}")
+    print(f"\n--- Throughput Statistics (N={repeats}, {chunk_size} queries per repeat) ---")
 
-    print( '\n-------------------------   UPDATES   ------------------------------')
-    print(f"Pony ORM: Mean={pony_upd_mean:.4f}s, Variance={variance(pony_updates):.4f}, StdDev={stdev(pony_updates):.4f}")
-    print(f"Ormophine: Mean={esq_upd_mean:.4f}s, Variance={variance(esq_updates):.4f}, StdDev={stdev(esq_updates):.4f}")
-    print(f"SQLAlchemy: Mean={sal_upd_mean:.4f}s, Variance={variance(sqlalchemy_updates):.4f}, StdDev={stdev(sqlalchemy_updates):.4f}")
-    print(f"Peewee: Mean={pee_upd_mean:.4f}s, Variance={variance(peewee_updates):.4f}, StdDev={stdev(peewee_updates):.4f}")
+    print('\n-------------------------   INSERTS   ------------------------------')
+    print(f"Pony ORM: Mean={pony_ins_mean:.2f} QPS, Variance={variance(pony_ins_qps):.2f}, StdDev={stdev(pony_ins_qps):.2f}")
+    print(f"Ormophine: Mean={esq_ins_mean:.2f} QPS, Variance={variance(esq_ins_qps):.2f}, StdDev={stdev(esq_ins_qps):.2f}")
+    print(f"SQLAlchemy: Mean={sal_ins_mean:.2f} QPS, Variance={variance(sal_ins_qps):.2f}, StdDev={stdev(sal_ins_qps):.2f}")
+    print(f"Peewee: Mean={pee_ins_mean:.2f} QPS, Variance={variance(pee_ins_qps):.2f}, StdDev={stdev(pee_ins_qps):.2f}")
 
-    print( '\n-------------------------   READS   ------------------------------')
-    print(f"Pony ORM: Mean={pony_rd_mean:.4f}s, Variance={variance(pony_reads):.4f}, StdDev={stdev(pony_reads):.4f}")
-    print(f"Ormophine: Mean={esq_rd_mean:.4f}s, Variance={variance(esq_reads):.4f}, StdDev={stdev(esq_reads):.4f}")
-    print(f"SQLAlchemy: Mean={sal_rd_mean:.4f}s, Variance={variance(sqlalchemy_reads):.4f}, StdDev={stdev(sqlalchemy_reads):.4f}")
-    print(f"Peewee: Mean={pee_rd_mean:.4f}s, Variance={variance(peewee_reads):.4f}, StdDev={stdev(peewee_reads):.4f}")
+    print('\n-------------------------   UPDATES   ------------------------------')
+    print(f"Pony ORM: Mean={pony_upd_mean:.2f} QPS, Variance={variance(pony_upd_qps):.2f}, StdDev={stdev(pony_upd_qps):.2f}")
+    print(f"Ormophine: Mean={esq_upd_mean:.2f} QPS, Variance={variance(esq_upd_qps):.2f}, StdDev={stdev(esq_upd_qps):.2f}")
+    print(f"SQLAlchemy: Mean={sal_upd_mean:.2f} QPS, Variance={variance(sal_upd_qps):.2f}, StdDev={stdev(sal_upd_qps):.2f}")
+    print(f"Peewee: Mean={pee_upd_mean:.2f} QPS, Variance={variance(pee_upd_qps):.2f}, StdDev={stdev(pee_upd_qps):.2f}")
 
-    print( '\n-------------------------   DELETES   ------------------------------')
-    print(f"Pony ORM: Mean={pony_del_mean:.4f}s, Variance={variance(pony_deletes):.4f}, StdDev={stdev(pony_deletes):.4f}")
-    print(f"Ormophine: Mean={esq_del_mean:.4f}s, Variance={variance(esq_deletes):.4f}, StdDev={stdev(esq_deletes):.4f}")
-    print(f"SQLAlchemy: Mean={sal_del_mean:.4f}s, Variance={variance(sqlalchemy_deletes):.4f}, StdDev={stdev(sqlalchemy_deletes):.4f}")
-    print(f"Peewee: Mean={pee_del_mean:.4f}s, Variance={variance(peewee_deletes):.4f}, StdDev={stdev(peewee_deletes):.4f}")
+    print('\n-------------------------   READS   ------------------------------')
+    print(f"Pony ORM: Mean={pony_rd_mean:.2f} QPS, Variance={variance(pony_rd_qps):.2f}, StdDev={stdev(pony_rd_qps):.2f}")
+    print(f"Ormophine: Mean={esq_rd_mean:.2f} QPS, Variance={variance(esq_rd_qps):.2f}, StdDev={stdev(esq_rd_qps):.2f}")
+    print(f"SQLAlchemy: Mean={sal_rd_mean:.2f} QPS, Variance={variance(sal_rd_qps):.2f}, StdDev={stdev(sal_rd_qps):.2f}")
+    print(f"Peewee: Mean={pee_rd_mean:.2f} QPS, Variance={variance(pee_rd_qps):.2f}, StdDev={stdev(pee_rd_qps):.2f}")
 
-    def calculate_percentage_diff(base_time, other_time):
-        return ((other_time - base_time) / base_time) * 100
+    print('\n-------------------------   DELETES   ------------------------------')
+    print(f"Pony ORM: Mean={pony_del_mean:.2f} QPS, Variance={variance(pony_del_qps):.2f}, StdDev={stdev(pony_del_qps):.2f}")
+    print(f"Ormophine: Mean={esq_del_mean:.2f} QPS, Variance={variance(esq_del_qps):.2f}, StdDev={stdev(esq_del_qps):.2f}")
+    print(f"SQLAlchemy: Mean={sal_del_mean:.2f} QPS, Variance={variance(sal_del_qps):.2f}, StdDev={stdev(sal_del_qps):.2f}")
+    print(f"Peewee: Mean={pee_del_mean:.2f} QPS, Variance={variance(pee_del_qps):.2f}, StdDev={stdev(pee_del_qps):.2f}")
 
-    print(f"\n--- Percentage Differences In Inserts ---")
+    def calculate_percentage_diff(base_qps: float, other_qps: float) -> float:
+        """Positive -> Ormophine executes more queries per second -> faster."""
+        return ((base_qps - other_qps) / other_qps) * 100
+
+    print("\n--- Percentage Differences In Inserts (throughput) ---")
     print(f"Ormophine vs Pony ORM: {calculate_percentage_diff(esq_ins_mean, pony_ins_mean):.2f}%")
     print(f"Ormophine vs SQLAlchemy: {calculate_percentage_diff(esq_ins_mean, sal_ins_mean):.2f}%")
     print(f"Ormophine vs Peewee: {calculate_percentage_diff(esq_ins_mean, pee_ins_mean):.2f}%")
 
-    print(f"\n--- Percentage Differences In Updates ---")
+    print("\n--- Percentage Differences In Updates (throughput) ---")
     print(f"Ormophine vs Pony ORM: {calculate_percentage_diff(esq_upd_mean, pony_upd_mean):.2f}%")
     print(f"Ormophine vs SQLAlchemy: {calculate_percentage_diff(esq_upd_mean, sal_upd_mean):.2f}%")
     print(f"Ormophine vs Peewee: {calculate_percentage_diff(esq_upd_mean, pee_upd_mean):.2f}%")
 
-    print(f"\n--- Percentage Differences In Reads ---")
+    print("\n--- Percentage Differences In Reads (throughput) ---")
     print(f"Ormophine vs Pony ORM: {calculate_percentage_diff(esq_rd_mean, pony_rd_mean):.2f}%")
     print(f"Ormophine vs SQLAlchemy: {calculate_percentage_diff(esq_rd_mean, sal_rd_mean):.2f}%")
     print(f"Ormophine vs Peewee: {calculate_percentage_diff(esq_rd_mean, pee_rd_mean):.2f}%")
 
-    print(f"\n--- Percentage Differences In Deletes ---")
+    print("\n--- Percentage Differences In Deletes (throughput) ---")
     print(f"Ormophine vs Pony ORM: {calculate_percentage_diff(esq_del_mean, pony_del_mean):.2f}%")
     print(f"Ormophine vs SQLAlchemy: {calculate_percentage_diff(esq_del_mean, sal_del_mean):.2f}%")
     print(f"Ormophine vs Peewee: {calculate_percentage_diff(esq_del_mean, pee_del_mean):.2f}%")
@@ -673,28 +705,32 @@ def run_single_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_s
     operations_data = {
         'Inserts': [esq_ins_mean, pony_ins_mean, sal_ins_mean, pee_ins_mean],
         'Updates': [esq_upd_mean, pony_upd_mean, sal_upd_mean, pee_upd_mean],
-        'Reads': [esq_rd_mean, pony_rd_mean, sal_rd_mean, pee_rd_mean],
+        'Reads':   [esq_rd_mean, pony_rd_mean, sal_rd_mean, pee_rd_mean],
         'Deletes': [esq_del_mean, pony_del_mean, sal_del_mean, pee_del_mean]
     }
-    plot_benchmark_results('MySQL Single Operation Benchmark', labels, operations_data)
-    
+    print_qps_summary('MySQL Single Operation Benchmark', labels, operations_data)
+    plot_benchmark_results('MySQL Single Operation Benchmark', labels, operations_data, queries_per_repeat=chunk_size)
+
     # --- Execution Report ---
     total_queries = repeats * chunk_size
     print("\n" + "="*60)
-    print("📊 BENCHMARK EXECUTION REPORT")
+    print("📊 BENCHMARK EXECUTION REPORT (THROUGHPUT / QPS)")
     print("="*60)
-    print(f"This benchmark evaluates the performance of 4 Python ORMs (Ormophine, Pony ORM, SQLAlchemy, Peewee) on a MySQL database.")
+    print("This benchmark evaluates the performance of 4 Python ORMs (Ormophine, Pony ORM, SQLAlchemy, Peewee) on a MySQL database.")
     print(f"\n- Test Type: Single Operations (Commit executed after EVERY query)")
     print(f"- Operations Tested: Full CRUD (Inserts, Updates, Reads, Deletes)")
-    print(f"- Total Queries per Operation: {total_queries} queries ({chunk_size} queries/repeat * {repeats} repeats)")
+    print(f"- Queries per Operation per Repeat: {chunk_size:,}")
+    print(f"- Total Queries per Operation: {total_queries:,} ({chunk_size:,} queries/repeat x {repeats} repeats)")
+    print(f"- Metric: QPS = queries / elapsed_seconds (mean of per-repeat QPS)")
+    print(f"- MySQL Server: {MYSQL_CONFIG['host']} | Database: {MYSQL_CONFIG['database']}")
     print(f"\n📈 HOW TO READ THE CHARTS:")
-    print("Each chart displays the Mean Execution Time in milliseconds (ms) for a specific operation.")
-    print("A LOWER bar indicates BETTER performance (the ORM took less time to execute the queries).")
+    print("Each chart displays the Mean Throughput in Queries Per Second (QPS) for a specific operation.")
+    print("A HIGHER bar indicates BETTER performance (the ORM executed more queries per second).")
     print("Below each chart, the percentage difference shows how much faster Ormophine is compared to the other ORMs.")
     print("="*60 + "\n")
 
-def run_batch_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_size: int= 10000):
-    """Run the batch-operation CUD benchmark for all ORMs."""
+def run_batch_operation_benchmark(repeats: int, warmup_repeats: int = 3, chunk_size: int = 10000):
+    """Run the batch-operation CUD benchmark for all ORMs (reported as QPS)."""
     pony_inserts, esq_inserts, sqlalchemy_inserts, peewee_inserts = [], [], [], []
     pony_updates, esq_updates, sqlalchemy_updates, peewee_updates = [], [], [], []
     pony_deletes, esq_deletes, sqlalchemy_deletes, peewee_deletes = [], [], [], []
@@ -722,45 +758,52 @@ def run_batch_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_si
         pony_updates.append(pon_upd); esq_updates.append(sq_upd); sqlalchemy_updates.append(alch_upd); peewee_updates.append(pee_upd)
         pony_deletes.append(pon_del); esq_deletes.append(sq_del); sqlalchemy_deletes.append(alch_del); peewee_deletes.append(pee_del)
 
-    pony_ins_mean = mean(pony_inserts); pony_upd_mean = mean(pony_updates); pony_del_mean = mean(pony_deletes)
-    esq_ins_mean = mean(esq_inserts); esq_upd_mean = mean(esq_updates); esq_del_mean = mean(esq_deletes)
-    sal_ins_mean = mean(sqlalchemy_inserts); sal_upd_mean = mean(sqlalchemy_updates); sal_del_mean = mean(sqlalchemy_deletes)
-    pee_ins_mean = mean(peewee_inserts); pee_upd_mean = mean(peewee_updates); pee_del_mean = mean(peewee_deletes)
+    # ---------- Convert elapsed times (s) to throughput (queries/second) ----------
+    pony_ins_qps = times_to_qps(pony_inserts, chunk_size); pony_upd_qps = times_to_qps(pony_updates, chunk_size); pony_del_qps = times_to_qps(pony_deletes, chunk_size)
+    esq_ins_qps  = times_to_qps(esq_inserts, chunk_size);  esq_upd_qps  = times_to_qps(esq_updates, chunk_size);  esq_del_qps  = times_to_qps(esq_deletes, chunk_size)
+    sal_ins_qps  = times_to_qps(sqlalchemy_inserts, chunk_size); sal_upd_qps = times_to_qps(sqlalchemy_updates, chunk_size); sal_del_qps = times_to_qps(sqlalchemy_deletes, chunk_size)
+    pee_ins_qps  = times_to_qps(peewee_inserts, chunk_size);     pee_upd_qps = times_to_qps(peewee_updates, chunk_size);     pee_del_qps = times_to_qps(peewee_deletes, chunk_size)
 
-    print(f"\n--- Performance Statistics (N={repeats}, {chunk_size} records each) ---")
+    pony_ins_mean = mean(pony_ins_qps); pony_upd_mean = mean(pony_upd_qps); pony_del_mean = mean(pony_del_qps)
+    esq_ins_mean  = mean(esq_ins_qps);  esq_upd_mean  = mean(esq_upd_qps);  esq_del_mean  = mean(esq_del_qps)
+    sal_ins_mean  = mean(sal_ins_qps);  sal_upd_mean  = mean(sal_upd_qps);  sal_del_mean  = mean(sal_del_qps)
+    pee_ins_mean  = mean(pee_ins_qps);  pee_upd_mean  = mean(pee_upd_qps);  pee_del_mean  = mean(pee_del_qps)
 
-    print( '\n-------------------------   INSERTS   ------------------------------')
-    print(f"Pony ORM: Mean={pony_ins_mean:.4f}s, Variance={variance(pony_inserts):.4f}, StdDev={stdev(pony_inserts):.4f}")
-    print(f"Ormophine: Mean={esq_ins_mean:.4f}s, Variance={variance(esq_inserts):.4f}, StdDev={stdev(esq_inserts):.4f}")
-    print(f"SQLAlchemy: Mean={sal_ins_mean:.4f}s, Variance={variance(sqlalchemy_inserts):.4f}, StdDev={stdev(sqlalchemy_inserts):.4f}")
-    print(f"Peewee: Mean={pee_ins_mean:.4f}s, Variance={variance(peewee_inserts):.4f}, StdDev={stdev(peewee_inserts):.4f}")
+    print(f"\n--- Throughput Statistics (N={repeats}, {chunk_size} queries per repeat) ---")
 
-    print( '\n-------------------------   UPDATES   ------------------------------')
-    print(f"Pony ORM: Mean={pony_upd_mean:.4f}s, Variance={variance(pony_updates):.4f}, StdDev={stdev(pony_updates):.4f}")
-    print(f"Ormophine: Mean={esq_upd_mean:.4f}s, Variance={variance(esq_updates):.4f}, StdDev={stdev(esq_updates):.4f}")
-    print(f"SQLAlchemy: Mean={sal_upd_mean:.4f}s, Variance={variance(sqlalchemy_updates):.4f}, StdDev={stdev(sqlalchemy_updates):.4f}")
-    print(f"Peewee: Mean={pee_upd_mean:.4f}s, Variance={variance(peewee_updates):.4f}, StdDev={stdev(peewee_updates):.4f}")
+    print('\n-------------------------   INSERTS   ------------------------------')
+    print(f"Pony ORM: Mean={pony_ins_mean:.2f} QPS, Variance={variance(pony_ins_qps):.2f}, StdDev={stdev(pony_ins_qps):.2f}")
+    print(f"Ormophine: Mean={esq_ins_mean:.2f} QPS, Variance={variance(esq_ins_qps):.2f}, StdDev={stdev(esq_ins_qps):.2f}")
+    print(f"SQLAlchemy: Mean={sal_ins_mean:.2f} QPS, Variance={variance(sal_ins_qps):.2f}, StdDev={stdev(sal_ins_qps):.2f}")
+    print(f"Peewee: Mean={pee_ins_mean:.2f} QPS, Variance={variance(pee_ins_qps):.2f}, StdDev={stdev(pee_ins_qps):.2f}")
 
-    print( '\n-------------------------   DELETES   ------------------------------')
-    print(f"Pony ORM: Mean={pony_del_mean:.4f}s, Variance={variance(pony_deletes):.4f}, StdDev={stdev(pony_deletes):.4f}")
-    print(f"Ormophine: Mean={esq_del_mean:.4f}s, Variance={variance(esq_deletes):.4f}, StdDev={stdev(esq_deletes):.4f}")
-    print(f"SQLAlchemy: Mean={sal_del_mean:.4f}s, Variance={variance(sqlalchemy_deletes):.4f}, StdDev={stdev(sqlalchemy_deletes):.4f}")
-    print(f"Peewee: Mean={pee_del_mean:.4f}s, Variance={variance(peewee_deletes):.4f}, StdDev={stdev(peewee_deletes):.4f}")
+    print('\n-------------------------   UPDATES   ------------------------------')
+    print(f"Pony ORM: Mean={pony_upd_mean:.2f} QPS, Variance={variance(pony_upd_qps):.2f}, StdDev={stdev(pony_upd_qps):.2f}")
+    print(f"Ormophine: Mean={esq_upd_mean:.2f} QPS, Variance={variance(esq_upd_qps):.2f}, StdDev={stdev(esq_upd_qps):.2f}")
+    print(f"SQLAlchemy: Mean={sal_upd_mean:.2f} QPS, Variance={variance(sal_upd_qps):.2f}, StdDev={stdev(sal_upd_qps):.2f}")
+    print(f"Peewee: Mean={pee_upd_mean:.2f} QPS, Variance={variance(pee_upd_qps):.2f}, StdDev={stdev(pee_upd_qps):.2f}")
 
-    def calculate_percentage_diff(base_time, other_time):
-        return ((other_time - base_time) / base_time) * 100
+    print('\n-------------------------   DELETES   ------------------------------')
+    print(f"Pony ORM: Mean={pony_del_mean:.2f} QPS, Variance={variance(pony_del_qps):.2f}, StdDev={stdev(pony_del_qps):.2f}")
+    print(f"Ormophine: Mean={esq_del_mean:.2f} QPS, Variance={variance(esq_del_qps):.2f}, StdDev={stdev(esq_del_qps):.2f}")
+    print(f"SQLAlchemy: Mean={sal_del_mean:.2f} QPS, Variance={variance(sal_del_qps):.2f}, StdDev={stdev(sal_del_qps):.2f}")
+    print(f"Peewee: Mean={pee_del_mean:.2f} QPS, Variance={variance(pee_del_qps):.2f}, StdDev={stdev(pee_del_qps):.2f}")
 
-    print(f"\n--- Percentage Differences In Inserts ---")
+    def calculate_percentage_diff(base_qps: float, other_qps: float) -> float:
+        """Positive -> Ormophine executes more queries per second -> faster."""
+        return ((base_qps - other_qps) / other_qps) * 100
+
+    print("\n--- Percentage Differences In Inserts (throughput) ---")
     print(f"Ormophine vs Pony ORM: {calculate_percentage_diff(esq_ins_mean, pony_ins_mean):.2f}%")
     print(f"Ormophine vs SQLAlchemy: {calculate_percentage_diff(esq_ins_mean, sal_ins_mean):.2f}%")
     print(f"Ormophine vs Peewee: {calculate_percentage_diff(esq_ins_mean, pee_ins_mean):.2f}%")
 
-    print(f"\n--- Percentage Differences In Updates ---")
+    print("\n--- Percentage Differences In Updates (throughput) ---")
     print(f"Ormophine vs Pony ORM: {calculate_percentage_diff(esq_upd_mean, pony_upd_mean):.2f}%")
     print(f"Ormophine vs SQLAlchemy: {calculate_percentage_diff(esq_upd_mean, sal_upd_mean):.2f}%")
     print(f"Ormophine vs Peewee: {calculate_percentage_diff(esq_upd_mean, pee_upd_mean):.2f}%")
 
-    print(f"\n--- Percentage Differences In Deletes ---")
+    print("\n--- Percentage Differences In Deletes (throughput) ---")
     print(f"Ormophine vs Pony ORM: {calculate_percentage_diff(esq_del_mean, pony_del_mean):.2f}%")
     print(f"Ormophine vs SQLAlchemy: {calculate_percentage_diff(esq_del_mean, sal_del_mean):.2f}%")
     print(f"Ormophine vs Peewee: {calculate_percentage_diff(esq_del_mean, pee_del_mean):.2f}%")
@@ -771,21 +814,25 @@ def run_batch_operation_benchmark(repeats: int, warmup_repeats: int= 3, chunk_si
         'Batch Updates': [esq_upd_mean, pony_upd_mean, sal_upd_mean, pee_upd_mean],
         'Batch Deletes': [esq_del_mean, pony_del_mean, sal_del_mean, pee_del_mean]
     }
-    plot_benchmark_results('MySQL Batch Operation Benchmark', labels, operations_data)
-    
+    print_qps_summary('MySQL Batch Operation Benchmark', labels, operations_data)
+    plot_benchmark_results('MySQL Batch Operation Benchmark', labels, operations_data, queries_per_repeat=chunk_size)
+
     # --- Execution Report ---
     total_queries = repeats * chunk_size
     print("\n" + "="*60)
-    print("📊 BENCHMARK EXECUTION REPORT")
+    print("📊 BENCHMARK EXECUTION REPORT (THROUGHPUT / QPS)")
     print("="*60)
-    print(f"This benchmark evaluates the performance of 4 Python ORMs (Ormophine, Pony ORM, SQLAlchemy, Peewee) on a MySQL database.")
+    print("This benchmark evaluates the performance of 4 Python ORMs (Ormophine, Pony ORM, SQLAlchemy, Peewee) on a MySQL database.")
     print(f"\n- Test Type: Batch Operations (Commit executed ONCE at the end of the chunk)")
     print(f"- Operations Tested: CUD (Inserts, Updates, Deletes)")
-    print(f"- Total Queries per Operation: {total_queries} queries ({chunk_size} queries/repeat * {repeats} repeats)")
+    print(f"- Queries per Operation per Repeat: {chunk_size:,}")
+    print(f"- Total Queries per Operation: {total_queries:,} ({chunk_size:,} queries/repeat x {repeats} repeats)")
+    print(f"- Metric: QPS = queries / elapsed_seconds (mean of per-repeat QPS)")
+    print(f"- MySQL Server: {MYSQL_CONFIG['host']} | Database: {MYSQL_CONFIG['database']}")
     print(f"\n📈 HOW TO READ THE CHARTS:")
-    print("Each chart displays the Mean Execution Time in milliseconds (ms) for processing the batch of queries.")
-    print("A LOWER bar indicates BETTER performance (the ORM took less time to process the entire batch).")
+    print("Each chart displays the Mean Throughput in Queries Per Second (QPS) for processing the batch of queries.")
+    print("A HIGHER bar indicates BETTER performance (the ORM executed more queries per second).")
     print("Below each chart, the percentage difference shows how much faster Ormophine is compared to the other ORMs.")
     print("="*60 + "\n")
-
+    
 print('Benchmark functions defined successfully!')
