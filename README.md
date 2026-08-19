@@ -412,19 +412,23 @@ https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sh
 
 **Inserts:**
 
-<img width="400" height="400" alt="Postgre-SingleOp-Insert" src="https://github.com/user-attachments/assets/e2e08264-e1ff-4eb4-85a7-033d8ca2e28e" />
+<img width="400" height="400" alt="postgre-single-insert" src="https://github.com/user-attachments/assets/a8db4731-dd7b-44a6-9fbb-35eb9417984d" />
+
 
 **Updates:**
 
-<img width="400" height="400" alt="Postgre-SingleOp-Update" src="https://github.com/user-attachments/assets/c124dc1f-dbd6-47a3-bcd3-cefa30cb20f2" />
+<img width="400" height="400" alt="postgre-single-update" src="https://github.com/user-attachments/assets/149ea59f-d95c-43db-889c-879090df31d0" />
+
 
 **Reads:**
 
-<img width="400" height="400" alt="Postgre-SingleOp-Read" src="https://github.com/user-attachments/assets/6ff5a1c7-fc34-4d95-a8db-fa4e091830c5" />
+<img width="400" height="400" alt="postgre-single-read" src="https://github.com/user-attachments/assets/b143854b-972c-4633-81ac-bd26626fac5f" />
+
 
 **Deletes:**
 
-<img width="400" height="400" alt="Postgre-SingleOp-Delete" src="https://github.com/user-attachments/assets/e95e1cbf-a0d7-4873-9fac-da0517319ffc" />
+<img width="400" height="400" alt="postgre-single-delete" src="https://github.com/user-attachments/assets/f7bfed91-9cf5-4909-962e-205ad9be6e17" />
+
 
 ---
 
@@ -433,15 +437,18 @@ https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sh
 
 **Inserts:**
 
-<img width="400" height="400" alt="Postgre-BatchOp-Insert" src="https://github.com/user-attachments/assets/de37f0a0-0bbf-40a2-9446-d5929b82b417" />
+<img width="400" height="400" alt="postgre-batch-insert" src="https://github.com/user-attachments/assets/b6f9d9ce-b785-4501-a440-04f29b88e513" />
+
 
 **Updates:**
 
-<img width="400" height="400" alt="Postgre-BatchOp-Update" src="https://github.com/user-attachments/assets/029eb1d1-7a1b-4820-84bb-d21a53d0e64a" />
+<img width="400" height="400" alt="postgre-batch-update" src="https://github.com/user-attachments/assets/14b26b2a-2d52-49ef-a246-64d3ff471cc7" />
+
 
 **Deletes:**
 
-<img width="400" height="400" alt="Postgre-BatchOp-Delete" src="https://github.com/user-attachments/assets/4cec72b7-4c38-4305-8175-be67562be4ee" />
+<img width="400" height="400" alt="postgre-batch-delete" src="https://github.com/user-attachments/assets/ff17ee76-bdd7-488c-b23a-e8e2486fde86" />
+
 
 ---
 
@@ -452,19 +459,23 @@ https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sh
 
 **Inserts:**
 
-<img width="400" height="400" alt="Sqlite-SingleOp-Insert" src="https://github.com/user-attachments/assets/00d9b75b-6ac2-421a-a633-2024143b6c25" />
+<img width="400" height="400" alt="sqlite-single-insert" src="https://github.com/user-attachments/assets/08632d7c-31b6-4f1e-bd2b-bbf91797e6f3" />
+
 
 **Updates:**
 
-<img width="400" height="400" alt="Sqlite-SingleOp-Update" src="https://github.com/user-attachments/assets/803050b7-cf23-48c9-9cd5-e9ebeaa448c9" />
+<img width="400" height="400" alt="sqlite-single-update" src="https://github.com/user-attachments/assets/1962ffa1-2530-4934-b0c3-9b30baacea8a" />
+
 
 **Reads:**
 
-<img width="400" height="400" alt="Sqlite-SingleOp-Read" src="https://github.com/user-attachments/assets/257fdc41-1c56-47d7-a9a5-a23d2fb1764b" />
+<img width="400" height="400" alt="sqlite-single-read" src="https://github.com/user-attachments/assets/d2ab7164-67ab-4d1d-bf38-f1b8ac456599" />
+
 
 **Deletes:**
 
-<img width="400" height="400" alt="Sqlite-SingleOp-Delete" src="https://github.com/user-attachments/assets/d1efb031-068f-41d2-a671-155e31e623c2" />
+<img width="400" height="400" alt="sqlite-single-delete" src="https://github.com/user-attachments/assets/6f486ac1-7347-4460-aa29-380d0f6ff8e0" />
+
 
 ---
 
@@ -473,15 +484,18 @@ https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sh
 
 **Inserts:**
 
-<img width="400" height="400" alt="Sqlite-BatchOp-Insert" src="https://github.com/user-attachments/assets/89572529-3859-4b34-9c69-b6eb8c566bc6" />
+<img width="400" height="400" alt="sqlite-batch-insert" src="https://github.com/user-attachments/assets/999f5e48-6d2c-4031-8d4f-87bef381f3b9" />
+
 
 **Updates:**
 
-<img width="400" height="400" alt="Sqlite-BatchOp-Update" src="https://github.com/user-attachments/assets/25ce020d-92d4-4dac-8876-08780657b624" />
+<img width="400" height="400" alt="sqlite-batch-update" src="https://github.com/user-attachments/assets/4ef15a74-265e-443d-ba6c-5c4a97fe047a" />
+
 
 **Deletes:**
 
-<img width="400" height="400" alt="Sqlite-BatchOp-Delete" src="https://github.com/user-attachments/assets/35fcee8e-2c5f-4761-adce-84ddc40b4ccf" />
+<img width="400" height="400" alt="sqlite-batch-delete" src="https://github.com/user-attachments/assets/79b1df04-e62c-4d2b-8e94-fee45fbbd8a0" />
+
 
 ---
 
@@ -492,19 +506,23 @@ https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sh
 
 **Inserts:**
 
-<img width="400" height="400" alt="MySQL-SingleOp-Insert" src="https://github.com/user-attachments/assets/89061de4-8888-45a2-b264-c1c4b1e7d619" />
+<img width="400" height="400" alt="mysql-single-insert" src="https://github.com/user-attachments/assets/232f038b-8e31-4bce-a292-8d616698a274" />
+
 
 **Updates:**
 
-<img width="400" height="400" alt="MySQL-SingleOp-Update" src="https://github.com/user-attachments/assets/cd605592-c333-4107-9996-f77a6be63b99" />
+<img width="400" height="400" alt="mysql-single-update" src="https://github.com/user-attachments/assets/1e0a5817-5e84-43ba-a827-5865d52f5217" />
+
 
 **Reads:**
 
-<img width="400" height="400" alt="MySQL-SingleOp-Read" src="https://github.com/user-attachments/assets/f45642db-0f7c-47e4-a4d9-a61bc179e780" />
+<img width="400" height="400" alt="mysql-single-read" src="https://github.com/user-attachments/assets/72576fc4-fcbe-41cd-a7f8-c5d31529175a" />
+
 
 **Deletes:**
 
-<img width="400" height="400" alt="MySQL-SingleOp-Delete" src="https://github.com/user-attachments/assets/3e781d61-b548-4499-80b9-be90ad39ed05" />
+<img width="400" height="400" alt="mysql-single-delete" src="https://github.com/user-attachments/assets/997a7a1b-c76f-42ea-9de3-0795b64be1bc" />
+
 
 ---
 
@@ -514,15 +532,18 @@ https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sh
 
 **Inserts:**
 
-<img width="400" height="400" alt="MySQL-BatchOp-Insert" src="https://github.com/user-attachments/assets/894c9774-8ba0-47c5-889c-be09b2854c23" />
+<img width="400" height="400" alt="mysql-batch-insert" src="https://github.com/user-attachments/assets/03086e39-12d3-4fb4-9e66-8b004cc0dc65" />
+
 
 **Updates:**
 
-<img width="400" height="400" alt="MySQL-BatchOp-Update" src="https://github.com/user-attachments/assets/087109b6-3d6e-480a-816d-8abc0a110bd1" />
+<img width="400" height="400" alt="mysql-batch-update" src="https://github.com/user-attachments/assets/79ac6a0e-6baa-45a7-af1c-20b62eba1b22" />
+
 
 **Deletes:**
 
-<img width="400" height="400" alt="MySQL-BatchOp-Delete" src="https://github.com/user-attachments/assets/9cdd1b75-ad44-4ac1-bbd9-9881140fc748" />
+<img width="400" height="400" alt="mysql-batch-delete" src="https://github.com/user-attachments/assets/8d260696-4a42-4d43-b1aa-38cd7c5a142b" />
+
 
 ---
 
