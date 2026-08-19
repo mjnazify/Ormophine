@@ -1903,6 +1903,9 @@ class Driver():
             self._exc(f"ANALYZE TABLE `{i}`")
 
     def create_user(self, username: str, password: str, host: str = 'localhost'):
+        for ch in (';', '--', '\0', "'"):
+            if ch in username:
+                raise Exception(f"Invalid username: '{username}' contains forbidden character '{ch}'")
         query = f"CREATE USER '{username.replace("'", "''")}'@'{host.replace("'", "''")}' IDENTIFIED BY %s;"
         self._excp(query, (password,))
 

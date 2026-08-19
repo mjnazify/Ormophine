@@ -1861,7 +1861,7 @@ def test_285_structure_table_name_quoting(driver):
     schema.add_column('id', Mysql.DataTypes.SERIAL(), primary_key=True)
     driver.custom_execute("DROP TABLE IF EXISTS `Table With Spaces`")
     driver.create_table(schema)
-    assert 'Table With Spaces'.lower() in driver.get_tables()
+    assert 'Table With Spaces' in driver.get_tables()
     tbl = getattr(driver, 'Table With Spaces')
     driver.delete_table(tbl, True, True, True)
 def test_300_structure_unique_null_distinct(driver):
