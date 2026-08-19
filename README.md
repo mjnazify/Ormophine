@@ -402,148 +402,161 @@ https://colab.research.google.com/drive/1ndwmN0C9UTZHTNmLh8-fT9rEg-DSrzHQ?usp=sh
 **PostgeSQL:**
 https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sharing
 
+---
+
+### Sqlite Results
+
+**Single Operations Test**  
+*(Executed 10,000 queries total — 200 repeats × 50 chunk size — for each CRUD operation per ORM)*
+
+<table style="width:100%; border-collapse: collapse; text-align: center;">
+  <tr>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Inserts:</strong></p>
+      <img width="100%" height="auto" alt="sqlite-single-insert" src="https://github.com/user-attachments/assets/08632d7c-31b6-4f1e-bd2b-bbf91797e6f3" />
+    </td>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Updates:</strong></p>
+      <img width="100%" height="auto" alt="sqlite-single-update" src="https://github.com/user-attachments/assets/1962ffa1-2530-4934-b0c3-9b30baacea8a" />
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Reads:</strong></p>
+      <img width="100%" height="auto" alt="sqlite-single-read" src="https://github.com/user-attachments/assets/d2ab7164-67ab-4d1d-bf38-f1b8ac456599" />
+    </td>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Deletes:</strong></p>
+      <img width="100%" height="auto" alt="sqlite-single-delete" src="https://github.com/user-attachments/assets/6f486ac1-7347-4460-aa29-380d0f6ff8e0" />
+    </td>
+  </tr>
+</table>
+
+---
+
+**Batch Operation Test**  
+*(Executed 500 queries total — 5 repeats × 100 statements per chunk — for each CUD operation per ORM)*
+
+<table style="width:100%; border-collapse: collapse; text-align: center;">
+  <tr>
+    <td style="padding: 10px; width:33.33%;">
+      <p><strong>Inserts:</strong></p>
+      <img width="100%" height="auto" alt="sqlite-batch-insert" src="https://github.com/user-attachments/assets/999f5e48-6d2c-4031-8d4f-87bef381f3b9" />
+    </td>
+    <td style="padding: 10px; width:33.33%;">
+      <p><strong>Updates:</strong></p>
+      <img width="100%" height="auto" alt="sqlite-batch-update" src="https://github.com/user-attachments/assets/4ef15a74-265e-443d-ba6c-5c4a97fe047a" />
+    </td>
+    <td style="padding: 10px; width:33.33%;">
+      <p><strong>Deletes:</strong></p>
+      <img width="100%" height="auto" alt="sqlite-batch-delete" src="https://github.com/user-attachments/assets/79b1df04-e62c-4d2b-8e94-fee45fbbd8a0" />
+    </td>
+  </tr>
+</table>
 
 ---
 
 ### PostgreSQL Results
 
-**Single Operations Test**
+**Single Operations Test**  
 *(Executed 10,000 queries total — 200 repeats × 50 chunk size — for each CRUD operation per ORM)*
 
-**Inserts:**
-
-<img width="400" height="400" alt="postgre-single-insert" src="https://github.com/user-attachments/assets/a8db4731-dd7b-44a6-9fbb-35eb9417984d" />
-
-
-**Updates:**
-
-<img width="400" height="400" alt="postgre-single-update" src="https://github.com/user-attachments/assets/149ea59f-d95c-43db-889c-879090df31d0" />
-
-
-**Reads:**
-
-<img width="400" height="400" alt="postgre-single-read" src="https://github.com/user-attachments/assets/b143854b-972c-4633-81ac-bd26626fac5f" />
-
-
-**Deletes:**
-
-<img width="400" height="400" alt="postgre-single-delete" src="https://github.com/user-attachments/assets/f7bfed91-9cf5-4909-962e-205ad9be6e17" />
-
+<table style="width:100%; border-collapse: collapse; text-align: center;">
+  <tr>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Inserts:</strong></p>
+      <img width="100%" height="auto" alt="postgre-single-insert" src="https://github.com/user-attachments/assets/a8db4731-dd7b-44a6-9fbb-35eb9417984d" />
+    </td>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Updates:</strong></p>
+      <img width="100%" height="auto" alt="postgre-single-update" src="https://github.com/user-attachments/assets/149ea59f-d95c-43db-889c-879090df31d0" />
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Reads:</strong></p>
+      <img width="100%" height="auto" alt="postgre-single-read" src="https://github.com/user-attachments/assets/b143854b-972c-4633-81ac-bd26626fac5f" />
+    </td>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Deletes:</strong></p>
+      <img width="100%" height="auto" alt="postgre-single-delete" src="https://github.com/user-attachments/assets/f7bfed91-9cf5-4909-962e-205ad9be6e17" />
+    </td>
+  </tr>
+</table>
 
 ---
 
-**Batch Operation Test**
+**Batch Operation Test**  
 *(Executed 500 queries total — 5 repeats × 100 statements per chunk — for each CUD operation per ORM)*
 
-**Inserts:**
-
-<img width="400" height="400" alt="postgre-batch-insert" src="https://github.com/user-attachments/assets/b6f9d9ce-b785-4501-a440-04f29b88e513" />
-
-
-**Updates:**
-
-<img width="400" height="400" alt="postgre-batch-update" src="https://github.com/user-attachments/assets/14b26b2a-2d52-49ef-a246-64d3ff471cc7" />
-
-
-**Deletes:**
-
-<img width="400" height="400" alt="postgre-batch-delete" src="https://github.com/user-attachments/assets/ff17ee76-bdd7-488c-b23a-e8e2486fde86" />
-
-
----
-
-### Sqlite Results
-
-**Single Operations Test**
-*(Executed 10,000 queries total — 200 repeats × 50 chunk size — for each CRUD operation per ORM)*
-
-**Inserts:**
-
-<img width="400" height="400" alt="sqlite-single-insert" src="https://github.com/user-attachments/assets/08632d7c-31b6-4f1e-bd2b-bbf91797e6f3" />
-
-
-**Updates:**
-
-<img width="400" height="400" alt="sqlite-single-update" src="https://github.com/user-attachments/assets/1962ffa1-2530-4934-b0c3-9b30baacea8a" />
-
-
-**Reads:**
-
-<img width="400" height="400" alt="sqlite-single-read" src="https://github.com/user-attachments/assets/d2ab7164-67ab-4d1d-bf38-f1b8ac456599" />
-
-
-**Deletes:**
-
-<img width="400" height="400" alt="sqlite-single-delete" src="https://github.com/user-attachments/assets/6f486ac1-7347-4460-aa29-380d0f6ff8e0" />
-
-
----
-
-**Batch Operation Test**
-*(Executed 500 queries total — 5 repeats × 100 statements per chunk — for each CUD operation per ORM)*
-
-**Inserts:**
-
-<img width="400" height="400" alt="sqlite-batch-insert" src="https://github.com/user-attachments/assets/999f5e48-6d2c-4031-8d4f-87bef381f3b9" />
-
-
-**Updates:**
-
-<img width="400" height="400" alt="sqlite-batch-update" src="https://github.com/user-attachments/assets/4ef15a74-265e-443d-ba6c-5c4a97fe047a" />
-
-
-**Deletes:**
-
-<img width="400" height="400" alt="sqlite-batch-delete" src="https://github.com/user-attachments/assets/79b1df04-e62c-4d2b-8e94-fee45fbbd8a0" />
-
+<table style="width:100%; border-collapse: collapse; text-align: center;">
+  <tr>
+    <td style="padding: 10px; width:33.33%;">
+      <p><strong>Inserts:</strong></p>
+      <img width="100%" height="auto" alt="postgre-batch-insert" src="https://github.com/user-attachments/assets/b6f9d9ce-b785-4501-a440-04f29b88e513" />
+    </td>
+    <td style="padding: 10px; width:33.33%;">
+      <p><strong>Updates:</strong></p>
+      <img width="100%" height="auto" alt="postgre-batch-update" src="https://github.com/user-attachments/assets/14b26b2a-2d52-49ef-a246-64d3ff471cc7" />
+    </td>
+    <td style="padding: 10px; width:33.33%;">
+      <p><strong>Deletes:</strong></p>
+      <img width="100%" height="auto" alt="postgre-batch-delete" src="https://github.com/user-attachments/assets/ff17ee76-bdd7-488c-b23a-e8e2486fde86" />
+    </td>
+  </tr>
+</table>
 
 ---
 
 ### MySQL Results
 
-**Single Operations Test**
+**Single Operations Test**  
 *(Executed 10,000 queries total — 200 repeats × 50 chunk size — for each CRUD operation per ORM)*
 
-**Inserts:**
-
-<img width="400" height="400" alt="mysql-single-insert" src="https://github.com/user-attachments/assets/232f038b-8e31-4bce-a292-8d616698a274" />
-
-
-**Updates:**
-
-<img width="400" height="400" alt="mysql-single-update" src="https://github.com/user-attachments/assets/1e0a5817-5e84-43ba-a827-5865d52f5217" />
-
-
-**Reads:**
-
-<img width="400" height="400" alt="mysql-single-read" src="https://github.com/user-attachments/assets/72576fc4-fcbe-41cd-a7f8-c5d31529175a" />
-
-
-**Deletes:**
-
-<img width="400" height="400" alt="mysql-single-delete" src="https://github.com/user-attachments/assets/997a7a1b-c76f-42ea-9de3-0795b64be1bc" />
-
+<table style="width:100%; border-collapse: collapse; text-align: center;">
+  <tr>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Inserts:</strong></p>
+      <img width="100%" height="auto" alt="mysql-single-insert" src="https://github.com/user-attachments/assets/232f038b-8e31-4bce-a292-8d616698a274" />
+    </td>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Updates:</strong></p>
+      <img width="100%" height="auto" alt="mysql-single-update" src="https://github.com/user-attachments/assets/1e0a5817-5e84-43ba-a827-5865d52f5217" />
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Reads:</strong></p>
+      <img width="100%" height="auto" alt="mysql-single-read" src="https://github.com/user-attachments/assets/72576fc4-fcbe-41cd-a7f8-c5d31529175a" />
+    </td>
+    <td style="padding: 10px; width:50%;">
+      <p><strong>Deletes:</strong></p>
+      <img width="100%" height="auto" alt="mysql-single-delete" src="https://github.com/user-attachments/assets/997a7a1b-c76f-42ea-9de3-0795b64be1bc" />
+    </td>
+  </tr>
+</table>
 
 ---
 
-
-**Batch Operation Test**
+**Batch Operation Test**  
 *(Executed 500 queries total — 5 repeats × 100 statements per chunk — for each CUD operation per ORM)*
 
-**Inserts:**
-
-<img width="400" height="400" alt="mysql-batch-insert" src="https://github.com/user-attachments/assets/03086e39-12d3-4fb4-9e66-8b004cc0dc65" />
-
-
-**Updates:**
-
-<img width="400" height="400" alt="mysql-batch-update" src="https://github.com/user-attachments/assets/79ac6a0e-6baa-45a7-af1c-20b62eba1b22" />
-
-
-**Deletes:**
-
-<img width="400" height="400" alt="mysql-batch-delete" src="https://github.com/user-attachments/assets/8d260696-4a42-4d43-b1aa-38cd7c5a142b" />
-
+<table style="width:100%; border-collapse: collapse; text-align: center;">
+  <tr>
+    <td style="padding: 10px; width:33.33%;">
+      <p><strong>Inserts:</strong></p>
+      <img width="100%" height="auto" alt="mysql-batch-insert" src="https://github.com/user-attachments/assets/03086e39-12d3-4fb4-9e66-8b004cc0dc65" />
+    </td>
+    <td style="padding: 10px; width:33.33%;">
+      <p><strong>Updates:</strong></p>
+      <img width="100%" height="auto" alt="mysql-batch-update" src="https://github.com/user-attachments/assets/79ac6a0e-6baa-45a7-af1c-20b62eba1b22" />
+    </td>
+    <td style="padding: 10px; width:33.33%;">
+      <p><strong>Deletes:</strong></p>
+      <img width="100%" height="auto" alt="mysql-batch-delete" src="https://github.com/user-attachments/assets/8d260696-4a42-4d43-b1aa-38cd7c5a142b" />
+    </td>
+  </tr>
+</table>
 
 ---
 
