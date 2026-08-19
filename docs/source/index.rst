@@ -212,17 +212,32 @@ For example, if you installed the package in a virtual environment, you can find
 --------------------
 
 Ormophine is simple — but it's not slow. We benchmarked it against popular Python ORMs
-(SQLAlchemy, PonyORM, and Peewee) across SQLite, PostgreSQL, and MySQL.
+(SQLAlchemy, PonyORM, and Peewee) across SQLite, PostgreSQL, and MySQL — measuring
+**throughput** instead of raw execution time.
 
 Methodology
 ^^^^^^^^^^^
 We evaluate two distinct scenarios to measure both transactional overhead and bulk efficiency:
 
-1. **Single Operations:** Measures the time taken to execute CRUD queries where a ``COMMIT`` is issued immediately after *every single* insert, update, and delete. This tests the ORM's baseline overhead and connection management for isolated transactions.
-2. **Batch Operations:** Measures the time taken to execute a block of CUD (Create, Update, Delete) queries where all statements are executed first, and a single ``COMMIT`` is issued at the end. This tests the ORM's efficiency in bulk transactional processing.
+1. **Single Operations:** Measures how many CRUD queries per second each ORM can execute when a ``COMMIT`` is issued immediately after *every single* insert, update, and delete. This tests the ORM's baseline overhead and connection management for isolated transactions.
+2. **Batch Operations:** Measures how many CUD (Create, Update, Delete) queries per second each ORM can execute when all statements are executed first, and a single ``COMMIT`` is issued at the end. This tests the ORM's efficiency in bulk transactional processing.
+
+**Metric — Queries Per Second (QPS):** each test run executes a fixed number of queries
+per operation; throughput is computed as ``QPS = queries / elapsed_seconds`` for every
+run, and the mean across all repeats is reported. QPS is a normalized metric, so results
+remain directly comparable across chunk sizes and database backends — and it reads
+naturally: *how many queries can each ORM execute in one second?*
 
 .. note::
-   Due to natural system fluctuations, each test run can have a variance of up to ±10%. Therefore, performance differences of less than 5% are considered statistically insignificant (margin of error). In the charts, differences under 5% are displayed in gray and marked as "≈ Equal".
+   **How to read the charts:** every chart shows **Mean Throughput in Queries Per Second
+   (QPS) — a taller bar is better.** Below each chart, the percentage indicates how much
+   faster Ormophine is compared to that ORM.
+
+.. note::
+   Due to natural system fluctuations, each test run can have a variance of up to ±10%.
+   Therefore, throughput differences of less than 5% are considered statistically
+   insignificant (margin of error). In the charts, differences under 5% are displayed in
+   gray and marked as "≈ Equal".
 
 Run the Benchmarks Yourself
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
