@@ -65,7 +65,16 @@ class Table:
         >>> employees.get_indexes()
         >>> employees.delete_index('idx_salary')
     """
-    PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_?_'
+
+    class _PlaceHolder:
+        """So when we use placeholders in bulkupdate, it wont confuse to use '+' or '||' when using <users.age + users.PLACE_HOLDER>"""
+        def __init__(self, placeholder):
+            self.placeholder = placeholder
+            return self
+        
+        def __str__(self):
+            return self.placeholder
+        
     def __init__(self, obj: Driver, table_name: str):
         """
         Initialize a Table object representing a database table.
@@ -102,7 +111,7 @@ class Table:
         self.name_= '['+table_name+']'
         self.main_queue: SimpleQueue= obj.main_queue
         self.db_obj= obj
-        self.PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_?_'
+        self.PLACE_HOLDER = self._PlaceHolder('_MY_S4ULT3D_PL4C3_H0LD3R_?_')
         for i in self.get_table_info():
             self.__setattr__(i['name'], Column(self, i['name'], i['datatype']))
         self.__setattr__('ROWID', Column(self, 'ROWID', int))

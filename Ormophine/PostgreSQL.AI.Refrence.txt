@@ -263,6 +263,22 @@ from queue import SimpleQueue, Empty
 from typing import Literal
 
             
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
 class Driver():
     """High-level PostgreSQL driver for Ormophine.
 
@@ -3334,7 +3350,17 @@ class ColumnsOperation:
         new_op._output = (f'({self._output[0]} IN ({", ".join(["%s" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split(".")[0]}{f" WHERE {where._output[0]}" if isinstance(where, ColumnsOperation) else f" WHERE {where.name}" if isinstance(where, Column) else ""}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
         
         return new_op
-    
+
+    def not_In(self, column: Column|ColumnsOperation = None, where: ColumnsOperation = None, data_list: list = None):
+        if isinstance(column, list):
+            data_list, column = column, None #So user can simply In(['Alice', 'Bob']) with out passing arguments
+        if not column and not data_list:
+            raise Exception("In() requires either data_list or column")
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["%s" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split(".")[0]}{f" WHERE {where._output[0]}" if isinstance(where, ColumnsOperation) else f" WHERE {where.name}" if isinstance(where, Column) else ""}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
+        
+        return new_op
+
 
 class Column:
     """
@@ -5095,7 +5121,12 @@ class Column:
         temp_obj = ColumnsOperation(self)
         temp_obj._output = (self.name, [])
         return temp_obj.In(column=column, where=where, data_list=data_list)
-    
+
+    def not_In(self, column: Column|ColumnsOperation = None, where: ColumnsOperation = None, data_list: list = None):
+        temp_ob = ColumnsOperation(self)
+        temp_ob._output = (self.name, [])
+        return temp_ob.not_In(column=column, where=where, data_list=data_list)
+
 
 class BatchOperation:
     """A builder for batch executing multiple SQL operations in a single transaction.

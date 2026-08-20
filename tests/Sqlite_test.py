@@ -2706,7 +2706,6 @@ def test_372_batch_bytes_value_error(users):
     with pytest.raises(Exception):
         batch.insert({users.id: 1, users.name: b'bytes_val'})
 def test_373_batch_run_while_disconnected_error(users, driver):
-    
     batch = users.batch()
     batch.insert({users.id: 1, users.name: 'Ghost'})
     driver.disconnect()

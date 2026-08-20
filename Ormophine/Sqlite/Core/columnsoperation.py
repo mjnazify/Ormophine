@@ -81,7 +81,7 @@ class ColumnsOperation:
             :class:`ColumnsOperation` object, and subsequent chained calls
             modify its ``_output`` accordingly.
         """        
-        self._output = '' # To apply operations in a chained manner
+        self._output = ('', []) # To apply operations in a chained manner
         self.col_obj = col_obj
         self.current_datatype = col_obj.datatype
 
@@ -143,7 +143,7 @@ class ColumnsOperation:
                 # expr3._output[1] -> [5, 2]
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} {'||' if (self.current_datatype == str) else '+'} ?)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) else (f'({self._output[0]} || ?)', self._output[1]+[other if isinstance(other, str) else str(other)])
+        new_op._output = (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} {'||' if (self.current_datatype == str) else '+'} ?)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) or isinstance(other , self.col_obj.table_obj._PlaceHolder) else (f'({self._output[0]} || ?)', self._output[1]+[other if isinstance(other, str) else str(other)])
         new_op.current_datatype = str if (isinstance(other, ColumnsOperation) and other.current_datatype == str) or (isinstance(other, Column) and other.datatype == str) or self.current_datatype == str or ( not isinstance(other, ColumnsOperation) and not isinstance(other,Column) and not isinstance(other, int) and not isinstance(other, float)) else self.current_datatype
         return new_op
 
@@ -212,7 +212,7 @@ class ColumnsOperation:
                 # expr3._output[0] -> "((products.[price] * ?) + products.[name])"
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({other._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? {'||' if (self.current_datatype == str) else '+'} {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(? || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
+        new_op._output = (f'({other._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? {'||' if (self.current_datatype == str) else '+'} {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) or isinstance(other , self.col_obj.table_obj._PlaceHolder) else (f'(? || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
         new_op.current_datatype = str if (isinstance(other, ColumnsOperation) and other.current_datatype == str) or (isinstance(other, Column) and other.datatype == str) or self.current_datatype == str or ( not isinstance(other, ColumnsOperation) and not isinstance(other,Column) and not isinstance(other, int) and not isinstance(other, float)) else self.current_datatype
         return new_op
 
@@ -912,7 +912,7 @@ class ColumnsOperation:
                 final_condition = condition & (id_col > 10)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} = ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} IS NULL)', self._output[1]) if value is None else (f'({self._output[0]} = ?)', self._output[1] + [value])
         return new_op
 
     def __eq__(self, value):
@@ -966,12 +966,8 @@ class ColumnsOperation:
                 # condition3._output[0] -> "(upper(users.[name]) = ?)"
                 # condition3._output[1] -> ['ALICE']
         """
-        if value is None:
-            new_op = ColumnsOperation(self.col_obj)
-            new_op._output = (f'({self._output[0]} IS NULL)', self._output[1])
-            return new_op
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} = ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} IS NULL)', self._output[1]) if value is None else (f'({self._output[0]} = ?)', self._output[1] + [value])
         return new_op
     
     def ne(self, value):
@@ -1024,7 +1020,7 @@ class ColumnsOperation:
                 final_condition = condition & (users.age > 18)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} != ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} IS NOT NULL)', self._output[1]) if value is None else (f'({self._output[0]} != ?)', self._output[1] + [value])
         return new_op
 
     def __ne__(self, value):
@@ -1075,12 +1071,8 @@ class ColumnsOperation:
                 results = products.get_row([price], where=condition)
                 # retrieves rows where price != 100
         """
-        if value is None:
-            new_op = ColumnsOperation(self.col_obj)
-            new_op._output = (f'({self._output[0]} IS NOT NULL)', self._output[1])
-            return new_op
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} != ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} IS NOT NULL)', self._output[1]) if value is None else (f'({self._output[0]} != ?)', self._output[1] + [value])
         return new_op
     
     def gt(self, value):
@@ -2300,6 +2292,90 @@ class ColumnsOperation:
         new_op._output = (f'({self._output[0]} IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
             
         return new_op
+
+    def not_In(self, column: 'Ormophine.Sqlite.Column|Ormophine.Sqlite.ColumnsOperation' = None, where: 'Ormophine.Sqlite.ColumnsOperation' = None, data_list: list = None):
+        """Build an SQL ``NOT IN`` clause for the current column expression.
+
+        This method generates a condition that checks whether the column's value
+        is **not** present in a given list of literals or in the result of a
+        subquery. The behaviour mirrors :meth:`In` but with the negation operator
+        ``NOT IN``.
+
+        Two modes are supported:
+
+        * **Literal list mode**: When ``data_list`` is provided, generates a
+        parameterised ``NOT IN (?, ?, ...)`` clause using the literal values.
+        For backward compatibility, if a list of plain values is passed as the
+        first positional argument (``column``), it is automatically treated as
+        ``data_list``.
+        * **Subquery mode**: When ``column`` is provided as a single
+        :class:`Column` or :class:`ColumnsOperation`, builds a
+        ``NOT IN (SELECT ...)`` subquery. The table name is extracted from the
+        provided column object, and an optional ``where`` condition can be
+        applied inside the subquery — handled identically to
+        :meth:`Table.get_row`.
+
+        The result is stored in the instance's ``_output`` attribute as a tuple
+        ``(sql_string, parameters)``, and the instance is returned to allow
+        chaining.
+
+        Args:
+            column: A single :class:`Column` or :class:`ColumnsOperation`
+                to use in the ``SELECT`` clause of the subquery. The table name
+                is determined from this object. Do not pass a list of columns;
+                if you need multiple conditions, chain them using ``&`` or ``|``.
+                If a list of literals is passed, it is treated as ``data_list``.
+            where: An optional :class:`ColumnsOperation` (or :class:`Column` for
+                boolean columns) representing the ``WHERE`` condition for the
+                subquery. Defaults to ``None``.
+            data_list: A list of literal values for a direct ``NOT IN`` clause.
+                When provided, ``column`` and ``where`` are ignored.
+
+        Returns:
+            :class:`ColumnsOperation`: The current instance with its ``_output``
+            updated to represent the ``NOT IN`` clause. This allows method chaining.
+
+        Raises:
+            Exception: If neither ``data_list`` nor a valid ``column``
+                is provided.
+
+        Example:
+            Assuming ``users`` and ``admins`` tables::
+
+                from ormophine.Sqlite import Driver
+
+                db = Driver('app.db')
+                users = db.users
+                admins = db.admins
+
+                # Literal list mode (backward compatible)
+                expr1 = users.name.not_In(['Alice', 'Bob'])
+                # expr1._output[0] -> "(users.[name] NOT IN (?, ?))"
+                # expr1._output[1] -> ['Alice', 'Bob']
+
+                # Literal list mode (using keyword)
+                expr2 = users.name.not_In(data_list=['Alice', 'Bob'])
+
+                # Subquery mode with WHERE
+                expr3 = users.name.not_In(
+                    column=admins.username,
+                    where=admins.active == True
+                )
+                # expr3._output[0] -> "(users.[name] NOT IN (SELECT admins.[username] FROM admins WHERE (admins.[active] = ?)))"
+                # expr3._output[1] -> [True]
+
+                # Subquery mode without WHERE
+                expr4 = users.name.not_In(column=admins.username)
+                # expr4._output[0] -> "(users.[name] NOT IN (SELECT admins.[username] FROM admins))"
+        """
+        if isinstance(column, list):
+            data_list, column = column, None #So user can simply In(['Alice', 'Bob']) with out passing arguments
+        if not column and not data_list:
+            raise Exception("In() requires either data_list or column")
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
+            
+        return new_op
     
     
 class Column:
@@ -2988,12 +3064,8 @@ class Column:
             >>> # Use in a query:
             >>> rows = users.get_row([users.name], where=condition)
         """
-        if value is None:
-            temp_ob = ColumnsOperation(self)
-            temp_ob._output = (f'({self.name} IS NULL)', [])
-            return temp_ob
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} = ?)', [value])
+        temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NULL)', []) if value is None else (f'({self.name} = ?)', [value])
         return temp_ob
 
     def __eq__(self, value):
@@ -3043,12 +3115,8 @@ class Column:
                 results = users.get_row([id_col], where=condition)
                 # retrieves rows where name == 'Alice'
         """
-        if value is None:
-            temp_ob = ColumnsOperation(self)
-            temp_ob._output = (f'({self.name} IS NULL)', [])
-            return temp_ob
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} = ?)', [value])
+        temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NULL)', []) if value is None else (f'({self.name} = ?)', [value])
         return temp_ob
 
     def ne(self, value):
@@ -3082,12 +3150,8 @@ class Column:
             >>> # Use condition in a query:
             >>> users.get_row([users.name], where=condition)
         """
-        if value is None:
-            temp_ob = ColumnsOperation(self)
-            temp_ob._output = (f'({self.name} IS NOT NULL)', [])
-            return temp_ob
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} != ?)', [value])
+        temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NOT NULL)', []) if value is None else (f'({self.name} != ?)', [value])
         return temp_ob
 
     def __ne__(self, value):
@@ -3125,12 +3189,8 @@ class Column:
             >>> result = users.get_row([users.name], where=condition)
             # Generated SQL: SELECT [users].[name] FROM [users] WHERE ([users].[age] != ?)
         """
-        if value is None:
-            temp_ob = ColumnsOperation(self)
-            temp_ob._output = (f'({self.name} IS NOT NULL)', [])
-            return temp_ob
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} != ?)', [value])
+        temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NOT NULL)', []) if value is None else (f'({self.name} != ?)', [value])
         return temp_ob
 
     def gt(self, value):
@@ -4153,11 +4213,6 @@ class Column:
         temp_ob._output = (f"({self.name} like '%' || {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%' || {value.name})", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like '%' || ?)", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
         return temp_ob
 
-    def In(self, value):
-        temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"{self.name} IN ({value._output[0]})", value._output[1]) if isinstance(value, ColumnsOperation) else (f"{self.name} IN ({','.join(['?'] * len(value))})", list(value)) if isinstance(value, (list, tuple)) else (f"{self.name} = ?", [value])
-        return temp_ob
-
     def contains(self, value):
         """Create a SQL ``LIKE`` condition to check if the column contains a substring.
 
@@ -4373,6 +4428,63 @@ class Column:
         op = ColumnsOperation(self)
         op._output = (self.name, [])
         return op.In(column=column, where=where, data_list=data_list)
+
+    def not_In(self, column: 'Ormophine.Sqlite.Column|Ormophine.Sqlite.ColumnsOperation' = None, where: 'Ormophine.Sqlite.ColumnsOperation' = None, data_list: list = None):
+        """Build an SQL ``NOT IN`` clause for the current column.
+
+        This method serves as an entry point for the :class:`ColumnsOperation`
+        ``not_In`` method. It initialises a :class:`ColumnsOperation` with the
+        current column's name and delegates the execution to it, enabling
+        seamless method chaining.
+
+        Supports two modes:
+        * Passing a list of literal values to ``data_list`` (or as the first
+        positional argument for backward compatibility).
+        * Passing a single :class:`Column`/:class:`ColumnsOperation` to
+        ``column`` to build a ``SELECT`` subquery, with an optional
+        ``where`` condition.
+
+        Args:
+            column: A single :class:`Column` or
+                :class:`ColumnsOperation` to use in the ``SELECT`` clause of
+                the subquery. If a list of literals is passed, it is treated
+                as ``data_list``.
+            where: An optional :class:`ColumnsOperation` (or :class:`Column`)
+                representing the ``WHERE`` condition for the subquery.
+            data_list: A list of literal values for a direct ``NOT IN`` clause.
+
+        Returns:
+            :class:`ColumnsOperation`: A :class:`ColumnsOperation` instance
+            representing the ``NOT IN`` clause, allowing further chaining.
+
+        Raises:
+            Exception: If neither ``data_list`` nor a valid ``column``
+                is provided to the underlying :class:`ColumnsOperation` method.
+
+        Example:
+            Assuming ``users`` and ``admins`` tables::
+
+                from ormophine.Sqlite import Driver
+
+                db = Driver('app.db')
+                users = db.users
+                admins = db.admins
+
+                # Literal list
+                cond1 = users.age.not_In([25, 30, 35])
+
+                # Subquery
+                cond2 = users.name.not_In(
+                    column=admins.username,
+                    where=admins.active == True
+                )
+
+                # Use in a query
+                result = users.get_row([users.name], where=cond2)
+        """
+        op = ColumnsOperation(self)
+        op._output = (self.name, [])
+        return op.not_In(column=column, where=where, data_list=data_list)
         
 
 class BatchOperation:

@@ -3,7 +3,16 @@ from .. import Column, ColumnsOperation, BatchOperation, Join
 from typing import Any
 
 class Table:
-    PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_%s_'
+
+    class _PlaceHolder:
+        """So when we use placeholders in bulkupdate, it wont confuse to use '+' or '||' when using <users.age + users.PLACE_HOLDER>"""
+        def __init__(self, placeholder):
+            self.placeholder = placeholder
+            return self
+        
+        def __str__(self):
+            return self.placeholder
+        
     def __init__(self, obj: Driver, table_name: str):
         """Initialize a Table instance representing an existing database table.
 
@@ -29,7 +38,7 @@ class Table:
         """
         self.name_ = f'"{table_name}"'
         self.db_obj = obj
-        self.PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_%s_'
+        self.PLACE_HOLDER = self._PlaceHolder('_MY_S4ULT3D_PL4C3_H0LD3R_%s_')
         for i in self.get_table_info():
             self.__setattr__(i['name'], Column(self, i['name'], i['datatype']))
 

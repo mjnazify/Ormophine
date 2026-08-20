@@ -13,20 +13,20 @@ class ColumnsOperation():
         Args:
             col_obj (Column): The column object that this operation is associated with.
         """
-        
-        self._output = '' # To apply operations in a chained manner
+
+        self._output = ('', []) # To apply operations in a chained manner
         self.col_obj = col_obj
         self.current_datatype = col_obj.datatype
 
     def __add__(self, other):
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} {'||' if (self.current_datatype == str) else '+'} ?)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) else (f'({self._output[0]} || ?)', self._output[1]+[other if isinstance(other, str) else str(other)])
+        new_op._output = (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} {'||' if (self.current_datatype == str) else '+'} ?)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) or isinstance(other , self.col_obj.table_obj._PlaceHolder) else (f'({self._output[0]} || ?)', self._output[1]+[other if isinstance(other, str) else str(other)])
         new_op.current_datatype = str if (isinstance(other, ColumnsOperation) and other.current_datatype == str) or (isinstance(other, Column) and other.datatype == str) or self.current_datatype == str or ( not isinstance(other, ColumnsOperation) and not isinstance(other,Column) and not isinstance(other, int) and not isinstance(other, float)) else self.current_datatype
         return new_op
 
     def __radd__(self, other):
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({other._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? {'||' if (self.current_datatype == str) else '+'} {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) else (f'(? || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
+        new_op._output = (f'({other._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {self._output[0]})', other._output[1]+self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(? {'||' if (self.current_datatype == str) else '+'} {self._output[0]})', [other]+self._output[1]) if isinstance(other, int) or isinstance(other , float) or isinstance(other , self.col_obj.table_obj._PlaceHolder) else (f'(? || {self._output[0]})', [other if isinstance(other, str) else str(other)]+self._output[1])
         new_op.current_datatype = str if (isinstance(other, ColumnsOperation) and other.current_datatype == str) or (isinstance(other, Column) and other.datatype == str) or self.current_datatype == str or ( not isinstance(other, ColumnsOperation) and not isinstance(other,Column) and not isinstance(other, int) and not isinstance(other, float)) else self.current_datatype
         return new_op
 
@@ -125,30 +125,22 @@ class ColumnsOperation():
 
     def eq(self, value):
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} = ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} IS NULL)', self._output[1]) if value is None else (f'({self._output[0]} = ?)', self._output[1] + [value])
         return new_op
 
     def __eq__(self, value):
-        if value is None:
-            new_op = ColumnsOperation(self.col_obj)
-            new_op._output = (f'({self._output[0]} IS NULL)', self._output[1])
-            return new_op
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} = ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} = {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} = {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} IS NULL)', self._output[1]) if value is None else (f'({self._output[0]} = ?)', self._output[1] + [value])
         return new_op
 
     def ne(self, value):
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} != ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1] if isinstance(self._output[1], list) else [self._output[1]]) if isinstance(value, Column) else (f'({self._output[0]} IS NOT NULL)', self._output[1]) if value is None else (f'({self._output[0]} != ?)', self._output[1] + [value])
         return new_op
 
     def __ne__(self, value):
-        if value is None:
-            new_op = ColumnsOperation(self.col_obj)
-            new_op._output = (f'({self._output[0]} IS NOT NULL)', self._output[1])
-            return new_op
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} != ?)', self._output[1] + [value])
+        new_op._output = (f'({self._output[0]} != {value._output[0]})', self._output[1] + value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} != {value.name})', self._output[1]) if isinstance(value, Column) else (f'({self._output[0]} IS NOT NULL)', self._output[1]) if value is None else (f'({self._output[0]} != ?)', self._output[1] + [value])
         return new_op
 
     def gt(self, value):
@@ -278,6 +270,15 @@ class ColumnsOperation():
         new_op._output = (f'({self._output[0]} IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
         return new_op
 
+    def not_In(self, column: Column|ColumnsOperation = None, where: ColumnsOperation = None, data_list: list = None):
+        if isinstance(column, list):
+            data_list, column = column, None #So user can simply In(['Alice', 'Bob']) with out passing arguments
+        if not column and not data_list:
+            raise Exception("In() requires either data_list or column")
+        new_op = ColumnsOperation(self.col_obj)
+        new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
+        return new_op
+
     
 class Column:
     def __init__(self, table_obj: Table, column_name: str, datatype: type):
@@ -350,39 +351,23 @@ class Column:
         return value % temp_ob
 
     def eq(self, value):
-        if value is None:
-            temp_ob = ColumnsOperation(self)
-            temp_ob._output = (f'({self.name} IS NULL)', [])
-            return temp_ob
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} = ?)', [value])
+        temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NULL)', []) if value is None else (f'({self.name} = ?)', [value])
         return temp_ob
 
     def __eq__(self, value):
-        if value is None:
-            temp_ob = ColumnsOperation(self)
-            temp_ob._output = (f'({self.name} IS NULL)', [])
-            return temp_ob
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} = ?)', [value])
+        temp_ob._output = (f'({self.name} = {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} = {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NULL)', []) if value is None else (f'({self.name} = ?)', [value])
         return temp_ob
     
     def ne(self, value):
-        if value is None:
-            temp_ob = ColumnsOperation(self)
-            temp_ob._output = (f'({self.name} IS NOT NULL)', [])
-            return temp_ob
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} != ?)', [value])
+        temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NOT NULL)', []) if value is None else (f'({self.name} != ?)', [value])
         return temp_ob
 
     def __ne__(self, value):
-        if value is None:
-            temp_ob = ColumnsOperation(self)
-            temp_ob._output = (f'({self.name} IS NOT NULL)', [])
-            return temp_ob
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} != ?)', [value])
+        temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NOT NULL)', []) if value is None else (f'({self.name} != ?)', [value])
         return temp_ob
 
     def gt(self, value):
@@ -506,6 +491,11 @@ class Column:
         op = ColumnsOperation(self)
         op._output = (self.name, [])
         return op.In(column=column, where=where, data_list=data_list)
+    
+    def not_In(self, column: Column|ColumnsOperation = None, where: ColumnsOperation = None, data_list: list = None):
+        op = ColumnsOperation(self)
+        op._output = (self.name, [])
+        return op.not_In(column=column, where=where, data_list=data_list)
 
     def contains(self, value):
         temp_ob = ColumnsOperation(self)
@@ -663,12 +653,20 @@ class SetPragma:
 
 
 class Table:
-    PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_?_'
+
+    class _PlaceHolder:
+        def __init__(self, placeholder):
+            self.placeholder = placeholder
+            return self
+        
+        def __str__(self):
+            return self.placeholder
+        
     def __init__(self, obj: Driver, table_name: str):
         self.name_= '['+table_name+']'
         self.main_queue: SimpleQueue= obj.main_queue
         self.db_obj= obj
-        self.PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_?_'
+        self.PLACE_HOLDER = Table._PlaceHolder('_MY_S4ULT3D_PL4C3_H0LD3R_?_')
         for i in self.get_table_info():
             self.__setattr__(i['name'], Column(self, i['name'], i['datatype']))
         self.__setattr__('ROWID', Column(self, 'ROWID', int))
@@ -708,7 +706,7 @@ class Table:
                 raise Exception(callback[1])
             self.db_obj.pool_holder.put(connection_queue)
         
-        return [{'id':i[0], 'name':i[1], 'datatype':    int if 'INTEGER' in i[2]else float if 'REAL' in i[2]else bytes if 'BLOB' in i[2]else float if 'NUMERIC' in i[2]else object if any(k in i[2].upper() for k in ('DATE', 'TIME', 'TIMESTAMP', 'DATETIME'))else str, 'notnull': i[3], 'default_value':i[4], 'primary_key':i[5]}for i in columns]
+        return [{'id':i[0], 'name':i[1], 'datatype':    int if 'INTEGER' in i[2]else float if 'REAL' in i[2]else bytes if 'BLOB' in i[2]else float if 'NUMERIC' in i[2]else object if any(k in i[2].upper() for k in ('DATE', 'TIME', 'TIMESTAMP', 'DATETIME')) else str, 'notnull': i[3], 'default_value':i[4], 'primary_key':i[5]}for i in columns]
 
     def get_columns_name(self, from_readers_pool: bool = False) -> list[str]:
         query = f'PRAGMA table_info({self.name_})'
