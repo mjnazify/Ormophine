@@ -386,6 +386,14 @@ from queue import SimpleQueue, Empty
 from typing import Literal
 
             
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
 class Driver():
     """High-level PostgreSQL driver for Ormophine.
 
@@ -5748,61 +5756,73 @@ class JoinQuery:
                 )
         return expr
 
-    def get_row(
-        self,
-        which_columns: list,
-        where: 'ColumnsOperation' = None,
-        order_by: 'Column' = None,
-        limit: int = None,       
-        offset: int = None,      
-    ):
-        if not which_columns:
-            return []
+def get_row(
+    self,
+    which_columns: list,
+    where: 'ColumnsOperation' = None,
+    order_by: 'Column | ColumnsOperation' = None,
+    limit: int = None,
+    offset: int = None,
+):
+    if not which_columns:
+        return []
 
-        tl = []
-        select_parts = []
-        for i in which_columns:
-            if isinstance(i, Column):
-                ref = self._resolve_column_ref(i)
-                alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
-                select_parts.append(f'{ref} AS {alias}')
-            else:
-                expr = self._rewrite_expr(i._output[0])
-                tl.extend(i._output[1])
-                if expr.startswith('(') and expr.endswith(')'):
-                    expr = expr[1:-1]
-                alias = (
-                    f'{i.col_obj.table_obj.name_[1:-1]}_'
-                    f'{i.col_obj.first_name[1:-1]}'
-                )
-                select_parts.append(f'{expr} AS {alias}')
+    # ---------- SELECT columns ----------
+    tl = []
+    select_parts = []
+    for i in which_columns:
+        if isinstance(i, Column):
+            ref = self._resolve_column_ref(i)
+            alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
+            select_parts.append(f'{ref} AS {alias}')
+        else:  # ColumnsOperation
+            expr = self._rewrite_expr(i._output[0])
+            tl.extend(i._output[1])
+            if expr.startswith('(') and expr.endswith(')'):
+                expr = expr[1:-1]
+            alias = (
+                f'{i.col_obj.table_obj.name_[1:-1]}_'
+                f'{i.col_obj.first_name[1:-1]}'
+            )
+            select_parts.append(f'{expr} AS {alias}')
 
-        base_sql = (
-            f"SELECT {', '.join(select_parts)} "
-            f"FROM {self.table_obj.name_} "
-            f"{self._join_sql()}"
-        )
-        all_params = tl + list(self.params)
+    # ---------- ORDER BY (Column or ColumnsOperation) ----------
+    ob = []
+    if isinstance(order_by, Column):
+        order_sql = self._resolve_column_ref(order_by)
+    elif isinstance(order_by, ColumnsOperation):
+        order_sql = self._rewrite_expr(order_by._output[0])
+        ob.extend(order_by._output[1])
+    else:
+        order_sql = None
 
-        if where is not None:
-            base_sql += f' WHERE {self._rewrite_expr(where._output[0])}'
-            all_params += list(where._output[1])
+    # ---------- SQL assembly ----------
+    sql = (
+        f"SELECT {', '.join(select_parts)} "
+        f"FROM {self.table_obj.name_} "
+        f"{self._join_sql()}"
+    )
+    all_params = tl + list(self.params)
 
-        if order_by is not None:
-            base_sql += f' ORDER BY {self._resolve_column_ref(order_by)}'
+    if where is not None:
+        sql += f' WHERE {self._rewrite_expr(where._output[0])}'
+        all_params += list(where._output[1])
 
-        if limit is not None:               
-            base_sql += ' LIMIT %s '          
-            all_params.append(limit)          
-        if offset is not None:                
-            base_sql += ' OFFSET %s '         
-            all_params.append(offset)         
+    if order_sql is not None:
+        sql += f' ORDER BY {order_sql}'
+        all_params += ob
 
-        base_sql += ';'
+    if limit is not None:
+        sql += ' LIMIT %s'
+        all_params.append(limit)
+    if offset is not None:
+        sql += ' OFFSET %s'
+        all_params.append(offset)
 
-        if all_params:
-            return self.table_obj._excfp(base_sql, all_params)
-        return self.table_obj._excf(base_sql)
+    sql += ';'
+
+    rows = self.table_obj._excfp(sql, all_params) if all_params else self.table_obj._excf(sql)
+    return rows
 
 from __future__ import annotations
 from .. import Column, ColumnsOperation, BatchOperation, JoinQuery
@@ -6250,7 +6270,7 @@ class Table:
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self._excp(f"UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value, Column) else f'{key.first_name}=%s' if not isinstance(value, ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key, value in list(update.items()))} WHERE {where._output[0]};", temp_list + where._output[1])
 
-    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column' = None, limit: int = None, offset: int = None):
+    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column | ColumnsOperation' = None, limit: int = None, offset: int = None):
         """Fetch rows from the table with selected columns, optional filtering and ordering.
 
         This method builds and executes a SELECT query. The columns can be plain
@@ -6310,12 +6330,14 @@ class Table:
         """
         if not which_columns:
             return
-        tl, wc, af = [], [], []
+        tl, wc, af, ob = [], [], [], []
         af.append(limit) if not limit is None else None
         af.append(offset) if not offset is None else None
+        ob.extend(order_by._output[1]) if isinstance(order_by, ColumnsOperation) else None
         [wc.append(i.first_name) if isinstance(i,Column) else [wc.append(i._output[0]), tl.extend(i._output[1])] for i in which_columns]
-        return [row[0] for row in (self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};', tl+where._output[1]+af) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',tl+af) if tl else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',af) if af else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',))] if len(which_columns) == 1 else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};', tl+where._output[1]+af) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',tl+af) if tl else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',af) if af else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',)
-        
+        return [row[0] for row in (self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};', tl+where._output[1]+ob+af) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',tl+ob+af) if tl else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',ob+af) if af or ob else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''};',))] if len(which_columns) == 1 else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};', tl+where._output[1]+ob+af) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',tl+ob+af) if tl else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',ob+af) if af or ob else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''};',)
+        # Yeah, this line is ~2500 chars. Pure art — my signature is right there :D
+
     def insert(self, insert: dict['Column', Any]) -> None:
         """Insert a single row into the table.
 
