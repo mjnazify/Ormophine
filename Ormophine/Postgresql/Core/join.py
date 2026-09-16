@@ -114,58 +114,58 @@ class JoinQuery:
                 )
         return expr
 
-def get_row(
-    self,
-    which_columns: list,
-    where: 'ColumnsOperation' = None,
-    order_by: 'Column' = None,
-    limit: int = None,       
-    offset: int = None,      
-):
-    if not which_columns:
-        return []
+    def get_row(
+        self,
+        which_columns: list,
+        where: 'ColumnsOperation' = None,
+        order_by: 'Column' = None,
+        limit: int = None,       
+        offset: int = None,      
+    ):
+        if not which_columns:
+            return []
 
-    tl = []
-    select_parts = []
-    for i in which_columns:
-        if isinstance(i, Column):
-            ref = self._resolve_column_ref(i)
-            alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
-            select_parts.append(f'{ref} AS {alias}')
-        else:
-            expr = self._rewrite_expr(i._output[0])
-            tl.extend(i._output[1])
-            if expr.startswith('(') and expr.endswith(')'):
-                expr = expr[1:-1]
-            alias = (
-                f'{i.col_obj.table_obj.name_[1:-1]}_'
-                f'{i.col_obj.first_name[1:-1]}'
-            )
-            select_parts.append(f'{expr} AS {alias}')
+        tl = []
+        select_parts = []
+        for i in which_columns:
+            if isinstance(i, Column):
+                ref = self._resolve_column_ref(i)
+                alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
+                select_parts.append(f'{ref} AS {alias}')
+            else:
+                expr = self._rewrite_expr(i._output[0])
+                tl.extend(i._output[1])
+                if expr.startswith('(') and expr.endswith(')'):
+                    expr = expr[1:-1]
+                alias = (
+                    f'{i.col_obj.table_obj.name_[1:-1]}_'
+                    f'{i.col_obj.first_name[1:-1]}'
+                )
+                select_parts.append(f'{expr} AS {alias}')
 
-    base_sql = (
-        f"SELECT {', '.join(select_parts)} "
-        f"FROM {self.table_obj.name_} "
-        f"{self._join_sql()}"
-    )
-    all_params = tl + list(self.params)
+        base_sql = (
+            f"SELECT {', '.join(select_parts)} "
+            f"FROM {self.table_obj.name_} "
+            f"{self._join_sql()}"
+        )
+        all_params = tl + list(self.params)
 
-    if where is not None:
-        base_sql += f' WHERE {self._rewrite_expr(where._output[0])}'
-        all_params += list(where._output[1])
+        if where is not None:
+            base_sql += f' WHERE {self._rewrite_expr(where._output[0])}'
+            all_params += list(where._output[1])
 
-    if order_by is not None:
-        base_sql += f' ORDER BY {self._resolve_column_ref(order_by)}'
+        if order_by is not None:
+            base_sql += f' ORDER BY {self._resolve_column_ref(order_by)}'
 
-    if limit is not None:               
-        base_sql += ' LIMIT %s '          
-        all_params.append(limit)          
-    if offset is not None:                
-        base_sql += ' OFFSET %s '         
-        all_params.append(offset)         
+        if limit is not None:               
+            base_sql += ' LIMIT %s '          
+            all_params.append(limit)          
+        if offset is not None:                
+            base_sql += ' OFFSET %s '         
+            all_params.append(offset)         
 
-    base_sql += ';'
+        base_sql += ';'
 
-    if all_params:
-        return self.table_obj._excfp(base_sql, all_params)
-    return self.table_obj._excf(base_sql)
+        if all_params:
+            return self.table_obj._excfp(base_sql, all_params)
+        return self.table_obj._excf(base_sql)

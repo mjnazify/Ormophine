@@ -108,74 +108,74 @@ class JoinQuery:
                 )
         return expr
 
-def get_row(
-    self,
-    which_columns: list,
-    where: 'ColumnsOperation' = None,
-    order_by: 'Column' = None,
-    limit: int = None,         
-    offset: int = None,        
-    from_readers_pool: bool = False
-):
-    if not which_columns:
-        return []
+    def get_row(
+        self,
+        which_columns: list,
+        where: 'ColumnsOperation' = None,
+        order_by: 'Column' = None,
+        limit: int = None,         
+        offset: int = None,        
+        from_readers_pool: bool = False
+    ):
+        if not which_columns:
+            return []
 
-    tl = []
-    select_parts = []
-    for i in which_columns:
-        if isinstance(i, Column):
-            ref = self._resolve_column_ref(i)
-            alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
-            select_parts.append(f'{ref} AS {alias}')
+        tl = []
+        select_parts = []
+        for i in which_columns:
+            if isinstance(i, Column):
+                ref = self._resolve_column_ref(i)
+                alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
+                select_parts.append(f'{ref} AS {alias}')
+            else:
+                expr = self._rewrite_expr(i._output[0])
+                tl.extend(i._output[1])
+                if expr.startswith('(') and expr.endswith(')'):
+                    expr = expr[1:-1]
+                alias = (
+                    f'{i.col_obj.table_obj.name_[1:-1]}_'
+                    f'{i.col_obj.first_name[1:-1]}'
+                )
+                select_parts.append(f'{expr} AS {alias}')
+
+        base_sql = (
+            f"SELECT {', '.join(select_parts)} "
+            f"FROM {self.table_obj.name_} "
+            f"{self._join_sql()}"
+        )
+        all_params = tl + list(self.params)
+
+        if where is not None:
+            where_sql = self._rewrite_expr(where._output[0])
+            base_sql += f' WHERE {where_sql}'
+            all_params += list(where._output[1])
+
+        if order_by is not None:
+            base_sql += f' ORDER BY {self._resolve_column_ref(order_by)}'
+
+        extra_params = []
+        if limit is not None and offset is not None:
+            base_sql += ' LIMIT ? OFFSET ?'
+            extra_params = [limit, offset]
+        elif limit is not None:
+            base_sql += ' LIMIT ?'
+            extra_params = [limit]
+        elif offset is not None:
+            base_sql += ' LIMIT ? OFFSET ?'
+            extra_params = [-1, offset]      
+        all_params += extra_params
+        # -----------------------------------------------------
+
+        query = (base_sql, all_params) if all_params else (base_sql,)
+
+        if not from_readers_pool:
+            return self.table_obj._exc('qf', query)
         else:
-            expr = self._rewrite_expr(i._output[0])
-            tl.extend(i._output[1])
-            if expr.startswith('(') and expr.endswith(')'):
-                expr = expr[1:-1]
-            alias = (
-                f'{i.col_obj.table_obj.name_[1:-1]}_'
-                f'{i.col_obj.first_name[1:-1]}'
-            )
-            select_parts.append(f'{expr} AS {alias}')
-
-    base_sql = (
-        f"SELECT {', '.join(select_parts)} "
-        f"FROM {self.table_obj.name_} "
-        f"{self._join_sql()}"
-    )
-    all_params = tl + list(self.params)
-
-    if where is not None:
-        where_sql = self._rewrite_expr(where._output[0])
-        base_sql += f' WHERE {where_sql}'
-        all_params += list(where._output[1])
-
-    if order_by is not None:
-        base_sql += f' ORDER BY {self._resolve_column_ref(order_by)}'
-
-    extra_params = []
-    if limit is not None and offset is not None:
-        base_sql += ' LIMIT ? OFFSET ?'
-        extra_params = [limit, offset]
-    elif limit is not None:
-        base_sql += ' LIMIT ?'
-        extra_params = [limit]
-    elif offset is not None:
-        base_sql += ' LIMIT ? OFFSET ?'
-        extra_params = [-1, offset]      
-    all_params += extra_params
-    # -----------------------------------------------------
-
-    query = (base_sql, all_params) if all_params else (base_sql,)
-
-    if not from_readers_pool:
-        return self.table_obj._exc('qf', query)
-    else:
-        queueCallBack = SimpleQueue()
-        connection_queue = self.table_obj.db_obj.pool_holder.get(block=True)
-        connection_queue.put(['qf', query, queueCallBack])
-        self.table_obj.db_obj.pool_holder.put(connection_queue)
-        if (callback := queueCallBack.get(block=True))[0]:
-            return callback[1]
-        else:
-            raise Exception(callback[1])
+            queueCallBack = SimpleQueue()
+            connection_queue = self.table_obj.db_obj.pool_holder.get(block=True)
+            connection_queue.put(['qf', query, queueCallBack])
+            self.table_obj.db_obj.pool_holder.put(connection_queue)
+            if (callback := queueCallBack.get(block=True))[0]:
+                return callback[1]
+            else:
+                raise Exception(callback[1])
