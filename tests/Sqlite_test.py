@@ -2,14 +2,14 @@ import pytest
 import threading
 import time
 from Ormophine import Sqlite
-import datetime
-
-
+import datetime 
+import pytest
+import time
+import threading
+from Ormophine import Sqlite  
 @pytest.fixture
 def db_path(tmp_path):
-    return str(tmp_path / "test_limit_offset.db")
-
-
+    return str(tmp_path / "test_order_by_op.db")  
 @pytest.fixture
 def driver(db_path):
     drv = Sqlite.Driver(db_path, setup_time=0.1)
@@ -17,9 +17,288 @@ def driver(db_path):
     try:
         drv.disconnect()
     except Exception:
-        pass
+        pass  
+@pytest.fixture
+def t(driver):
+     
+    schema = Sqlite.TableStructure('nums', strict=True)
+    schema.add_column('id',  Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('val', Sqlite.DataTypes.INTEGER())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert(
+        [tbl.id, tbl.val],
+        [(i, i * 10) for i in range(1, 11)]
+    )
+    return tbl  
+@pytest.fixture
+def users_with_data(driver):
+     
+    schema = Sqlite.TableStructure('users', strict=True)
+    schema.add_column('id',   Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('name', Sqlite.DataTypes.TEXT())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert(
+        [tbl.id, tbl.name],
+        [(i, f'U{i}') for i in range(1, 11)]
+    )
+    return tbl  
+@pytest.fixture
+def orders_with_data(driver):
+     
+    schema = Sqlite.TableStructure('orders', strict=True)
+    schema.add_column('id',      Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema.add_column('total',   Sqlite.DataTypes.REAL())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert(
+        [tbl.id, tbl.user_id, tbl.total],
+        [(100 + i, i, float(i * 10)) for i in range(1, 11)]
+    )
+    return tbl  
+@pytest.fixture
+def logs_with_data(driver):
+     
+    schema = Sqlite.TableStructure('logs', strict=True)
+    schema.add_column('id',      Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema.add_column('msg',     Sqlite.DataTypes.TEXT())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert(
+        [tbl.id, tbl.user_id, tbl.msg],
+        [(i, i, f'M{i}') for i in range(1, 11)]
+    )
+    return tbl  
 
-
+def test_ob_01_order_by_simple_operation_desc(t):
+     
+    res = t.get_row([t.id], order_by=t.val * -1)
+    assert res == [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]  
+def test_ob_02_order_by_operation_equivalent_to_column(t):
+     
+    res = t.get_row([t.id], order_by=t.id + 0)
+    assert res == list(range(1, 11))  
+def test_ob_03_order_by_string_operation(driver):
+     
+    schema = Sqlite.TableStructure('u', strict=True)
+    schema.add_column('id',   Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('name', Sqlite.DataTypes.TEXT())
+    u = driver.create_table(schema)
+    u.bulk_insert([u.id, u.name], [(1, 'banana'), (2, 'Apple'), (3, 'cherry')])
+    res = u.get_row([u.id], order_by=u.name.upper())
+    
+    assert res == [2, 1, 3]  
+def test_ob_04_order_by_operation_zero_params(t):
+     
+    res = t.get_row([t.id], order_by=t.id * t.id)
+    assert res == list(range(1, 11))  
+def test_ob_05_order_by_operation_on_computed_select(t):
+     
+    res = t.get_row(
+        [t.val + 1],           
+        order_by=t.val * -1,   
+        limit=2,
+    )
+    
+    assert res == [101, 91]  
+def test_ob_06_order_by_operation_with_where(t):
+    res = t.get_row(
+        [t.id],
+        where=t.val > 30,
+        order_by=t.val * -1,
+    )
+    
+    assert res == [10, 9, 8, 7, 6, 5, 4]  
+def test_ob_07_order_by_operation_with_where_params(t):
+     
+    res = t.get_row(
+        [t.id],
+        where=t.val >= 20,    
+        order_by=t.id * -1,   
+    )
+    
+    assert res == [10, 9, 8, 7, 6, 5, 4, 3, 2]  
+def test_ob_08_order_by_operation_with_limit(t):
+    res = t.get_row([t.id], order_by=t.val * -1, limit=3)
+    assert res == [10, 9, 8]  
+def test_ob_09_order_by_operation_with_limit_offset(t):
+    res = t.get_row([t.id], order_by=t.val * -1, limit=3, offset=2)
+    assert res == [8, 7, 6]  
+def test_ob_10_order_by_operation_full_stack(t):
+     
+    res = t.get_row(
+        [t.id],
+        where=(t.val > 20) & (t.val < 90),   
+        order_by=t.id * -1 + 100,            
+        limit=2,
+        offset=1,                            
+    )
+    
+    assert res == [7, 6]  
+def test_ob_11_order_by_operation_empty_result(t):
+    res = t.get_row([t.id], where=t.id > 100, order_by=t.val * -1)
+    assert res == []  
+def test_ob_12_param_order_sanity(t):
+    """
+    چک نهایی ترتیب پارامترها:
+    SELECT → WHERE → ORDER BY → LIMIT → OFFSET
+    اگر جابجا شوند نتیجه غلط می‌شود.
+    """
+    res = t.get_row(
+        [t.val + 1],                            
+        where=(t.val >= 10) & (t.val <= 80),    
+        order_by=t.val * -1,                    
+        limit=2,                                
+        offset=1,                               
+    )
+    
+    
+    assert res == [71, 61]  
+def test_ob_13_param_order_multi_select(t):
+     
+    res = t.get_row(
+        [t.val + 1, t.val * 2],    
+        order_by=t.id * -1,        
+        limit=2,
+    )
+    
+    assert res == [(101, 200), (91, 180)]  
+def test_ob_14_order_by_reader_pool(t):
+    res = t.get_row(
+        [t.id],
+        order_by=t.val * -1,
+        limit=3,
+        from_readers_pool=True,
+    )
+    assert res == [10, 9, 8]  
+def test_ob_15_join_order_by_operation(users_with_data, orders_with_data):
+     
+    res = (users_with_data
+           .inner_join(orders_with_data,
+                       users_with_data.id == orders_with_data.user_id)
+           .get_row([users_with_data.id],
+                    order_by=orders_with_data.total * -1))
+    assert [r[0] for r in res] == [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]  
+def test_ob_16_join_order_by_string_operation(users_with_data, orders_with_data):
+     
+    res = (users_with_data
+           .inner_join(orders_with_data,
+                       users_with_data.id == orders_with_data.user_id)
+           .get_row([users_with_data.id],
+                    order_by=users_with_data.name.upper()))
+    
+    assert [r[0] for r in res] == [1, 10, 2, 3, 4, 5, 6, 7, 8, 9]  
+def test_ob_17_join_order_by_operation_with_where(users_with_data, orders_with_data):
+    res = (users_with_data
+           .inner_join(orders_with_data,
+                       users_with_data.id == orders_with_data.user_id)
+           .get_row([users_with_data.id],
+                    where=orders_with_data.total > 30,
+                    order_by=orders_with_data.total * -1))
+    
+    assert [r[0] for r in res] == [10, 9, 8, 7, 6, 5, 4]  
+def test_ob_18_join_order_by_operation_with_limit_offset(users_with_data, orders_with_data):
+    res = (users_with_data
+           .inner_join(orders_with_data,
+                       users_with_data.id == orders_with_data.user_id)
+           .get_row([users_with_data.id],
+                    order_by=orders_with_data.total * -1,
+                    limit=3, offset=2))
+    assert [r[0] for r in res] == [8, 7, 6]  
+def test_ob_19_join_order_by_operation_full_stack(users_with_data, orders_with_data):
+     
+    res = (users_with_data
+           .inner_join(orders_with_data,
+                       users_with_data.id == orders_with_data.user_id)
+           .get_row([users_with_data.id],
+                    where=orders_with_data.total > 30,
+                    order_by=orders_with_data.total * -1 + 1000,
+                    limit=2,
+                    offset=1))
+    
+    
+    assert [r[0] for r in res] == [9, 8]  
+def test_ob_20_join_order_by_reader_pool(users_with_data, orders_with_data):
+    res = (users_with_data
+           .inner_join(orders_with_data,
+                       users_with_data.id == orders_with_data.user_id)
+           .get_row([users_with_data.id],
+                    order_by=orders_with_data.total * -1,
+                    limit=3,
+                    from_readers_pool=True))
+    assert [r[0] for r in res] == [10, 9, 8]  
+def test_ob_21_join_order_by_operation_chain(users_with_data, orders_with_data, logs_with_data):
+     
+    res = (users_with_data
+           .inner_join(orders_with_data,
+                       users_with_data.id == orders_with_data.user_id)
+           .inner_join(logs_with_data,
+                       users_with_data.id == logs_with_data.user_id)
+           .get_row([users_with_data.id, logs_with_data.msg],
+                    order_by=orders_with_data.total * -1,
+                    limit=3))
+    assert [r[0] for r in res] == [10, 9, 8]  
+def test_ob_22_join_order_by_with_alias(users_with_data, orders_with_data):
+    """وقتی همان جدول دو بار join می‌شود، ORDER BY از نوع ColumnsOperation
+    باید به alias درست اشاره کند و خطا ندهد."""
+    jq = (users_with_data
+          .inner_join(orders_with_data,
+                      users_with_data.id == orders_with_data.user_id)
+          .inner_join(orders_with_data,
+                      users_with_data.id == orders_with_data.user_id))
+    res = jq.get_row([users_with_data.id],
+                     order_by=orders_with_data.total * -1,
+                     limit=3)
+    assert len(res) == 3  
+def test_ob_23_join_order_by_param_order(users_with_data, orders_with_data):
+     
+    res = (users_with_data
+           .inner_join(orders_with_data,
+                       users_with_data.id == orders_with_data.user_id)
+           .get_row(
+               [users_with_data.id],
+               where=orders_with_data.total > 20,       
+               order_by=orders_with_data.total * -1,    
+               limit=2, offset=1,                       
+           ))
+    
+    
+    assert [r[0] for r in res] == [9, 8]  
+def test_ob_24_join_order_by_multi_select(users_with_data, orders_with_data):
+     
+    res = (users_with_data
+           .inner_join(orders_with_data,
+                       users_with_data.id == orders_with_data.user_id)
+           .get_row(
+               [orders_with_data.total + 1, orders_with_data.total * 2],
+               order_by=users_with_data.id * -1,
+               limit=2,
+           ))
+    
+    
+    assert res == [(101, 200), (91, 180)]  
+def test_ob_25_join_left_order_by_operation(users_with_data, orders_with_data):
+     
+    users_with_data.insert({users_with_data.id: 99, users_with_data.name: 'Orphan'})
+    res = (users_with_data
+           .left_join(orders_with_data,
+                      users_with_data.id == orders_with_data.user_id)
+           .get_row([users_with_data.id, orders_with_data.total],
+                    order_by=users_with_data.id * -1,
+                    limit=2))
+    
+    assert res[0][0] == 99
+    assert res[0][1] is None 
+@pytest.fixture
+def db_path(tmp_path):
+    return str(tmp_path / "test_limit_offset.db")  
+@pytest.fixture
+def driver(db_path):
+    drv = Sqlite.Driver(db_path, setup_time=0.1)
+    yield drv
+    try:
+        drv.disconnect()
+    except Exception:
+        pass  
 @pytest.fixture
 def t(driver):
     schema = Sqlite.TableStructure('nums', strict=True)
@@ -27,24 +306,17 @@ def t(driver):
     schema.add_column('val', Sqlite.DataTypes.INTEGER())
     tbl = driver.create_table(schema)
     tbl.bulk_insert([tbl.id, tbl.val], [(i, i * 10) for i in range(1, 11)])
-    return tbl
-
-# =====================================================
-# fixtureهای پر‌داده (فقط برای تست‌های LIMIT/OFFSET)
-# =====================================================
-
+    return tbl 
 @pytest.fixture
-def users_with_data(driver):               # ← نام جدید
+def users_with_data(driver):               
     schema = Sqlite.TableStructure('users', strict=True)
     schema.add_column('id',   Sqlite.DataTypes.INTEGER(), primary_key=True)
     schema.add_column('name', Sqlite.DataTypes.TEXT())
     tbl = driver.create_table(schema)
     tbl.bulk_insert([tbl.id, tbl.name], [(i, f'U{i}') for i in range(1, 11)])
-    return tbl
-
-
+    return tbl  
 @pytest.fixture
-def orders_with_data(driver):              # ← نام جدید
+def orders_with_data(driver):              
     schema = Sqlite.TableStructure('orders', strict=True)
     schema.add_column('id',      Sqlite.DataTypes.INTEGER(), primary_key=True)
     schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
@@ -53,103 +325,55 @@ def orders_with_data(driver):              # ← نام جدید
     tbl.bulk_insert([tbl.id, tbl.user_id, tbl.total],
                     [(100 + i, i, float(i * 10)) for i in range(1, 11)])
     return tbl
-# =====================================================
-# Table.get_row  →  LIMIT / OFFSET
-# =====================================================
-
-# ---------- LIMIT ----------
 
 def test_lo_01_limit_only(t):
     res = t.get_row([t.id], limit=3)
-    assert len(res) == 3
-
-
+    assert len(res) == 3  
 def test_lo_02_limit_zero(t):
     res = t.get_row([t.id], limit=0)
-    assert res == []
-
-
+    assert res == []  
 def test_lo_03_limit_larger_than_rows(t):
     res = t.get_row([t.id], limit=1000)
-    assert len(res) == 10
-
-
+    assert len(res) == 10  
 def test_lo_04_limit_with_order(t):
     res = t.get_row([t.id], order_by=t.id, limit=3)
-    assert res == [1, 2, 3]
-
-
+    assert res == [1, 2, 3]  
 def test_lo_05_limit_with_where(t):
     res = t.get_row([t.id], where=t.val > 30, limit=2)
-    assert len(res) == 2
-
-
-# ---------- OFFSET ----------
-
+    assert len(res) == 2  
 def test_lo_06_offset_only(t):
     res = t.get_row([t.id], offset=5)
-    assert len(res) == 5
-
-
+    assert len(res) == 5  
 def test_lo_07_offset_only_with_order(t):
     res = t.get_row([t.id], order_by=t.id, offset=5)
-    assert res == [6, 7, 8, 9, 10]
-
-
+    assert res == [6, 7, 8, 9, 10]  
 def test_lo_08_offset_zero(t):
     res = t.get_row([t.id], order_by=t.id, offset=0)
-    assert len(res) == 10
-
-
+    assert len(res) == 10  
 def test_lo_09_offset_larger_than_rows(t):
     res = t.get_row([t.id], offset=100)
-    assert res == []
-
-
-# ---------- LIMIT + OFFSET ----------
-
+    assert res == []  
 def test_lo_10_limit_offset(t):
     res = t.get_row([t.id], order_by=t.id, limit=3, offset=2)
-    assert res == [3, 4, 5]
-
-
+    assert res == [3, 4, 5]  
 def test_lo_11_limit_offset_end(t):
     res = t.get_row([t.id], order_by=t.id, limit=3, offset=8)
-    assert res == [9, 10]
-
-
+    assert res == [9, 10]  
 def test_lo_12_limit_offset_full_window(t):
     res = t.get_row([t.id], order_by=t.id, limit=10, offset=0)
-    assert len(res) == 10
-
-
+    assert len(res) == 10  
 def test_lo_13_limit_offset_with_where(t):
     res = t.get_row([t.id], where=t.val >= 30, order_by=t.id, limit=2, offset=1)
-    # vals: 30(id=3),40(4),50(5),... => skip one (id=3) take two => [4, 5]
-    assert res == [4, 5]
-
-
+    assert res == [4, 5]  
 def test_lo_14_limit_offset_multi_column(t):
     res = t.get_row([t.id, t.val], order_by=t.id, limit=2, offset=3)
-    assert res == [(4, 40), (5, 50)]
-
-
+    assert res == [(4, 40), (5, 50)]  
 def test_lo_15_limit_offset_computed_column(t):
     res = t.get_row([t.val + 1], order_by=t.id, limit=2, offset=1)
-    assert res == [21, 31]
-
-
-# ---------- Reader pool ----------
-
+    assert res == [21, 31]  
 def test_lo_16_limit_offset_reader_pool(t):
     res = t.get_row([t.id], order_by=t.id, limit=3, offset=2, from_readers_pool=True)
-    assert res == [3, 4, 5]
-
-
-# =====================================================
-# JoinQuery.get_row  →  LIMIT / OFFSET
-# =====================================================
-
+    assert res == [3, 4, 5]  
 @pytest.fixture
 def users(driver):
     schema = Sqlite.TableStructure('users', strict=True)
@@ -157,9 +381,7 @@ def users(driver):
     schema.add_column('name', Sqlite.DataTypes.TEXT())
     tbl = driver.create_table(schema)
     tbl.bulk_insert([tbl.id, tbl.name], [(i, f'U{i}') for i in range(1, 11)])
-    return tbl
-
-
+    return tbl  
 @pytest.fixture
 def orders(driver):
     schema = Sqlite.TableStructure('orders', strict=True)
@@ -169,66 +391,48 @@ def orders(driver):
     tbl = driver.create_table(schema)
     tbl.bulk_insert([tbl.id, tbl.user_id, tbl.total],
                     [(100 + i, i, float(i * 10)) for i in range(1, 11)])
-    return tbl
-
-
+    return tbl  
 def test_lo_17_join_limit_only(users_with_data, orders_with_data):
     res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
                 .get_row([users_with_data.id], order_by=users_with_data.id, limit=3))
     assert len(res) == 3
-    assert [r[0] for r in res] == [1, 2, 3]
-
-
+    assert [r[0] for r in res] == [1, 2, 3]  
 def test_lo_18_join_offset_only(users_with_data, orders_with_data):
     res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
                 .get_row([users_with_data.id], order_by=users_with_data.id, offset=5))
-    assert [r[0] for r in res] == [6, 7, 8, 9, 10]
-
-
+    assert [r[0] for r in res] == [6, 7, 8, 9, 10]  
 def test_lo_19_join_limit_offset(users_with_data, orders_with_data):
     res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
                 .get_row([users_with_data.id], order_by=users_with_data.id, limit=3, offset=2))
-    assert [r[0] for r in res] == [3, 4, 5]
-
-
+    assert [r[0] for r in res] == [3, 4, 5]  
 def test_lo_20_join_limit_zero(users_with_data, orders_with_data):
     res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
                 .get_row([users_with_data.id], limit=0))
-    assert res == []
-
-
+    assert res == []  
 def test_lo_21_join_offset_bigger_than_rows(users_with_data, orders_with_data):
     res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
                 .get_row([users_with_data.id], offset=100))
-    assert res == []
-
-
+    assert res == []  
 def test_lo_22_join_limit_offset_with_where(users_with_data, orders_with_data):
     res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
                 .get_row([users_with_data.id, orders_with_data.total],
                          where=orders_with_data.total > 30,
                          order_by=users_with_data.id,
                          limit=2, offset=1))
-    # vals >30 for id=4,5,... → skip id=4 take id=5,6
-    assert [r[0] for r in res] == [5, 6]
-
-
+    
+    assert [r[0] for r in res] == [5, 6]  
 def test_lo_23_join_limit_reader_pool(users_with_data, orders_with_data):
     res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
                 .get_row([users_with_data.id], order_by=users_with_data.id,
                          limit=3, offset=2, from_readers_pool=True))
-    assert [r[0] for r in res] == [3, 4, 5]
-
-
+    assert [r[0] for r in res] == [3, 4, 5]  
 def test_lo_24_join_left_with_limit(users_with_data, orders_with_data, driver):
-    # id=11 را در users اضافه می‌کنیم ولی در orders چیزی ندارد
+    
     users_with_data.insert({users_with_data.id: 11, users_with_data.name: 'U11'})
     res = (users_with_data.left_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
                 .get_row([users_with_data.id], order_by=users_with_data.id, limit=2, offset=9))
-    # 11 rows total → offset 9 limit 2 → id=10 و id=11
-    assert [r[0] for r in res] == [10, 11]
-
-
+    
+    assert [r[0] for r in res] == [10, 11]  
 def test_lo_25_join_chain_with_limit(users_with_data, orders_with_data, driver):
     schema = Sqlite.TableStructure('logs', strict=True)
     schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
@@ -241,120 +445,71 @@ def test_lo_25_join_chain_with_limit(users_with_data, orders_with_data, driver):
                 .inner_join(logs, users_with_data.id == logs.user_id)
                 .get_row([users_with_data.id, logs.msg],
                          order_by=users_with_data.id, limit=3, offset=4))
-    assert [r[0] for r in res] == [5, 6, 7]
-
-# ---------- LIMIT ----------
-
+    assert [r[0] for r in res] == [5, 6, 7] 
 def test_lo_01_limit_only(t):
     res = t.get_row([t.id], limit=3)
-    assert len(res) == 3
-
-
+    assert len(res) == 3  
 def test_lo_02_limit_zero(t):
     res = t.get_row([t.id], limit=0)
-    assert res == []
-
-
+    assert res == []  
 def test_lo_03_limit_larger_than_rows(t):
     res = t.get_row([t.id], limit=1000)
-    assert len(res) == 10
-
-
+    assert len(res) == 10  
 def test_lo_04_limit_with_order(t):
     res = t.get_row([t.id], order_by=t.id, limit=3)
-    assert res == [1, 2, 3]
-
-
+    assert res == [1, 2, 3]  
 def test_lo_05_limit_with_where(t):
     res = t.get_row([t.id], where=t.val > 30, limit=2)
-    assert len(res) == 2
-
-
-# ---------- OFFSET ----------
-
+    assert len(res) == 2  
 def test_lo_06_offset_only(t):
     res = t.get_row([t.id], offset=5)
-    # offset بدون limit یعنی limit=-1 یعنی همه
-    assert len(res) == 5
-
-
+    
+    assert len(res) == 5  
 def test_lo_07_offset_only_with_order(t):
     res = t.get_row([t.id], order_by=t.id, offset=5)
-    assert res == [6, 7, 8, 9, 10]
-
-
+    assert res == [6, 7, 8, 9, 10]  
 def test_lo_08_offset_zero(t):
     res = t.get_row([t.id], order_by=t.id, offset=0)
-    assert len(res) == 10
-
-
+    assert len(res) == 10  
 def test_lo_09_offset_larger_than_rows(t):
     res = t.get_row([t.id], offset=100)
-    assert res == []
-
-
-# ---------- LIMIT + OFFSET ----------
-
+    assert res == []  
 def test_lo_10_limit_offset(t):
     res = t.get_row([t.id], order_by=t.id, limit=3, offset=2)
-    assert res == [3, 4, 5]
-
-
+    assert res == [3, 4, 5]  
 def test_lo_11_limit_offset_end(t):
     res = t.get_row([t.id], order_by=t.id, limit=3, offset=8)
-    assert res == [9, 10]
-
-
+    assert res == [9, 10]  
 def test_lo_12_limit_offset_full_window(t):
     res = t.get_row([t.id], order_by=t.id, limit=10, offset=0)
-    assert len(res) == 10
-
-
+    assert len(res) == 10  
 def test_lo_13_limit_offset_with_where(t):
     res = t.get_row([t.id], where=t.val >= 30, order_by=t.id, limit=2, offset=1)
-    # vals: 30(id=3),40(4),50(5),... => skip one (id=3) take two => [4, 5]
-    assert res == [4, 5]
-
-
+    
+    assert res == [4, 5]  
 def test_lo_14_limit_offset_multi_column(t):
     res = t.get_row([t.id, t.val], order_by=t.id, limit=2, offset=3)
-    assert res == [(4, 40), (5, 50)]
-
-
+    assert res == [(4, 40), (5, 50)]  
 def test_lo_15_limit_offset_computed_column(t):
     res = t.get_row([t.val + 1], order_by=t.id, limit=2, offset=1)
-    assert res == [21, 31]
-
-
-# ---------- Reader pool ----------
-
+    assert res == [21, 31]  
 def test_lo_16_limit_offset_reader_pool(t):
     res = t.get_row([t.id], order_by=t.id, limit=3, offset=2, from_readers_pool=True)
-    assert res == [3, 4, 5]
-
+    assert res == [3, 4, 5] 
 @pytest.fixture
 def logs(driver):
     schema = Sqlite.TableStructure('logs', strict=True)
     schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
     schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
     schema.add_column('msg', Sqlite.DataTypes.TEXT())
-    return driver.create_table(schema)
-
-
-# ---------- ساختار پایه ----------
-# =====================================================
-# fixtureهای خالی (برای test_join_*، test_251..260، test_351..400)
-# =====================================================
-
+    return driver.create_table(schema)  
 @pytest.fixture
 def users(driver):
     schema = Sqlite.TableStructure('users', strict=True)
     schema.add_column('id',   Sqlite.DataTypes.INTEGER(), primary_key=True)
     schema.add_column('name', Sqlite.DataTypes.TEXT())
-    schema.add_column('age',  Sqlite.DataTypes.INTEGER())    # ← مهم
-    return driver.create_table(schema)
-
-
+    schema.add_column('age',  Sqlite.DataTypes.INTEGER())    
+    return driver.create_table(schema)  
 @pytest.fixture
 def orders(driver):
     schema = Sqlite.TableStructure('orders', strict=True)
@@ -367,9 +522,7 @@ def test_join_01_inner_basic(users, orders):
     orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
     res = users.inner_join(orders, users.id == orders.user_id)\
                .get_row([users.name, orders.total])
-    assert res == [('Ali', 50.0)]
-
-
+    assert res == [('Ali', 50.0)]  
 def test_join_02_left_keeps_unmatched(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     users.insert({users.id: 2, users.name: 'Reza'})
@@ -377,11 +530,9 @@ def test_join_02_left_keeps_unmatched(users, orders):
     res = users.left_join(orders, users.id == orders.user_id)\
                .get_row([users.name, orders.total])
     assert len(res) == 2
-    # Reza total must be None (or (None,) depending on your sqlite driver mapping)
+    
     reza_row = [r for r in res if r[0] == 'Reza'][0]
-    assert reza_row[1] is None
-
-
+    assert reza_row[1] is None  
 def test_join_03_right_keeps_orphans(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
@@ -390,11 +541,7 @@ def test_join_03_right_keeps_orphans(users, orders):
                .get_row([users.name, orders.total])
     assert len(res) == 2
     orphan = [r for r in res if r[1] == 20.0][0]
-    assert orphan[0] is None
-
-
-# ---------- Chaining ----------
-
+    assert orphan[0] is None  
 def test_join_04_chain_inner_then_left(users, orders, logs):
     users.insert({users.id: 1, users.name: 'Ali'})
     orders.insert({orders.id: 10, orders.user_id: 1, orders.total: 100})
@@ -402,9 +549,7 @@ def test_join_04_chain_inner_then_left(users, orders, logs):
     res = (users.inner_join(orders, users.id == orders.user_id)
                 .left_join(logs, users.id == logs.user_id)
                 .get_row([users.name, orders.total, logs.msg]))
-    assert res == [('Ali', 100.0, 'Error')]
-
-
+    assert res == [('Ali', 100.0, 'Error')]  
 def test_join_05_chain_three_inner(users, orders, logs):
     users.insert({users.id: 1, users.name: 'Ali'})
     orders.insert({orders.id: 10, orders.user_id: 1, orders.total: 100})
@@ -412,11 +557,7 @@ def test_join_05_chain_three_inner(users, orders, logs):
     res = (users.inner_join(orders, users.id == orders.user_id)
                 .inner_join(logs, orders.user_id == logs.user_id)
                 .get_row([users.name, logs.msg]))
-    assert res == [('Ali', 'OK')]
-
-
-# ---------- WHERE / ORDER BY ----------
-
+    assert res == [('Ali', 'OK')]  
 def test_join_06_where_filter(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     users.insert({users.id: 2, users.name: 'Reza'})
@@ -424,9 +565,7 @@ def test_join_06_where_filter(users, orders):
     orders.insert({orders.id: 101, orders.user_id: 2, orders.total: 150.0})
     res = (users.inner_join(orders, users.id == orders.user_id)
                 .get_row([users.name], where=orders.total > 100))
-    assert res == [('Reza',)]
-
-
+    assert res == [('Reza',)]  
 def test_join_07_order_by(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     users.insert({users.id: 2, users.name: 'Reza'})
@@ -435,28 +574,20 @@ def test_join_07_order_by(users, orders):
     res = (users.inner_join(orders, users.id == orders.user_id)
                 .get_row([users.name], order_by=orders.total))
     assert res[0] == ('Ali',)
-    assert res[1] == ('Reza',)
-
-
+    assert res[1] == ('Reza',)  
 def test_join_08_where_and_order(users, orders):
     for i in range(1, 6):
         users.insert({users.id: i, users.name: f'U{i}'})
         orders.insert({orders.id: 100 + i, orders.user_id: i, orders.total: i * 10})
     res = (users.inner_join(orders, users.id == orders.user_id)
                 .get_row([users.name], where=orders.total > 20, order_by=orders.total))
-    assert [r[0] for r in res] == ['U3', 'U4', 'U5']
-
-
-# ---------- Compound conditions ----------
-
+    assert [r[0] for r in res] == ['U3', 'U4', 'U5']  
 def test_join_09_compound_and(users, orders):
     users.insert({users.id: 1, users.name: 'Ali', users.age: 25})
     orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
     cond = (users.id == orders.user_id) & (users.age > 20)
     res = users.inner_join(orders, cond).get_row([users.name])
-    assert res == [('Ali',)]
-
-
+    assert res == [('Ali',)]  
 def test_join_10_compound_or(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     users.insert({users.id: 2, users.name: 'X'})
@@ -464,100 +595,68 @@ def test_join_10_compound_or(users, orders):
     orders.insert({orders.id: 101, orders.user_id: 2, orders.total: 0.0})
     cond = (users.id == orders.user_id) | (orders.total == 0)
     res = users.inner_join(orders, cond).get_row([users.name])
-    assert len(res) >= 1
-
-
+    assert len(res) >= 1  
 def test_join_11_params_in_condition(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
     cond = (users.id == orders.user_id) & (users.name == 'Ali')
     res = users.inner_join(orders, cond).get_row([users.name])
-    assert res == [('Ali',)]
-
-
-# ---------- Automatic aliasing (same table joined twice) ----------
-
+    assert res == [('Ali',)]  
 def test_join_12_auto_alias_same_table_twice(users, orders, driver):
-    # یک تگ مثل "orders" می‌خواهیم دو بار join کنیم
+    
     schema = Sqlite.TableStructure('orders', strict=True)
     schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
     schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
     schema.add_column('total', Sqlite.DataTypes.REAL())
-    # یک جدول دوم با نام دیگر برای تایید سازگاری
+    
     users.insert({users.id: 1, users.name: 'Ali'})
     orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    # همان جدول را دو بار join می‌کنیم
+    
     jq = users.inner_join(orders, users.id == orders.user_id)
-    jq2 = jq.inner_join(orders, users.id == orders.user_id)  # باید alias خودکار بگیرد
-    # فقط بررسی می‌کنیم که بدون خطا اجرا شود
+    jq2 = jq.inner_join(orders, users.id == orders.user_id)  
+    
     res = jq2.get_row([users.name])
-    assert res is not None
-
-
-# ---------- Computed columns ----------
-
+    assert res is not None  
 def test_join_14_computed_select(users, orders):
     users.insert({users.id: 1, users.name: 'ali'})
     orders.insert({orders.id: 1, orders.user_id: 1, orders.total: 50.0})
     res = users.inner_join(orders, users.id == orders.user_id)\
                .get_row([users.name.upper(), orders.total + 10])
-    assert res == [('ALI', 60.0)]
-
-
+    assert res == [('ALI', 60.0)]  
 def test_join_15_where_on_computed(users, orders):
     users.insert({users.id: 1, users.age: 20, users.name: 'A'})
     orders.insert({orders.id: 1, orders.user_id: 1, orders.total: 50.0})
     cond = (users.id == orders.user_id) & ((users.age + 10) > 29)
     res = users.inner_join(orders, cond).get_row([users.name])
-    assert len(res) == 1
-
-
-# ---------- Reader pool ----------
-
+    assert len(res) == 1  
 def test_join_16_reader_pool(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
     res = (users.inner_join(orders, users.id == orders.user_id)
                 .get_row([users.name], from_readers_pool=True))
-    assert res == [('Ali',)]
-
-
-# ---------- Empty / no-data ----------
-
+    assert res == [('Ali',)]  
 def test_join_17_inner_no_data(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     res = users.inner_join(orders, users.id == orders.user_id).get_row([users.name])
-    assert res == []
-
-
+    assert res == []  
 def test_join_18_left_no_data(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     res = users.left_join(orders, users.id == orders.user_id).get_row([users.name])
-    assert res == [('Ali',)]
-
-
-# ---------- Error handling ----------
-
+    assert res == [('Ali',)]  
 def test_join_19_invalid_condition_type(users, orders):
     with pytest.raises(Exception):
-        users.inner_join(orders, "not-a-condition").get_row([users.name])
-
-
+        users.inner_join(orders, "not-a-condition").get_row([users.name])  
 def test_join_20_empty_columns(users, orders):
     users.insert({users.id: 1, users.name: 'Ali'})
     orders.insert({orders.id: 1, orders.user_id: 1, orders.total: 5.0})
     res = users.inner_join(orders, users.id == orders.user_id).get_row([])
-    assert res == []
-
-
+    assert res == []  
 def test_join_21_join_multiple_columns_from_both(users, orders):
     users.insert({users.id: 1, users.name: 'Ali', users.age: 30})
     orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
     res = users.inner_join(orders, users.id == orders.user_id)\
                .get_row([users.name, users.age, orders.total, orders.id])
-    assert res == [('Ali', 30, 50.0, 100)]
-
-
+    assert res == [('Ali', 30, 50.0, 100)]  
 def test_join_22_join_with_like_condition(users, orders):
     users.insert({users.id: 1, users.name: 'Alexander'})
     orders.insert({orders.id: 1, orders.user_id: 1, orders.total: 10.0})

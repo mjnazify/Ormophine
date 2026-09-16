@@ -621,7 +621,7 @@ class Table:
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self._excp(f"UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value, Column) else f'{key.first_name}=%s' if not isinstance(value, ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key, value in list(update.items()))} WHERE {where._output[0]};", temp_list + where._output[1])
 
-    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column' = None, limit: int = None, offset: int = None):
+    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column | ColumnsOperation' = None, limit: int = None, offset: int = None):
         """
         Retrieve rows from the table with flexible column selection and filtering.
 
@@ -694,13 +694,12 @@ class Table:
                 )
                 # result: [('Widget', 55.0, 'WIDGET - GADGETS'), ...]
         """
-    def get_row(self,which_columns: list,where: 'ColumnsOperation' = None,order_by: 'Column' = None,limit: int = None,offset: int = None):
         if not which_columns:
             return
         wc, tl = [], []
         [wc.append(i.first_name) if isinstance(i, Column) else [wc.append(i._output[0]) , tl.extend(i._output[1])] for i in which_columns]
         where_params = list(where._output[1]) if where else []
-        limit_clause, limit_params = '', []
+        limit_clause, limit_params , ob = '', [], []
         if limit is not None:
             limit_clause = 'LIMIT %s'
             limit_params.append(limit)
@@ -709,9 +708,10 @@ class Table:
                 limit_clause = 'LIMIT 18446744073709551615'
             limit_clause += ' OFFSET %s'
             limit_params.append(offset)
-        params = tl + where_params + limit_params
-        return [row[0] for row in (self._excfp((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if order_by else ''} {limit_clause}').strip() + ';', params) if params else self._excf((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if order_by else ''} {limit_clause}').strip() + ';'))] if len(which_columns) == 1 else self._excfp((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if order_by else ''} {limit_clause}').strip() + ';', params) if params else self._excf((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if order_by else ''} {limit_clause}').strip() + ';')
-    
+        ob.extend(order_by._output[1]) if isinstance(order_by, ColumnsOperation) else None
+        return [row[0] for row in (self._excfp((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''} {limit_clause}').strip() + ';', tl+where_params+ob+limit_params) if tl+where_params+ob+limit_params else self._excf((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''} {limit_clause}').strip() + ';'))] if len(which_columns) == 1 else self._excfp((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}'if isinstance(order_by, Column) else f'ORDER BY {order_by._output[0]}' if isinstance(order_by, ColumnsOperation) else ''} {limit_clause}').strip()+';', tl+where_params+ob+limit_params)if tl+where_params+ob+limit_params else self._excf((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}'if where else''} {f'ORDER BY {order_by.first_name}'if isinstance(order_by, Column)else f'ORDER BY {order_by._output[0]}'if isinstance(order_by, ColumnsOperation) else''} {limit_clause}').strip()+';')
+        # This single line is 1381 chars — also my birth year in the Persian calendar :D
+        
     def insert(self, insert: dict['Column', Any]) -> None:
         """
         Insert a single row into the table.

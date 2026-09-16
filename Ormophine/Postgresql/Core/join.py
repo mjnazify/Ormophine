@@ -114,58 +114,70 @@ class JoinQuery:
                 )
         return expr
 
-    def get_row(
-        self,
-        which_columns: list,
-        where: 'ColumnsOperation' = None,
-        order_by: 'Column' = None,
-        limit: int = None,       
-        offset: int = None,      
-    ):
-        if not which_columns:
-            return []
+def get_row(
+    self,
+    which_columns: list,
+    where: 'ColumnsOperation' = None,
+    order_by: 'Column | ColumnsOperation' = None,
+    limit: int = None,
+    offset: int = None,
+):
+    if not which_columns:
+        return []
 
-        tl = []
-        select_parts = []
-        for i in which_columns:
-            if isinstance(i, Column):
-                ref = self._resolve_column_ref(i)
-                alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
-                select_parts.append(f'{ref} AS {alias}')
-            else:
-                expr = self._rewrite_expr(i._output[0])
-                tl.extend(i._output[1])
-                if expr.startswith('(') and expr.endswith(')'):
-                    expr = expr[1:-1]
-                alias = (
-                    f'{i.col_obj.table_obj.name_[1:-1]}_'
-                    f'{i.col_obj.first_name[1:-1]}'
-                )
-                select_parts.append(f'{expr} AS {alias}')
+    # ---------- SELECT columns ----------
+    tl = []
+    select_parts = []
+    for i in which_columns:
+        if isinstance(i, Column):
+            ref = self._resolve_column_ref(i)
+            alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
+            select_parts.append(f'{ref} AS {alias}')
+        else:  # ColumnsOperation
+            expr = self._rewrite_expr(i._output[0])
+            tl.extend(i._output[1])
+            if expr.startswith('(') and expr.endswith(')'):
+                expr = expr[1:-1]
+            alias = (
+                f'{i.col_obj.table_obj.name_[1:-1]}_'
+                f'{i.col_obj.first_name[1:-1]}'
+            )
+            select_parts.append(f'{expr} AS {alias}')
 
-        base_sql = (
-            f"SELECT {', '.join(select_parts)} "
-            f"FROM {self.table_obj.name_} "
-            f"{self._join_sql()}"
-        )
-        all_params = tl + list(self.params)
+    # ---------- ORDER BY (Column or ColumnsOperation) ----------
+    ob = []
+    if isinstance(order_by, Column):
+        order_sql = self._resolve_column_ref(order_by)
+    elif isinstance(order_by, ColumnsOperation):
+        order_sql = self._rewrite_expr(order_by._output[0])
+        ob.extend(order_by._output[1])
+    else:
+        order_sql = None
 
-        if where is not None:
-            base_sql += f' WHERE {self._rewrite_expr(where._output[0])}'
-            all_params += list(where._output[1])
+    # ---------- SQL assembly ----------
+    sql = (
+        f"SELECT {', '.join(select_parts)} "
+        f"FROM {self.table_obj.name_} "
+        f"{self._join_sql()}"
+    )
+    all_params = tl + list(self.params)
 
-        if order_by is not None:
-            base_sql += f' ORDER BY {self._resolve_column_ref(order_by)}'
+    if where is not None:
+        sql += f' WHERE {self._rewrite_expr(where._output[0])}'
+        all_params += list(where._output[1])
 
-        if limit is not None:               
-            base_sql += ' LIMIT %s '          
-            all_params.append(limit)          
-        if offset is not None:                
-            base_sql += ' OFFSET %s '         
-            all_params.append(offset)         
+    if order_sql is not None:
+        sql += f' ORDER BY {order_sql}'
+        all_params += ob
 
-        base_sql += ';'
+    if limit is not None:
+        sql += ' LIMIT %s'
+        all_params.append(limit)
+    if offset is not None:
+        sql += ' OFFSET %s'
+        all_params.append(offset)
 
-        if all_params:
-            return self.table_obj._excfp(base_sql, all_params)
-        return self.table_obj._excf(base_sql)
+    sql += ';'
+
+    rows = self.table_obj._excfp(sql, all_params) if all_params else self.table_obj._excf(sql)
+    return rows

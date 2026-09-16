@@ -6,10 +6,341 @@ MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 MYSQL_DB_NAME = os.getenv("MYSQL_DB_NAME", "test_orm_db_fixed")
-# ==========================================================
-# JOIN Tests (new API: inner_join / left_join / right_join)
-# ==========================================================
-
+@pytest.fixture(scope="function")
+def order_driver():
+    
+    try:
+        drv = Mysql.Driver(
+            host=MYSQL_HOST, port=MYSQL_PORT, username=MYSQL_USER,
+            password=MYSQL_PASSWORD, db_name=MYSQL_DB_NAME, create_new_db=True,
+            charset="utf8mb4", collate="utf8mb4_bin"
+        )
+    except Exception:
+        drv = Mysql.Driver(
+            host=MYSQL_HOST, port=MYSQL_PORT, username=MYSQL_USER,
+            password=MYSQL_PASSWORD, db_name=MYSQL_DB_NAME,
+            charset="utf8mb4", collate="utf8mb4_bin"
+        )
+    try:
+        drv.custom_execute('DROP TABLE IF EXISTS `order_test`')
+    except Exception:
+        pass
+    s = Mysql.TableStructure('order_test')
+    s.add_column('id',   Mysql.DataTypes.INT(), primary_key=True)
+    s.add_column('name', Mysql.DataTypes.VARCHAR(20))
+    s.add_column('val',  Mysql.DataTypes.INT())
+    drv.create_table(s)
+    tbl = drv.order_test
+    tbl.bulk_insert(
+        [tbl.id, tbl.name, tbl.val],
+        [(i, f'U{i}', i * 10) for i in range(1, 11)]
+    )
+    yield drv
+    try:
+        drv.custom_execute('DROP TABLE IF EXISTS `order_test`')
+    except Exception:
+        pass
+    drv.disconnect()
+@pytest.fixture(scope="function")
+def join_order_driver():
+    
+    try:
+        drv = Mysql.Driver(
+            host=MYSQL_HOST, port=MYSQL_PORT, username=MYSQL_USER,
+            password=MYSQL_PASSWORD, db_name=MYSQL_DB_NAME, create_new_db=True,
+            charset="utf8mb4", collate="utf8mb4_bin"
+        )
+    except Exception:
+        drv = Mysql.Driver(
+            host=MYSQL_HOST, port=MYSQL_PORT, username=MYSQL_USER,
+            password=MYSQL_PASSWORD, db_name=MYSQL_DB_NAME,
+            charset="utf8mb4", collate="utf8mb4_bin"
+        )
+    for t in ('users_ob', 'orders_ob', 'logs_ob'):
+        try:
+            drv.custom_execute(f'DROP TABLE IF EXISTS `{t}`')
+        except Exception:
+            pass
+    
+    s = Mysql.TableStructure('users_ob')
+    s.add_column('id',   Mysql.DataTypes.INT(), primary_key=True)
+    s.add_column('name', Mysql.DataTypes.VARCHAR(20))
+    drv.create_table(s)
+    users = drv.users_ob
+    users.bulk_insert(
+        [users.id, users.name],
+        [(i, f'U{i}') for i in range(1, 11)]
+    )
+    
+    s = Mysql.TableStructure('orders_ob')
+    s.add_column('id',      Mysql.DataTypes.INT(), primary_key=True)
+    s.add_column('user_id', Mysql.DataTypes.INT())
+    s.add_column('total',   Mysql.DataTypes.FLOAT())
+    drv.create_table(s)
+    orders = drv.orders_ob
+    orders.bulk_insert(
+        [orders.id, orders.user_id, orders.total],
+        [(100 + i, i, float(i * 10)) for i in range(1, 11)]
+    )
+    
+    s = Mysql.TableStructure('logs_ob')
+    s.add_column('id',      Mysql.DataTypes.INT(), primary_key=True)
+    s.add_column('user_id', Mysql.DataTypes.INT())
+    s.add_column('msg',     Mysql.DataTypes.VARCHAR(20))
+    drv.create_table(s)
+    logs = drv.logs_ob
+    logs.bulk_insert(
+        [logs.id, logs.user_id, logs.msg],
+        [(i, i, f'M{i}') for i in range(1, 11)]
+    )
+    yield drv
+    for t in ('users_ob', 'orders_ob', 'logs_ob'):
+        try:
+            drv.custom_execute(f'DROP TABLE IF EXISTS `{t}`')
+        except Exception:
+            pass
+    drv.disconnect()
+def test_ob_01_order_by_simple_operation_desc(order_driver):
+    
+    t = order_driver.order_test
+    res = t.get_row([t.id], order_by=t.val * -1)
+    assert res == [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+def test_ob_02_order_by_operation_equivalent_to_column(order_driver):
+    
+    t = order_driver.order_test
+    res = t.get_row([t.id], order_by=t.id + 0)
+    assert res == list(range(1, 11))
+def test_ob_03_order_by_string_operation(order_driver):
+    
+    t = order_driver.order_test
+    res = t.get_row([t.id], order_by=t.name.upper())
+    
+    assert res == [1, 10, 2, 3, 4, 5, 6, 7, 8, 9]
+def test_ob_04_order_by_operation_zero_params(order_driver):
+    
+    t = order_driver.order_test
+    res = t.get_row([t.id], order_by=t.id * t.id)
+    assert res == list(range(1, 11))
+def test_ob_05_order_by_operation_on_computed_select(order_driver):
+    
+    t = order_driver.order_test
+    res = t.get_row(
+        [t.val + 1],           
+        order_by=t.val * -1,   
+        limit=2,
+    )
+    
+    assert res == [101, 91]
+def test_ob_06_order_by_operation_with_where(order_driver):
+    t = order_driver.order_test
+    res = t.get_row(
+        [t.id],
+        where=t.val > 30,
+        order_by=t.val * -1,
+    )
+    
+    assert res == [10, 9, 8, 7, 6, 5, 4]
+def test_ob_07_order_by_operation_with_where_params(order_driver):
+    
+    t = order_driver.order_test
+    res = t.get_row(
+        [t.id],
+        where=t.val >= 20,    
+        order_by=t.id * -1,   
+    )
+    
+    assert res == [10, 9, 8, 7, 6, 5, 4, 3, 2]
+def test_ob_08_order_by_operation_with_limit(order_driver):
+    t = order_driver.order_test
+    res = t.get_row([t.id], order_by=t.val * -1, limit=3)
+    assert res == [10, 9, 8]
+def test_ob_09_order_by_operation_with_limit_offset(order_driver):
+    t = order_driver.order_test
+    res = t.get_row([t.id], order_by=t.val * -1, limit=3, offset=2)
+    assert res == [8, 7, 6]
+def test_ob_10_order_by_operation_full_stack(order_driver):
+    
+    t = order_driver.order_test
+    res = t.get_row(
+        [t.id],
+        where=(t.val > 20) & (t.val < 90),   
+        order_by=t.id * -1 + 100,            
+        limit=2,
+        offset=1,                            
+    )
+    
+    assert res == [7, 6]
+def test_ob_11_order_by_operation_empty_result(order_driver):
+    t = order_driver.order_test
+    res = t.get_row([t.id], where=t.id > 100, order_by=t.val * -1)
+    assert res == []
+def test_ob_12_order_by_multiple_columns_with_operation(order_driver):
+    
+    t = order_driver.order_test
+    res = t.get_row(
+        [t.val + 1, t.val * 2],    
+        order_by=t.id * -1,        
+        limit=2,
+    )
+    
+    assert res == [(101, 200), (91, 180)]
+def test_ob_13_param_order_sanity(order_driver):
+    """
+    چک ترتیب پارامترها:
+    SELECT → WHERE → ORDER BY → LIMIT → OFFSET
+    اگر جابجا شوند نتیجه غلط می‌شود.
+    """
+    t = order_driver.order_test
+    res = t.get_row(
+        [t.val + 1],                            
+        where=(t.val >= 10) & (t.val <= 80),    
+        order_by=t.val * -1,                    
+        limit=2,                                
+        offset=1,                               
+    )
+    
+    
+    assert res == [71, 61]
+def test_ob_14_order_by_offset_only(order_driver):
+    
+    t = order_driver.order_test
+    res = t.get_row([t.id], order_by=t.val * -1, offset=7)
+    
+    assert res == [3, 2, 1]
+def test_ob_15_join_order_by_operation(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id], order_by=orders.total * -1))
+    assert [r[0] for r in res] == [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+def test_ob_16_join_order_by_string_operation(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id], order_by=users.name.upper()))
+    
+    assert [r[0] for r in res] == [1, 10, 2, 3, 4, 5, 6, 7, 8, 9]
+def test_ob_17_join_order_by_operation_with_where(join_order_driver):
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id],
+                         where=orders.total > 30,
+                         order_by=orders.total * -1))
+    
+    assert [r[0] for r in res] == [10, 9, 8, 7, 6, 5, 4]
+def test_ob_18_join_order_by_operation_with_limit_offset(join_order_driver):
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id],
+                         order_by=orders.total * -1,
+                         limit=3, offset=2))
+    assert [r[0] for r in res] == [8, 7, 6]
+def test_ob_19_join_order_by_operation_full_stack(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id],
+                         where=orders.total > 30,
+                         order_by=orders.total * -1 + 1000,
+                         limit=2,
+                         offset=1))
+    
+    
+    assert [r[0] for r in res] == [9, 8]
+def test_ob_20_join_order_by_operation_chain(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    logs   = join_order_driver.logs_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .inner_join(logs,   users.id == logs.user_id)
+                .get_row([users.id, logs.msg],
+                         order_by=orders.total * -1,
+                         limit=3))
+    assert [r[0] for r in res] == [10, 9, 8]
+def test_ob_21_join_order_by_with_alias(join_order_driver):
+    """وقتی همان جدول دو بار join می‌شود، ORDER BY از نوع ColumnsOperation
+    باید به alias درست اشاره کند و خطا ندهد."""
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    jq = (users.inner_join(orders, users.id == orders.user_id)
+               .inner_join(orders, users.id == orders.user_id))  
+    res = jq.get_row([users.id],
+                     order_by=orders.total * -1,
+                     limit=3)
+    assert len(res) == 3
+def test_ob_22_join_order_by_param_order(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row(
+                    [users.id],
+                    where=orders.total > 20,       
+                    order_by=orders.total * -1,    
+                    limit=2, offset=1,             
+                ))
+    
+    
+    assert [r[0] for r in res] == [9, 8]
+def test_ob_23_join_order_by_multi_select(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row(
+                    [orders.total + 1, orders.total * 2],
+                    order_by=users.id * -1,
+                    limit=2,
+                ))
+    
+    
+    assert res == [(101, 200), (91, 180)]
+def test_ob_24_join_left_order_by_operation(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    users.insert({users.id: 99, users.name: 'Orphan'})
+    res = (users.left_join(orders, users.id == orders.user_id)
+                .get_row([users.id, orders.total],
+                         order_by=users.id * -1,
+                         limit=2))
+    
+    assert res[0][0] == 99
+    assert res[0][1] is None
+def test_ob_25_join_order_by_operation_with_offset_only(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id],
+                         order_by=orders.total * -1,
+                         offset=7))
+    
+    assert [r[0] for r in res] == [3, 2, 1]
+def test_ob_26_join_order_by_operation_limit_zero(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id],
+                         order_by=orders.total * -1,
+                         limit=0))
+    assert res == []
+def test_ob_27_join_order_by_operation_offset_past_end(join_order_driver):
+    
+    users  = join_order_driver.users_ob
+    orders = join_order_driver.orders_ob
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id],
+                         order_by=orders.total * -1,
+                         offset=1000))
+    assert res == []
 @pytest.fixture(scope="module")
 def join_driver():
     try:
@@ -29,67 +360,55 @@ def join_driver():
             drv.custom_execute(f'DROP TABLE IF EXISTS `{t}`')
         except Exception:
             pass
-
     s_users = Mysql.TableStructure('users_j')
     s_users.add_column('id', Mysql.DataTypes.SERIAL(), primary_key=True)
     s_users.add_column('username', Mysql.DataTypes.VARCHAR(50), not_null=True)
     s_users.add_column('age', Mysql.DataTypes.INT())
     drv.create_table(s_users)
-
     s_orders = Mysql.TableStructure('orders_j')
     s_orders.add_column('id', Mysql.DataTypes.SERIAL(), primary_key=True)
     s_orders.add_column('user_id', Mysql.DataTypes.BIGINT(unsigned=True))
     s_orders.add_column('ordername', Mysql.DataTypes.VARCHAR(100))
     s_orders.add_column('amount', Mysql.DataTypes.DECIMAL(10, 2))
     drv.create_table(s_orders)
-
     s_ban = Mysql.TableStructure('banlist_j')
     s_ban.add_column('id', Mysql.DataTypes.SERIAL(), primary_key=True)
     s_ban.add_column('reason', Mysql.DataTypes.VARCHAR(100))
     drv.create_table(s_ban)
-
     users = drv.users_j
     users.insert({users.username: 'alice',   users.age: 30})
     users.insert({users.username: 'bob',     users.age: 25})
     users.insert({users.username: 'charlie', users.age: 35})
-    users.insert({users.username: 'dave',    users.age: 40})  # no orders
-
+    users.insert({users.username: 'dave',    users.age: 40})  
     orders = drv.orders_j
     orders.insert({orders.user_id: 1, orders.ordername: 'laptop',   orders.amount: 1200.00})
     orders.insert({orders.user_id: 1, orders.ordername: 'mouse',    orders.amount: 25.00})
     orders.insert({orders.user_id: 2, orders.ordername: 'keyboard', orders.amount: 75.50})
-
     ban = drv.banlist_j
-    ban.insert({ban.id: 2, ban.reason: 'spam'})  # bob is banned
-
+    ban.insert({ban.id: 2, ban.reason: 'spam'})  
     yield drv
-
     for t in ('users_j', 'orders_j', 'banlist_j'):
         try:
             drv.custom_execute(f'DROP TABLE IF EXISTS `{t}`')
         except Exception:
             pass
     drv.disconnect()
-
-
 def test_join_01_inner_join_basic(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([users.username, orders.ordername])
-    # alice -> 2 orders, bob -> 1 order, charlie/dave -> none
+    
     assert len(res) == 3
     names = [r[0] for r in res]
     assert 'alice' in names and 'bob' in names
     assert 'charlie' not in names and 'dave' not in names
-
-
 def test_join_02_left_join_keeps_unmatched(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.left_join(orders, orders.user_id == users.id) \
                .get_row([users.username, orders.ordername], order_by=users.id)
-    # alice x2, bob x1, charlie x1(NULL), dave x1(NULL)
+    
     assert len(res) == 5
     by_user = {}
     for u, o in res:
@@ -97,20 +416,16 @@ def test_join_02_left_join_keeps_unmatched(join_driver):
     assert by_user['charlie'] == [None]
     assert by_user['dave'] == [None]
     assert sorted(by_user['alice']) == ['laptop', 'mouse']
-
-
 def test_join_03_right_join(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.right_join(orders, orders.user_id == users.id) \
                .get_row([orders.ordername, users.username], order_by=orders.ordername)
     assert len(res) == 3
-    # ordered by ordername asc: keyboard, laptop, mouse
+    
     assert res[0] == ('keyboard', 'bob')
     assert res[1] == ('laptop', 'alice')
     assert res[2] == ('mouse', 'alice')
-
-
 def test_join_04_chained_inner_join(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
@@ -118,54 +433,41 @@ def test_join_04_chained_inner_join(join_driver):
     res = users.inner_join(orders, orders.user_id == users.id) \
                .inner_join(ban, ban.id == users.id) \
                .get_row([users.username, orders.ordername])
-    # only bob is in banlist, bob has 1 order
+    
     assert len(res) == 1
     assert res[0] == ('bob', 'keyboard')
-
-
 def test_join_05_inner_join_with_where(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([users.username, orders.ordername],
                         where=users.age > 28)
-    # only alice (30) matches, and she has 2 orders
+    
     assert len(res) == 2
     assert {r[1] for r in res} == {'laptop', 'mouse'}
-
 def test_join_07_inner_join_with_columns_operation(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
-    # SELECT with arithmetic on joined column
+    
     expr = orders.amount * 2
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([users.username, expr])
     assert len(res) == 3
     amounts = sorted(r[1] for r in res)
     assert amounts == [50.0, 151.0, 2400.0]
-
-
 def test_join_08_invalid_condition_raises(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
     with pytest.raises(Exception, match="Join condition must be a ColumnsOperation"):
         users.inner_join(orders, "not an operation")
-
-
 def test_join_09_join_with_order_by(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([users.username, orders.amount], order_by=orders.amount)
-    # asc: mouse(25), keyboard(75.5), laptop(1200)
+    
     assert res[0][1] == 25.00
     assert res[2][1] == 1200.00
-
-
-# ==========================================================
-# LIMIT / OFFSET Tests
-# ==========================================================
-
 @pytest.fixture(scope="module")
 def limit_driver():
     try:
@@ -184,78 +486,56 @@ def limit_driver():
         drv.custom_execute('DROP TABLE IF EXISTS `nums_lm`')
     except Exception:
         pass
-
     s = Mysql.TableStructure('nums_lm')
     s.add_column('id', Mysql.DataTypes.SERIAL(), primary_key=True)
     s.add_column('val', Mysql.DataTypes.INT())
     drv.create_table(s)
-
     tbl = drv.nums_lm
     for i in range(10):
         tbl.insert({tbl.val: i})
-
     yield drv
-
     try:
         drv.custom_execute('DROP TABLE IF EXISTS `nums_lm`')
     except Exception:
         pass
     drv.disconnect()
-
-
 def test_limit_01_table_no_limit(limit_driver):
     tbl = limit_driver.nums_lm
     res = tbl.get_row([tbl.val], order_by=tbl.val)
     assert res == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-
-
 def test_limit_02_table_limit_only(limit_driver):
     tbl = limit_driver.nums_lm
     res = tbl.get_row([tbl.val], order_by=tbl.val, limit=3)
     assert res == [0, 1, 2]
-
-
 def test_limit_03_table_limit_with_offset(limit_driver):
     tbl = limit_driver.nums_lm
     res = tbl.get_row([tbl.val], order_by=tbl.val, limit=3, offset=4)
     assert res == [4, 5, 6]
-
-
 def test_limit_04_table_offset_zero(limit_driver):
     tbl = limit_driver.nums_lm
     res = tbl.get_row([tbl.val], order_by=tbl.val, limit=3, offset=0)
     assert res == [0, 1, 2]
-
-
 def test_limit_05_table_limit_larger_than_count(limit_driver):
     tbl = limit_driver.nums_lm
     res = tbl.get_row([tbl.val], order_by=tbl.val, limit=100)
     assert len(res) == 10
-
-
 def test_limit_06_table_limit_with_where(limit_driver):
     tbl = limit_driver.nums_lm
     res = tbl.get_row([tbl.val], where=tbl.val > 3,
                       order_by=tbl.val, limit=2)
     assert res == [4, 5]
-
-
 def test_limit_07_table_limit_with_where_and_offset(limit_driver):
     tbl = limit_driver.nums_lm
     res = tbl.get_row([tbl.val], where=tbl.val > 3,
                       order_by=tbl.val, limit=2, offset=3)
-    # filter: 4,5,6,7,8,9 -> skip 3 -> 7,8
+    
     assert res == [7, 8]
-
-
 def test_limit_08_table_multi_column_with_limit(limit_driver):
     tbl = limit_driver.nums_lm
     res = tbl.get_row([tbl.id, tbl.val], order_by=tbl.id, limit=2)
     assert len(res) == 2
     assert res[0][1] == 0
     assert res[1][1] == 1
-
-
 def test_limit_09_join_limit_only(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
@@ -263,33 +543,27 @@ def test_limit_09_join_limit_only(join_driver):
                .get_row([users.username, orders.amount],
                         order_by=orders.amount, limit=2)
     assert len(res) == 2
-    assert res[0][1] == 25.00   # mouse
-    assert res[1][1] == 75.50   # keyboard
-
-
+    assert res[0][1] == 25.00   
+    assert res[1][1] == 75.50   
 def test_limit_10_join_limit_with_offset(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([users.username, orders.amount],
                         order_by=orders.amount, limit=1, offset=1)
-    # sorted asc: mouse(25), keyboard(75.5), laptop(1200)
+    
     assert len(res) == 1
     assert res[0][1] == 75.50
-
-
 def test_limit_11_join_offset_without_limit(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
-    # JoinQuery handles offset-only by injecting MAX LIMIT
+    
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([users.username, orders.amount],
                         order_by=orders.amount, offset=1)
     assert len(res) == 2
     assert res[0][1] == 75.50
     assert res[1][1] == 1200.00
-
-
 def test_limit_12_join_limit_with_where(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
@@ -297,52 +571,42 @@ def test_limit_12_join_limit_with_where(join_driver):
                .get_row([users.username, orders.ordername],
                         where=users.age > 28,
                         order_by=orders.amount, limit=1)
-    # only alice, order by amount asc -> mouse(25)
+    
     assert len(res) == 1
     assert res[0][1] == 'mouse'
-
-
 def test_limit_13_join_limit_larger_than_result(join_driver):
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([users.username], limit=100)
     assert len(res) == 3
-
 def test_limit_14_table_offset_only(limit_driver):
-    """Table.get_row باید offset بدون limit را درست مدیریت کند."""
+    
     tbl = limit_driver.nums_lm
     res = tbl.get_row([tbl.val], order_by=tbl.val, offset=7)
     assert res == [7, 8, 9]
-
-
 def test_limit_15_join_offset_only(join_driver):
-    """JoinQuery.get_row باید offset بدون limit را درست مدیریت کند."""
+    
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([orders.ordername], order_by=orders.ordername, offset=1)
-    # asc: keyboard(1st), laptop(2nd), mouse(3rd) -> skip 1 -> laptop, mouse
+    
     assert [r[0] for r in res] == ['laptop', 'mouse']
-
-
 def test_limit_16_join_limit_zero(join_driver):
-    """LIMIT 0 باید صفر ردیف برگرداند."""
+    
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([orders.ordername], limit=0)
     assert len(res) == 0          
-
-
 def test_limit_17_join_offset_past_end(join_driver):
-    """OFFSET بزرگ‌تر از تعداد کل، لیست خالی می‌دهد."""
+    
     users = join_driver.users_j
     orders = join_driver.orders_j
     res = users.inner_join(orders, orders.user_id == users.id) \
                .get_row([orders.ordername], offset=100)
     assert len(res) == 0          
-
 @pytest.fixture(scope="session")
 def session_driver():
     try:
@@ -923,11 +1187,11 @@ def test_75_table_name_quoting(driver):
     tbl = Mysql.Table(driver, 'Table With Spaces')
     driver.delete_table(tbl, True, True, True)
 def test_76_table_name_with_special_chars(driver):
-    schema = Mysql.TableStructure('t$pecial#!')
+    schema = Mysql.TableStructure('t$pecial#')
     schema.add_column('id', Mysql.DataTypes.INT(), primary_key=True)
     driver.create_table(schema)
-    assert 't$pecial#!'
-    tbl = Mysql.Table(driver, 't$pecial#!')
+    assert 't$pecial#'
+    tbl = Mysql.Table(driver, 't$pecial#')
     driver.delete_table(tbl, True, True, True)
 def test_78_alter_table_add_column(driver):
     schema = Mysql.TableStructure('t78')
