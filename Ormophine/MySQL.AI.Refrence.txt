@@ -332,6 +332,13 @@ from MySQLdb import connect, OperationalError, ProgrammingError
 from queue import SimpleQueue, Empty
 from typing import Literal
 
+
+
+from . import TableStructure, Table
+from MySQLdb import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
 class Driver():
     """
     MySQL connection manager with thread-safe connection pooling and ORM capabilities.
@@ -7165,14 +7172,24 @@ class Table:
                 )
                 # result: [('Widget', 55.0, 'WIDGET - GADGETS'), ...]
         """
+    def get_row(self,which_columns: list,where: 'ColumnsOperation' = None,order_by: 'Column' = None,limit: int = None,offset: int = None):
         if not which_columns:
             return
-        tl, wc, af = [], [], []
-        af.append(limit) if not limit is None else None
-        af.append(offset) if not offset is None else None
-        [wc.append(i.first_name) if isinstance(i,Column) else [wc.append(i._output[0]), tl.extend(i._output[1])] for i in which_columns]
-        return [row[0] for row in (self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};', tl+where._output[1]+af) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',tl+af) if tl else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',af) if af else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',))] if len(which_columns) == 1 else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};', tl+where._output[1]+af) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',tl+af) if tl else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',af) if af else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',)
-
+        wc, tl = [], []
+        [wc.append(i.first_name) if isinstance(i, Column) else [wc.append(i._output[0]) , tl.extend(i._output[1])] for i in which_columns]
+        where_params = list(where._output[1]) if where else []
+        limit_clause, limit_params = '', []
+        if limit is not None:
+            limit_clause = 'LIMIT %s'
+            limit_params.append(limit)
+        if offset is not None:
+            if limit is None:
+                limit_clause = 'LIMIT 18446744073709551615'
+            limit_clause += ' OFFSET %s'
+            limit_params.append(offset)
+        params = tl + where_params + limit_params
+        return [row[0] for row in (self._excfp((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if order_by else ''} {limit_clause}').strip() + ';', params) if params else self._excf((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if order_by else ''} {limit_clause}').strip() + ';'))] if len(which_columns) == 1 else self._excfp((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if order_by else ''} {limit_clause}').strip() + ';', params) if params else self._excf((f'SELECT {", ".join(wc)} FROM {self.name_} 'f'{f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.first_name}' if order_by else ''} {limit_clause}').strip() + ';')
+    
     def insert(self, insert: dict['Column', Any]) -> None:
         """
         Insert a single row into the table.
