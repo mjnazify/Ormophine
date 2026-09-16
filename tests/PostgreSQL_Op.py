@@ -88,10 +88,6 @@ def lit_int():
 def lit_float():
     return 10.5
 
-# ==========================================
-# Tests
-# ==========================================
-
 def test_01(col_str):
     res = col_str + col_str
     assert res._output[0] == '("test_table"."name" || "test_table"."name")'

@@ -138,11 +138,6 @@ def test_ob_11_order_by_operation_empty_result(t):
     res = t.get_row([t.id], where=t.id > 100, order_by=t.val * -1)
     assert res == []  
 def test_ob_12_param_order_sanity(t):
-    """
-    چک نهایی ترتیب پارامترها:
-    SELECT → WHERE → ORDER BY → LIMIT → OFFSET
-    اگر جابجا شوند نتیجه غلط می‌شود.
-    """
     res = t.get_row(
         [t.val + 1],                            
         where=(t.val >= 10) & (t.val <= 80),    
@@ -238,8 +233,6 @@ def test_ob_21_join_order_by_operation_chain(users_with_data, orders_with_data, 
                     limit=3))
     assert [r[0] for r in res] == [10, 9, 8]  
 def test_ob_22_join_order_by_with_alias(users_with_data, orders_with_data):
-    """وقتی همان جدول دو بار join می‌شود، ORDER BY از نوع ColumnsOperation
-    باید به alias درست اشاره کند و خطا ندهد."""
     jq = (users_with_data
           .inner_join(orders_with_data,
                       users_with_data.id == orders_with_data.user_id)

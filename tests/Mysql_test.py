@@ -183,13 +183,8 @@ def test_ob_12_order_by_multiple_columns_with_operation(order_driver):
         limit=2,
     )
     
-    assert res == [(101, 200), (91, 180)]
+    assert res == ((101, 200), (91, 180))
 def test_ob_13_param_order_sanity(order_driver):
-    """
-    چک ترتیب پارامترها:
-    SELECT → WHERE → ORDER BY → LIMIT → OFFSET
-    اگر جابجا شوند نتیجه غلط می‌شود.
-    """
     t = order_driver.order_test
     res = t.get_row(
         [t.val + 1],                            
@@ -264,8 +259,6 @@ def test_ob_20_join_order_by_operation_chain(join_order_driver):
                          limit=3))
     assert [r[0] for r in res] == [10, 9, 8]
 def test_ob_21_join_order_by_with_alias(join_order_driver):
-    """وقتی همان جدول دو بار join می‌شود، ORDER BY از نوع ColumnsOperation
-    باید به alias درست اشاره کند و خطا ندهد."""
     users  = join_order_driver.users_ob
     orders = join_order_driver.orders_ob
     jq = (users.inner_join(orders, users.id == orders.user_id)
@@ -300,7 +293,7 @@ def test_ob_23_join_order_by_multi_select(join_order_driver):
                 ))
     
     
-    assert res == [(101, 200), (91, 180)]
+    assert res == ((101, 200), (91, 180))
 def test_ob_24_join_left_order_by_operation(join_order_driver):
     
     users  = join_order_driver.users_ob
@@ -331,7 +324,7 @@ def test_ob_26_join_order_by_operation_limit_zero(join_order_driver):
                 .get_row([users.id],
                          order_by=orders.total * -1,
                          limit=0))
-    assert res == []
+    assert res == ()
 def test_ob_27_join_order_by_operation_offset_past_end(join_order_driver):
     
     users  = join_order_driver.users_ob
@@ -340,7 +333,7 @@ def test_ob_27_join_order_by_operation_offset_past_end(join_order_driver):
                 .get_row([users.id],
                          order_by=orders.total * -1,
                          offset=1000))
-    assert res == []
+    assert res == ()
 @pytest.fixture(scope="module")
 def join_driver():
     try:

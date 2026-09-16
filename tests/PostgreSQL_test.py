@@ -181,11 +181,6 @@ def test_ob_12_order_by_multiple_columns_with_operation(order_driver):
     
     assert res == [(101, 200), (91, 180)]
 def test_ob_13_param_order_sanity(order_driver):
-    """
-    چک ترتیب پارامترها:
-    SELECT → WHERE → ORDER BY → LIMIT → OFFSET
-    اگر جابجا شوند نتیجه غلط می‌شود.
-    """
     t = order_driver.order_test
     res = t.get_row(
         [t.val + 1],                            
@@ -256,8 +251,6 @@ def test_ob_19_join_order_by_operation_chain(join_order_driver):
                          limit=3))
     assert [r[0] for r in res] == [10, 9, 8]
 def test_ob_20_join_order_by_with_alias(join_order_driver):
-    """وقتی همان جدول دو بار join می‌شود، ORDER BY از نوع ColumnsOperation
-    باید به alias درست اشاره کند و خطا ندهد."""
     users  = join_order_driver.users_ob
     orders = join_order_driver.orders_ob
     jq = (users.inner_join(orders, users.id == orders.user_id)
