@@ -441,8 +441,17 @@ class ColumnsOperation:
         """Raise the column expression to a power using SQL exponentiation.
 
         This method implements the ``**`` operator for :class:`ColumnsOperation`.
-        It generates a SQL expression using the exponentiation operator ``**``,
-        which is supported by SQLite (and other databases) for numeric exponentiation.
+        It generates a SQL expression using the exponentiation operator ``**``.
+
+        .. warning::
+            The ``**`` operator is **not** standard SQLite syntax; SQLite does
+            not provide a native power operator.  This method assumes that the
+            underlying SQL execution context either supports ``**`` (some
+            forks or extensions do) or that a custom SQL function (e.g.
+            ``power``) has been registered and aliased to ``**``.  With
+            vanilla SQLite the generated statement will fail at execution
+            time.  The generated expression is wrapped in parentheses to
+            ensure correct operator precedence.
 
         The method supports three types of operands:
 
@@ -764,11 +773,12 @@ class ColumnsOperation:
     def __getitem__(self, key: slice):
         """Implement string slicing on a column expression using SQLite's ``substr``.
 
-        This method allows Python-style slicing (e.g., ``column[1:5]``) on a
-        :class:`ColumnsOperation` object. It generates a SQL ``substr`` expression
-        that extracts a substring from the column value or from a previously
-        constructed expression. The behavior mimics Python string slicing with
-        support for positive/negative indices and omitted start/stop values.
+        This method allows Python-style slicing (e.g., ``expr[1:5]``) on a
+        :class:`ColumnsOperation` object that already carries an accumulated
+        SQL expression.  It generates a SQL ``substr`` expression that extracts
+        a substring from the previously-built expression.  The behavior mimics
+        Python string slicing with support for positive/negative indices and
+        omitted start/stop values.
 
         The generated SQL uses SQLite's ``substr(X, Y, Z)`` function, where:
         - The start position is adjusted for 1‑based indexing.
@@ -776,22 +786,31 @@ class ColumnsOperation:
         - An omitted start defaults to 0 (beginning).
         - An omitted stop defaults to the end of the string.
 
+        .. note::
+            Because SQLite's ``substr`` is 1‑based and Python's slicing is
+            0‑based with an exclusive stop, the ORM applies ``start+1`` and
+            ``stop+1`` adjustments.  As a consequence, the ``[:N]`` slice
+            produces ``substr(expr, 0, N+1)`` — i.e. **N+1** characters, not
+            ``N``.  This is the historical behaviour of the library; adjust
+            your slices accordingly.
+
         The method updates the instance's ``_output`` attribute with a tuple
-        ``(sql_string, parameters)`` and returns the instance itself for chaining.
+        ``(sql_string, parameters)`` and returns a new :class:`ColumnsOperation`
+        for chaining.
 
         Args:
             key (slice): A slice object defining the substring range. The
                 ``start`` and ``stop`` attributes can be ``None``, positive,
                 or negative integers. Negative values count from the end of
-                the string.
+                the string. Step values are ignored (not supported by SQLite).
 
         Returns:
-            :class:`ColumnsOperation`: The current instance with its ``_output``
-            updated to represent the ``substr`` expression. This allows
-            additional operations to be chained.
+            :class:`ColumnsOperation`: A new operation whose ``_output``
+            attribute contains the SQL substring expression and the list of
+            bound parameters. This allows additional operations to be chained.
 
         Example:
-            Assuming a ``users`` table with a ``name`` column::
+            Slicing on a :class:`ColumnsOperation` (a chained expression)::
 
                 from ormophine.Sqlite import Driver, Table
 
@@ -799,27 +818,25 @@ class ColumnsOperation:
                 users = db.users
                 name_col = users.name
 
-                # Extract first 3 characters (Python slice 0:3)
-                expr = name_col[:3]
-                # expr._output[0] -> "substr(users.[name] , 0 , ?)"
-                # expr._output[1] -> [3]  # note: SQLite's substr is 1-based,
-                # but this ORM adjusts: stop+1 is used, so for 0:3, we get substr(..., 0, 3)
-                # Actually this ORM uses 0-based start with substr, so it's fine.
+                # Build an expression first, then slice it
+                expr = (name_col + ' !')[:3]
+                # expr._output[0] -> "(substr((users.[name] || ?) , 0 , ?))"
+                # expr._output[1] -> [' !', 4]   # note: stop+1 = 4
 
-                # Extract from index 1 to 4 (Python slice 1:5)
-                expr2 = name_col[1:5]
-                # expr2._output[0] -> "substr(users.[name] , ? , ?)"
-                # expr2._output[1] -> [2, 4]  # start adjusted to 1-based: 1+1=2, length = 5-1=4
+                # Slice with start and stop
+                expr2 = (name_col.upper())[1:5]
+                # expr2._output[0] -> "(substr((upper(users.[name])) , ? , ?))"
+                # expr2._output[1] -> [2, 4]   # start+1 = 2, stop-start = 4
 
-                # Extract last 3 characters (Python slice -3:)
-                expr3 = name_col[-3:]
-                # expr3._output[0] -> "substr(users.[name] , length(users.[name]) - ? , length(users.[name]))"
-                # expr3._output[1] -> [2]  # -3 becomes abs(-3)-1 = 2
+                # Slice from negative start to the end
+                expr3 = (name_col.strip())[-3:]
+                # expr3._output[0] -> "(substr((trim(users.[name],\\" \\")) , length((trim(users.[name],\\" \\"))) - ? , length((trim(users.[name],\\" \\")))))"
+                # expr3._output[1] -> [2]   # abs(-3) - 1 = 2
 
-                # Use in a query to get initials (first character)
-                initial_expr = name_col[0:1]
-                results = users.get_row([initial_expr], where=users.id == 1)
-                # retrieves the first character of the name for user with id=1
+                # Use in a query
+                condition = expr[:3] == 'Joh'
+                results = users.get_row([name_col], where=condition)
+                # retrieves users whose (name+' !') starts with 'Joh' (first 3 chars of the slice)
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op.current_datatype = str
@@ -2373,7 +2390,7 @@ class ColumnsOperation:
         if not column and not data_list:
             raise Exception("In() requires either data_list or column")
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
+        new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} NOT IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
             
         return new_op
     
@@ -2469,7 +2486,7 @@ class Column:
             >>> from myorm import Driver, Table, Column
             >>> driver = Driver('example.db') #tables automatically imported to this object, and columns imported to each table
             >>> my_table = driver.my_sample_table #Table object
-            >>> users = mytable.users #Column object
+            >>> users = my_table.users #Column object
         """
         self.name= table_obj.name_+'.['+column_name+']'
         self.first_name= f'[{column_name}]'
@@ -2521,11 +2538,6 @@ class Column:
             reflects the addition/concatenation. This object can be used in further operations
             like comparison or string manipulation.
 
-        Raises:
-            TypeError: If the operand type is incompatible with the column's data type
-                (e.g., adding a number to a text column will still generate ``||``, but the
-                type handling is determined by the column's ``datatype`` attribute).
-
         Example:
             Creating an expression for a SELECT or UPDATE:
 
@@ -2569,10 +2581,6 @@ class Column:
             fragment uses ``||`` if the column's datatype is :class:`str`,
             otherwise ``+``. The parameter list contains any literal values
             that were bound into the expression.
-
-        Raises:
-            No exceptions are raised by this method itself, but further
-            evaluation of the expression may raise database-related errors.
 
         Example:
             >>> col = my_table.name  # datatype is str
@@ -2816,6 +2824,16 @@ class Column:
         expression using the ``**`` operator. The resulting SQL fragment and
         parameters can be used in :meth:`Table.get_row`, :meth:`Table.update`,
         or other query methods.
+
+        .. warning::
+            The ``**`` operator is **not** standard SQLite syntax; SQLite does
+            not provide a native power operator.  This method assumes that the
+            underlying SQL execution context either supports ``**`` (some
+            forks or extensions do) or that a custom SQL function (e.g.
+            ``power``) has been registered and aliased to ``**``.  With
+            vanilla SQLite the generated statement will fail at execution
+            time.  The generated expression is wrapped in parentheses to
+            ensure correct operator precedence.
 
         Args:
             value: The left operand in the exponentiation. It can be:
@@ -3155,39 +3173,56 @@ class Column:
         return temp_ob
 
     def __ne__(self, value):
-        """Inequality operator (`!=`) for constructing SQL WHERE conditions.
+        """Inequality operator (``!=``) for constructing SQL WHERE conditions.
 
-        Generates a SQL inequality comparison between this column and another expression
-        or literal value. The result is a :class:`ColumnsOperation` object that can be
-        combined with other conditions or used directly in a query's ``WHERE`` clause.
+        Generates a SQL inequality comparison between this column and another
+        expression or literal value. The result is a :class:`ColumnsOperation`
+        object that can be combined with other conditions or used directly in
+        a query's ``WHERE`` clause.
+
+        The method supports comparisons with:
+
+        * Another :class:`Column` – compares the column to another column.
+        * A :class:`ColumnsOperation` – compares the column to a computed
+          expression.
+        * A literal value (e.g., ``int``, ``str``, ``float``) – uses a
+          parameterized placeholder (``?``) in the generated SQL.
+        * ``None`` – produces an ``IS NOT NULL`` condition instead of a
+          comparison, which is the SQL-correct way to test for non-null.
 
         Args:
-            value (Union[Column, ColumnsOperation, Any]): The right-hand side of the
-                comparison. Can be another :class:`Column`, a :class:`ColumnsOperation`
-                (e.g., from arithmetic or string operations), or a literal value
-                (e.g., ``int``, ``str``, ``float``). If a literal is provided, it will
-                be used as a parameterized placeholder (``?``) in the generated SQL.
+            value: The right-hand side of the comparison. Can be another
+                :class:`Column`, a :class:`ColumnsOperation`, a literal value
+                (``int``, ``str``, ``float``, etc.), or ``None``.
 
         Returns:
-            ColumnsOperation: A :class:`ColumnsOperation` instance whose internal state
-            represents the inequality condition ``this_column != value``. This object
-            can be used in :meth:`Table.update`, :meth:`Table.delete_row`,
+            :class:`ColumnsOperation`: A :class:`ColumnsOperation` instance
+            whose internal state represents the inequality condition
+            ``this_column != value`` (or ``this_column IS NOT NULL`` when
+            ``value`` is ``None``). This object can be used in
+            :meth:`Table.update`, :meth:`Table.delete_row`,
             :meth:`Table.get_row`, and similar methods that accept a ``where``
             parameter.
-
-        Raises:
-            TypeError: If the `value` type is not supported (e.g., not a :class:`Column`,
-                :class:`ColumnsOperation`, or a literal). The method may fail when
-                accessing ``_output`` or ``name`` attributes of unsupported types.
 
         Example:
             >>> from myorm import Driver, Table, Column
             >>> db = Driver('test.db')
             >>> users = db.users
             >>> age = users.age  # type: Column
+
+            # Compare with a literal
             >>> condition = age != 30  # returns ColumnsOperation
             >>> result = users.get_row([users.name], where=condition)
             # Generated SQL: SELECT [users].[name] FROM [users] WHERE ([users].[age] != ?)
+
+            # Compare with None -> IS NOT NULL
+            >>> not_null_condition = age != None
+            # not_null_condition._output[0] -> "([users].[age] IS NOT NULL)"
+
+            # Compare with another column
+            >>> other = users.min_age
+            >>> condition2 = age != other
+            # condition2._output[0] -> "([users].[age] != [users].[min_age])"
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NOT NULL)', []) if value is None else (f'({self.name} != ?)', [value])
@@ -3605,17 +3640,18 @@ class Column:
         slices. The resulting :class:`ColumnsOperation` object can be used in
         queries, updates, or as part of larger expressions.
 
-        The slicing behavior mimics Python string slicing with SQL semantics:
-        - ``column[0:5]`` → ``substr(column, 1, 5)`` (1‑based indexing)
-        - ``column[2:]`` → ``substr(column, 3, length(column))``
-        - ``column[:-2]`` → ``substr(column, 1, length(column)-1)`` (excludes last two chars)
-        - Negative indices are converted to offsets from the end:
-        ``column[-3:]`` → ``substr(column, length(column)-2, length(column))``
-        - End index is exclusive: ``column[0:3]`` takes characters at positions 0,1,2.
+        .. warning::
+            The index adjustments in this ORM differ slightly from Python
+            semantics: ``column[:N]`` produces ``substr(column, 0, N+1)``
+            (i.e. **N+1** characters), and ``column[start:stop]`` produces
+            ``substr(column, start+1, stop-start)``.  Always verify the
+            generated SQL against your intended slice.
 
-        The method adjusts indices because SQLite ``substr()`` uses 1‑based
-        indexing and inclusive end positions, whereas Python uses 0‑based and
-        exclusive end. The implementation handles the conversion transparently.
+        The generated SQL uses SQLite's ``substr(X, Y, Z)`` function, where:
+        - The start position is adjusted for 1‑based indexing.
+        - Negative indices are converted to ``length(X) - N``.
+        - An omitted start defaults to 0 (beginning).
+        - An omitted stop defaults to the end of the string.
 
         Args:
             key (slice): A slice object specifying the start and stop positions.
@@ -3637,24 +3673,29 @@ class Column:
                 users = db.users
                 name_col = users.name
 
-                # Get first 3 characters
+                # Get first 4 characters (note: stop+1 because of the ORM adjustment)
                 expr = name_col[:3]
-                # expr._output[0] -> "substr(users.[name] , 1 , 3)"
-                # expr._output[1] -> []
+                # expr._output[0] -> "(substr(users.[name] , 0 , ?))"
+                # expr._output[1] -> [4]   # stop + 1
 
-                # Get from position 2 to end
+                # Get from index 2 to end (Python slice 2:)
                 expr2 = name_col[2:]
-                # expr2._output[0] -> "substr(users.[name] , 3 , length(users.[name]))"
+                # expr2._output[0] -> "(substr(users.[name] , ? , length(users.[name])))"
+                # expr2._output[1] -> [3]   # start + 1
 
-                # Get last 4 characters (equivalent to name[-4:])
-                expr3 = name_col[-4:]
-                # expr3._output[0] -> "substr(users.[name] , length(users.[name]) - 3 , length(users.[name]))"
-                # expr3._output[1] -> []
+                # Get from index 1 to 4 (Python slice 1:5)
+                expr3 = name_col[1:5]
+                # expr3._output[0] -> "(substr(users.[name] , ? , ?))"
+                # expr3._output[1] -> [2, 4]   # start + 1, stop - start
+
+                # Get last 3 characters (Python slice -3:)
+                expr4 = name_col[-3:]
+                # expr4._output[0] -> "(substr(users.[name] , length(users.[name]) - ? , length(users.[name])))"
+                # expr4._output[1] -> [2]   # abs(-3) - 1
 
                 # Use in a query
                 condition = name_col[:3] == 'Joh'
                 results = users.get_row([name_col], where=condition)
-                # retrieves users whose name starts with 'Joh'
         """
 
         temp_ob = ColumnsOperation(self)
@@ -3706,16 +3747,15 @@ class Column:
 
                 # Strip spaces from both ends
                 trimmed = name.strip()
-                # trimmed._output[0] -> "trim(users.[name],' ')"
+                # trimmed._output[0] -> '(trim(users.[name]," "))'
                 # trimmed._output[1] -> []
 
                 # Strip specific characters (e.g., underscores and dashes)
                 cleaned = name.strip('_-')
-                # cleaned._output[0] -> "trim(users.[name],'_-')"
+                # cleaned._output[0] -> '(trim(users.[name],"_-"))'
 
                 # Use in a SELECT query
                 result = users.get_row([trimmed], where=name.contains('john'))
-                # returns rows where the trimmed name contains 'john'
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'(trim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output[0] else (f'(trim({temp_ob.col_obj.name},"{chars}"))', [])
@@ -3757,19 +3797,19 @@ class Column:
 
                 # Remove leading spaces (default)
                 trimmed = username.lstrip()
-                # trimmed._output[0] -> "ltrim(users.[username],' ')"
+                # trimmed._output[0] -> "(ltrim(users.[username],' '))"
                 # trimmed._output[1] -> []
 
                 # Remove leading underscores and hyphens
                 trimmed_custom = username.lstrip('_-')
-                # trimmed_custom._output[0] -> "ltrim(users.[username],'_-')"
+                # trimmed_custom._output[0] -> "(ltrim(users.[username],'_-'))"
 
                 # Use in a query to get cleaned usernames
                 results = users.get_row([trimmed], where=username != '')
                 # retrieves rows with usernames trimmed on the left
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(trim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output[0] else (f'(trim({temp_ob.col_obj.name},"{chars}"))', [])
+        temp_ob._output = (f'(ltrim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output[0] else (f'(ltrim({temp_ob.col_obj.name},"{chars}"))', [])
         return temp_ob
 
     def rstrip(self, chars: str = ' '):
@@ -3802,11 +3842,11 @@ class Column:
 
                 # Remove trailing spaces
                 clean_expression = name_col.rstrip()
-                # clean_expression._output[0] -> "rtrim(products.[name],' ')"
+                # clean_expression._output[0] -> "(rtrim(products.[name],' '))"
 
                 # Remove trailing hyphens and underscores
                 clean_expression2 = name_col.rstrip('-_')
-                # clean_expression2._output[0] -> "rtrim(products.[name],'-_')"
+                # clean_expression2._output[0] -> "(rtrim(products.[name],'-_'))"
 
                 # Use in an update to sanitize data
                 products.update({name_col: name_col.rstrip()},
@@ -3860,7 +3900,7 @@ class Column:
                 # returns rows with full_name + ' Jr.'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} || {content._output[0]})', [content._output[1]]) if isinstance(content, ColumnsOperation) else (f'({self.name} || {content.name})', []) if isinstance(content, Column) else (f'({self.name} || ?)', [content])
+        temp_ob._output = (f'({self.name} || {content._output[0]})', content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self.name} || {content.name})', []) if isinstance(content, Column) else (f'({self.name} || ?)', [content])
         return temp_ob
 
     def add_first(self, content):
@@ -3916,7 +3956,7 @@ class Column:
         """
 
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({content._output[0]} || {self.name})', [content._output[1]]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self.name})', []) if isinstance(content, Column) else (f'(? || {self.name})', [content])
+        temp_ob._output = (f'({content._output[0]} || {self.name})', content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self.name})', []) if isinstance(content, Column) else (f'(? || {self.name})', [content])
         return temp_ob
     
     def lower(self):
@@ -3928,14 +3968,10 @@ class Column:
         ``WHERE``, or other SQL clauses to perform case‑insensitive
         comparisons or transformations.
 
-        The returned operation can be chained with other operations (e.g.,
-        :meth:`~ColumnsOperation.startswith`, :meth:`~ColumnsOperation.like`)
-        or combined with logical operators (``&``, ``|``).
-
         Returns:
             :class:`ColumnsOperation`: An expression object whose ``_output``
             attribute contains the SQL string for the ``LOWER`` function call
-            (e.g., ``lower(users.[name])``) and an empty parameter list.
+            (e.g., ``(lower(users.[name]))``) and an empty parameter list.
 
         Example:
             Assuming a ``users`` table with a ``name`` column::
@@ -3948,7 +3984,7 @@ class Column:
 
                 # Create a condition for case‑insensitive equality
                 condition = name_col.lower() == 'alice'
-                # condition._output[0] -> "(lower(users.[name]) = ?)"
+                # condition._output[0] -> "((lower(users.[name])) = ?)"
                 # condition._output[1] -> ['alice']
 
                 # Retrieve users whose name is 'alice' (case‑insensitive)
@@ -4002,11 +4038,6 @@ class Column:
         :class:`ColumnsOperation` object that can be used in ``SELECT`` or
         other SQL clauses. The replacement is performed on the database side.
 
-        The method automatically handles both simple column references and
-        previously built expressions (e.g., after concatenation or substring
-        operations) thanks to the internal state of the
-        :class:`ColumnsOperation`.
-
         Args:
             old (str): The substring to be replaced. This is passed as a
                 bound parameter (``?``) in the SQL.
@@ -4015,9 +4046,9 @@ class Column:
         Returns:
             :class:`ColumnsOperation`: An expression object whose ``_output``
             attribute contains the SQL string and parameter list for the
-            ``replace()`` call. The SQL string is either ``replace(column, ?, ?)``
-            or ``replace(expression, ?, ?)`` if the operation was chained.
-            The parameter list includes the ``old`` and ``new`` values.
+            ``replace()`` call. The SQL string is either
+            ``(replace(column , ? , ?))`` or ``(replace(expression , ? , ?))``
+            if the operation was chained.
 
         Example:
             Assuming a ``users`` table with a ``bio`` column::
@@ -4030,17 +4061,11 @@ class Column:
 
                 # Replace 'foo' with 'bar' in the bio column
                 expr = bio_col.replace('foo', 'bar')
-                # expr._output[0] -> "replace(users.[bio] , ? , ?)"
+                # expr._output[0] -> "(replace(users.[bio] , ? , ?))"
                 # expr._output[1] -> ['foo', 'bar']
-
-                # Chain with a substring operation
-                expr2 = bio_col[0:10].replace('x', 'y')
-                # expr2._output[0] -> "replace(substr(users.[bio] , ? , ?) , ? , ?)"
-                # expr2._output[1] -> [1, 10, 'x', 'y']
 
                 # Use in a SELECT query
                 result = users.get_row([expr], where=users.id == 1)
-                # retrieves the transformed bio for user with id=1
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'(replace({temp_ob._output[0]} , ? , ?))', temp_ob._output[1] + [old, new]) if temp_ob._output[0] else (f'(replace({temp_ob.col_obj.name} , ? , ?))', [old, new])

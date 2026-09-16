@@ -284,8 +284,11 @@ class DataTypes:
         - If only ``precision`` is given, the default range is
         ``[0, 10^precision - 1]`` for unsigned, or symmetric around zero
         for signed.
-        - If neither is given, no default range is applied, but custom
-        ``min_val`` and ``max_val`` are still respected.
+        - If only ``scale`` is given, the default range is computed by
+        assuming ``precision=10``, yielding ``[0, 10^(10-scale) - 10^(-scale)]``
+        for unsigned, or symmetric around zero for signed.
+        - If neither ``precision`` nor ``scale`` is given, no default range
+        is applied, but custom ``min_val`` and ``max_val`` are still respected.
 
         The generated string can be used directly in a ``CREATE TABLE`` or
         ``ALTER TABLE ADD COLUMN`` statement.
@@ -295,8 +298,8 @@ class DataTypes:
                 fractional part). Used only to compute default range bounds.
             scale (int, optional): The number of digits after the decimal
                 point. Used together with ``precision`` to compute the
-                default maximum value. If not given, default range is
-                computed as if scale = 0.
+                default maximum value. If given alone, a default precision
+                of 10 is assumed.
             min_val (float, optional): Custom minimum allowed value.
                 Overrides any default inferred from precision/scale.
             max_val (float, optional): Custom maximum allowed value.
@@ -314,6 +317,8 @@ class DataTypes:
         Raises:
             ValueError: If both ``precision`` and ``scale`` are provided and
                 ``scale`` is greater than ``precision`` (impossible to represent).
+            ValueError: If ``precision`` is provided and less than 1.
+            ValueError: If ``scale`` is provided and less than 0.
 
         Example:
             Using ``DECIMAL`` in a table definition::
@@ -331,6 +336,10 @@ class DataTypes:
                 # Unsigned with precision/scale
                 ts.add_column('score', DataTypes.DECIMAL(precision=5, scale=2, unsigned=True))
                 # Produces: "my_saulted_x REAL CHECK(my_saulted_x >= 0 AND my_saulted_x BETWEEN 0 AND 999.99)"
+
+                # Only scale provided (assumes precision=10)
+                ts.add_column('ratio', DataTypes.DECIMAL(scale=4, unsigned=True))
+                # Produces: "my_saulted_x REAL CHECK(my_saulted_x >= 0 AND my_saulted_x BETWEEN 0 AND 999999.9999)"
         """
         if precision is not None and precision < 1:
             raise ValueError("precision must be at least 1")
@@ -353,9 +362,8 @@ class DataTypes:
             actual_min = min_val if min_val is not None else default_min
             actual_max = max_val if max_val is not None else default_max
             checks.append(f"my_saulted_x BETWEEN {actual_min} AND {actual_max}")
-        elif scale is not None:  # <-- افزودن این حالت
-            # اگر فقط scale داده شده، یک محدوده پیش‌فرض در نظر بگیرید
-            default_max = 10 ** (10 - scale) - 10 ** (-scale)  # فرض precision=10
+        elif scale is not None:  
+            default_max = 10 ** (10 - scale) - 10 ** (-scale)  
             default_min = 0 if unsigned else -default_max
             actual_min = min_val if min_val is not None else default_min
             actual_max = max_val if max_val is not None else default_max
@@ -464,6 +472,7 @@ class DataTypes:
             return f"my_saulted_x TEXT CHECK({' AND '.join(checks)})"
         return f"my_saulted_x TEXT"
 
+    @staticmethod
     def BLOB() -> str:
         """Generate a column definition for binary large object (BLOB) data.
 
@@ -1137,7 +1146,7 @@ class TableStructure:
                 structure = TableStructure('users', strict=True)
 
                 # Add columns
-                structure.add_column('id', DataTypes.INTEGER(primary_key=True))
+                structure.add_column('id', DataTypes.INTEGER(), primary_key=True)
                 structure.add_column('username', DataTypes.VARCHAR(max_length=50))
                 structure.add_column('age', DataTypes.TINYINT(unsigned=True))
 
@@ -1311,16 +1320,15 @@ class TableStructure:
 
         * ``name`` (str): The column name.
         * ``datatype`` (str): The column definition string (including CHECK
-        constraints) as returned by a :class:`DataTypes` method.
+          constraints) as returned by a :class:`DataTypes` method.
         * ``default_value`` (Any): The default value for the column, or ``None``.
         * ``unique`` (bool): Whether the column has a UNIQUE constraint.
         * ``unique_on_conflict`` (str): The ON CONFLICT clause for the UNIQUE
-        constraint (e.g., 'ABORT', 'REPLACE').
+          constraint (e.g., 'ABORT', 'REPLACE').
         * ``not_null`` (bool): Whether the column has a NOT NULL constraint.
         * ``not_null_on_conflict`` (str): The ON CONFLICT clause for the NOT NULL
-        constraint.
+          constraint.
         * ``primary_key`` (bool): Whether the column is part of the primary key.
-        (Note: the key is intentionally misspelled to match the implementation.)
 
         Returns:
             list[dict]: A list of dictionaries, one per column, in the order
@@ -1338,7 +1346,7 @@ class TableStructure:
 
                 columns = structure.get_columns()
                 for col in columns:
-                    print(f"{col['name']}: unique={col['unique']}, pk={col['primari_key']}")
+                    print(f"{col['name']}: unique={col['unique']}, pk={col['primary_key']}")
                 # Output:
                 # id: unique=False, pk=True
                 # name: unique=True, pk=False
@@ -1409,12 +1417,12 @@ class TableStructure:
 
                 # Build customers table first
                 customers_structure = TableStructure('customers')
-                customers_structure.add_column('id', DataTypes.INTEGER(primary_key=True))
+                customers_structure.add_column('id', DataTypes.INTEGER(), primary_key=True) 
                 customers_structure.add_column('name', DataTypes.VARCHAR(max_length=50))
 
                 # Build orders table with a foreign key
                 orders_structure = TableStructure('orders')
-                orders_structure.add_column('id', DataTypes.INTEGER(primary_key=True))
+                orders_structure.add_column('id', DataTypes.INTEGER(), primary_key=True) 
                 orders_structure.add_column('customer_id', DataTypes.INTEGER())
                 orders_structure.add_column('total', DataTypes.DECIMAL(10,2))
 

@@ -104,13 +104,14 @@ class Driver:
 
     >>> # 7. Complex join
     >>> orders = driver.table_object('orders')  # assuming orders table exists
-    >>> joined = users.join(
-    ...     columns=[users.name, orders.total],
-    ...     joins_list=[Join.Inner(orders, users.id == orders.user_id)],
+    >>> joined = users.inner_join(
+    ...     orders, orders.id == orders.user_id
+    ... ).get_row(
+    ...     [users.name, orders.total],
     ...     where=orders.total > 100
     ... )
     >>> print(joined)
-
+    
     >>> # 8. Non-blocking read (reader pool)
     >>> res = users.get_row([users.name], from_readers_pool=True)
 
@@ -199,16 +200,21 @@ class Driver:
         :attr:`main_queue`, blocks until the writer thread has processed the
         request, and either returns the result or raises an exception.
 
+        Only commands that follow the 3‑element layout ``(cmd, query, cb)`` may
+        be passed to this method.  The ``'cp'`` (checkpoint) and ``'dc'``
+        (disconnect) commands use a **different** 2‑element layout
+        ``(cmd, cb)`` and must be sent directly through :attr:`main_queue`
+        instead — they are not routed through ``_exc``.
+
         Args:
             cmd: A short string identifying the operation type. Supported values
                 are ``'qf'`` (query‑fetch), ``'qcb'`` (query‑commit),
-                ``'qsb'`` (script‑batch), ``'qmb'`` (executemany‑batch), and
-                ``'cp'`` (checkpoint).  These map to the writer thread's
-                ``match`` cases.
+                ``'qsb'`` (script‑batch), and ``'qmb'`` (executemany‑batch).
+                These map directly to the writer thread's ``match`` cases.
             query: The SQL statement and optional parameters. The exact format
                 depends on *cmd*:
                 - For ``'qf'`` and ``'qcb'``: ``(sql_statement,)`` or
-                ``(sql_statement, parameters)``.
+                  ``(sql_statement, parameters)``.
                 - For ``'qsb'``: a list of such query tuples.
                 - For ``'qmb'``: ``(sql_statement, sequence_of_parameters)``.
 
@@ -216,24 +222,29 @@ class Driver:
             The result produced by the writer thread:
             - For ``'qf'``, a list of rows (possibly empty).
             - For ``'qcb'``, ``'qsb'``, and ``'qmb'``, ``None`` on success.
-            - For ``'cp'``, ``None`` (checkpoints are fire‑and‑forget from the
-            caller's perspective).
 
         Raises:
             Exception: If the writer thread catches an exception during
                 execution, it is re‑raised here with the original traceback
                 message.  This includes SQLite operational errors, constraint
                 violations, etc.
+            RuntimeError: If the driver has already been disconnected.
 
         Example:
             Usually called indirectly by higher‑level methods, but can be used
             for custom low‑level queries::
 
                 driver = Driver('app.db')
-                # Execute a simple PRAGMA
+                # Execute a simple PRAGMA (auto‑commit)
                 driver._exc('qcb', ("PRAGMA user_version = 1;",))
                 # Fetch results from a system table
                 rows = driver._exc('qf', ('SELECT * FROM sqlite_master;',))
+
+                # To force a WAL checkpoint, send it directly to the queue:
+                from queue import SimpleQueue
+                cb = SimpleQueue()
+                driver.main_queue.put(['cp', cb])
+                cb.get(block=True)  # True when the checkpoint is done
         """
         if not self._connected:
             raise RuntimeError("Driver Disconnected")
@@ -312,64 +323,85 @@ class Driver:
     def simple_driver(receiver: SimpleQueue, db_path: str, isolation_level: str, cache_size: int):
         """Runs the main writer thread that processes all database commands serially.
 
-        This static method is intended to be executed in a dedicated background thread.
-        It opens a single SQLite connection, creates a cursor, and then enters an
-        infinite loop waiting for commands on `receiver`.  Each command is a tuple
-        of the form ``(cmd, payload, callback_queue)``.  Supported ``cmd`` values:
+        This static method is intended to be executed in a dedicated background
+        thread.  It opens a single SQLite connection, creates a cursor, and then
+        enters an infinite loop waiting for commands on *receiver*.
+
+        Two command layouts are supported by the writer thread:
+
+        * **3‑element layout** — ``(cmd, query, callback_queue)`` — used by the
+          commands ``'qf'``, ``'qcb'``, ``'qsb'``, and ``'qmb'``.  The
+          callback is the third element and receives ``(True, result)`` or
+          ``(False, exception)``.
+        * **2‑element layout** — ``(cmd, callback_queue)`` — used by ``'cp'``
+          (checkpoint) and ``'dc'`` (disconnect).  Here the callback is the
+          second element.
+
+        Supported ``cmd`` values:
 
         * ``'qf'`` – execute a query and return the fetched rows via the callback.
         * ``'qcb'`` – execute a statement and commit (or rollback on error).
         * ``'qsb'`` – execute a list of statements as a single transaction.
         * ``'qmb'`` – execute a parameterised statement with ``executemany``.
-        * ``'cp'`` – force a WAL checkpoint (``PRAGMA wal_checkpoint(TRUNCATE)``).
-        * ``'dc'`` – commit, signal shutdown, and break the loop.
+        * ``'cp'`` – force a WAL checkpoint (``PRAGMA wal_checkpoint(TRUNCATE)``);
+          the callback is ``query[1]`` and receives ``True`` when done.
+        * ``'dc'`` – commit, signal shutdown, and break the loop; the callback
+          is ``query[1]`` and receives ``(True, None)`` or ``(False, exception)``.
 
-        On any exception the transaction is rolled back and an ``(False, exception)``
-        tuple is sent back through the callback queue.  Successful operations return
+        On any exception during ``'qf'``/``'qcb'``/``'qsb'``/``'qmb'`` the
+        transaction is rolled back and an ``(False, exception)`` tuple is sent
+        back through the callback queue.  Successful operations return
         ``(True, result)``.
 
         Args:
             receiver: A :class:`queue.SimpleQueue` from which the thread reads
-                commands.  Each command is a list/tuple with three elements:
-                the command string, the query (with optional parameters), and a
-                callback :class:`queue.SimpleQueue` to receive the result.
+                commands.  See the layouts above for the exact tuple shape of
+                each command.
             db_path: Path to the SQLite database file.
             isolation_level: The transaction isolation level (e.g.
                 ``'DEFERRED'``, ``'IMMEDIATE'``, ``'EXCLUSIVE'``) passed to
                 :func:`sqlite3.connect`.
-            cache_size: Number of compiled statements to cache (``cached_statements``
-                parameter).
+            cache_size: Number of compiled statements to cache
+                (``cached_statements`` parameter).
 
         Returns:
-            None.  The method blocks until a ``'dc'`` command is received and then
-            returns.
+            None.  The method blocks until a ``'dc'`` command is received and
+            then returns.
 
         Raises:
-            This method does not raise exceptions directly; all database errors are
-            caught and reported through the callback queue.
+            This method does not raise exceptions directly; all database errors
+            are caught and reported through the callback queue.
 
         Example:
-            Typically this method is not called directly by users.  It is started
-            internally by the :class:`Driver` constructor::
+            Typically this method is not called directly by users.  It is
+            started internally by the :class:`Driver` constructor::
 
                 Thread(target=Driver.simple_driver,
                     args=(self.main_queue, db_path, isolation_level, cache_size)).start()
 
-            To simulate a command from outside (for testing purposes) you might do::
+            To simulate commands from outside (for testing purposes)::
 
                 import queue
                 receiver = queue.SimpleQueue()
-                # start the thread
                 thread = Thread(target=Driver.simple_driver,
                                 args=(receiver, 'test.db', 'DEFERRED', 128))
                 thread.start()
-                # send a command
+
+                # 3‑element command (qf / qcb / qsb / qmb)
                 callback = queue.SimpleQueue()
                 receiver.put(('qcb', ('CREATE TABLE t(x INTEGER)',), callback))
                 success, _ = callback.get()
                 print(success)  # True
-                # stop the thread
-                receiver.put(('dc', None, callback))
+
+                # 2‑element command (cp)
+                cp_cb = queue.SimpleQueue()
+                receiver.put(('cp', cp_cb))
+                print(cp_cb.get())  # True
+
+                # 2‑element disconnect command
+                dc_cb = queue.SimpleQueue()
+                receiver.put(('dc', dc_cb))
+                print(dc_cb.get())  # (True, None)
                 thread.join()
         """
         
@@ -743,14 +775,14 @@ class Driver:
             is_set: ``True`` to enable WAL mode, ``False`` to disable it.
             wal_timer: Interval in seconds between automatic checkpoints
                 while WAL is active.  Ignored when ``is_set`` is ``False``.
-                Defaults to 60.
+                Defaults to ``1``.
 
         Returns:
             None.
 
         Raises:
             Exception: Propagated from the writer thread if a ``PRAGMA``
-                statement fails (e.g. database is locked).
+                statement fails (e.g., database is locked).
 
         Example:
             >>> driver = Driver('mydb.db')

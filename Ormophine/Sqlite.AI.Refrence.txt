@@ -509,6 +509,26 @@ from typing import Any, Literal
 from threading import Thread, Event
 from queue import SimpleQueue
 
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
 class Driver:
     """
     Comprehensive SQLite Driver for Ormophine.
@@ -702,16 +722,21 @@ class Driver:
         :attr:`main_queue`, blocks until the writer thread has processed the
         request, and either returns the result or raises an exception.
 
+        Only commands that follow the 3‑element layout ``(cmd, query, cb)`` may
+        be passed to this method.  The ``'cp'`` (checkpoint) and ``'dc'``
+        (disconnect) commands use a **different** 2‑element layout
+        ``(cmd, cb)`` and must be sent directly through :attr:`main_queue`
+        instead — they are not routed through ``_exc``.
+
         Args:
             cmd: A short string identifying the operation type. Supported values
                 are ``'qf'`` (query‑fetch), ``'qcb'`` (query‑commit),
-                ``'qsb'`` (script‑batch), ``'qmb'`` (executemany‑batch), and
-                ``'cp'`` (checkpoint).  These map to the writer thread's
-                ``match`` cases.
+                ``'qsb'`` (script‑batch), and ``'qmb'`` (executemany‑batch).
+                These map directly to the writer thread's ``match`` cases.
             query: The SQL statement and optional parameters. The exact format
                 depends on *cmd*:
                 - For ``'qf'`` and ``'qcb'``: ``(sql_statement,)`` or
-                ``(sql_statement, parameters)``.
+                  ``(sql_statement, parameters)``.
                 - For ``'qsb'``: a list of such query tuples.
                 - For ``'qmb'``: ``(sql_statement, sequence_of_parameters)``.
 
@@ -719,24 +744,29 @@ class Driver:
             The result produced by the writer thread:
             - For ``'qf'``, a list of rows (possibly empty).
             - For ``'qcb'``, ``'qsb'``, and ``'qmb'``, ``None`` on success.
-            - For ``'cp'``, ``None`` (checkpoints are fire‑and‑forget from the
-            caller's perspective).
 
         Raises:
             Exception: If the writer thread catches an exception during
                 execution, it is re‑raised here with the original traceback
                 message.  This includes SQLite operational errors, constraint
                 violations, etc.
+            RuntimeError: If the driver has already been disconnected.
 
         Example:
             Usually called indirectly by higher‑level methods, but can be used
             for custom low‑level queries::
 
                 driver = Driver('app.db')
-                # Execute a simple PRAGMA
+                # Execute a simple PRAGMA (auto‑commit)
                 driver._exc('qcb', ("PRAGMA user_version = 1;",))
                 # Fetch results from a system table
                 rows = driver._exc('qf', ('SELECT * FROM sqlite_master;',))
+
+                # To force a WAL checkpoint, send it directly to the queue:
+                from queue import SimpleQueue
+                cb = SimpleQueue()
+                driver.main_queue.put(['cp', cb])
+                cb.get(block=True)  # True when the checkpoint is done
         """
         if not self._connected:
             raise RuntimeError("Driver Disconnected")
@@ -815,64 +845,85 @@ class Driver:
     def simple_driver(receiver: SimpleQueue, db_path: str, isolation_level: str, cache_size: int):
         """Runs the main writer thread that processes all database commands serially.
 
-        This static method is intended to be executed in a dedicated background thread.
-        It opens a single SQLite connection, creates a cursor, and then enters an
-        infinite loop waiting for commands on `receiver`.  Each command is a tuple
-        of the form ``(cmd, payload, callback_queue)``.  Supported ``cmd`` values:
+        This static method is intended to be executed in a dedicated background
+        thread.  It opens a single SQLite connection, creates a cursor, and then
+        enters an infinite loop waiting for commands on *receiver*.
+
+        Two command layouts are supported by the writer thread:
+
+        * **3‑element layout** — ``(cmd, query, callback_queue)`` — used by the
+          commands ``'qf'``, ``'qcb'``, ``'qsb'``, and ``'qmb'``.  The
+          callback is the third element and receives ``(True, result)`` or
+          ``(False, exception)``.
+        * **2‑element layout** — ``(cmd, callback_queue)`` — used by ``'cp'``
+          (checkpoint) and ``'dc'`` (disconnect).  Here the callback is the
+          second element.
+
+        Supported ``cmd`` values:
 
         * ``'qf'`` – execute a query and return the fetched rows via the callback.
         * ``'qcb'`` – execute a statement and commit (or rollback on error).
         * ``'qsb'`` – execute a list of statements as a single transaction.
         * ``'qmb'`` – execute a parameterised statement with ``executemany``.
-        * ``'cp'`` – force a WAL checkpoint (``PRAGMA wal_checkpoint(TRUNCATE)``).
-        * ``'dc'`` – commit, signal shutdown, and break the loop.
+        * ``'cp'`` – force a WAL checkpoint (``PRAGMA wal_checkpoint(TRUNCATE)``);
+          the callback is ``query[1]`` and receives ``True`` when done.
+        * ``'dc'`` – commit, signal shutdown, and break the loop; the callback
+          is ``query[1]`` and receives ``(True, None)`` or ``(False, exception)``.
 
-        On any exception the transaction is rolled back and an ``(False, exception)``
-        tuple is sent back through the callback queue.  Successful operations return
+        On any exception during ``'qf'``/``'qcb'``/``'qsb'``/``'qmb'`` the
+        transaction is rolled back and an ``(False, exception)`` tuple is sent
+        back through the callback queue.  Successful operations return
         ``(True, result)``.
 
         Args:
             receiver: A :class:`queue.SimpleQueue` from which the thread reads
-                commands.  Each command is a list/tuple with three elements:
-                the command string, the query (with optional parameters), and a
-                callback :class:`queue.SimpleQueue` to receive the result.
+                commands.  See the layouts above for the exact tuple shape of
+                each command.
             db_path: Path to the SQLite database file.
             isolation_level: The transaction isolation level (e.g.
                 ``'DEFERRED'``, ``'IMMEDIATE'``, ``'EXCLUSIVE'``) passed to
                 :func:`sqlite3.connect`.
-            cache_size: Number of compiled statements to cache (``cached_statements``
-                parameter).
+            cache_size: Number of compiled statements to cache
+                (``cached_statements`` parameter).
 
         Returns:
-            None.  The method blocks until a ``'dc'`` command is received and then
-            returns.
+            None.  The method blocks until a ``'dc'`` command is received and
+            then returns.
 
         Raises:
-            This method does not raise exceptions directly; all database errors are
-            caught and reported through the callback queue.
+            This method does not raise exceptions directly; all database errors
+            are caught and reported through the callback queue.
 
         Example:
-            Typically this method is not called directly by users.  It is started
-            internally by the :class:`Driver` constructor::
+            Typically this method is not called directly by users.  It is
+            started internally by the :class:`Driver` constructor::
 
                 Thread(target=Driver.simple_driver,
                     args=(self.main_queue, db_path, isolation_level, cache_size)).start()
 
-            To simulate a command from outside (for testing purposes) you might do::
+            To simulate commands from outside (for testing purposes)::
 
                 import queue
                 receiver = queue.SimpleQueue()
-                # start the thread
                 thread = Thread(target=Driver.simple_driver,
                                 args=(receiver, 'test.db', 'DEFERRED', 128))
                 thread.start()
-                # send a command
+
+                # 3‑element command (qf / qcb / qsb / qmb)
                 callback = queue.SimpleQueue()
                 receiver.put(('qcb', ('CREATE TABLE t(x INTEGER)',), callback))
                 success, _ = callback.get()
                 print(success)  # True
-                # stop the thread
-                receiver.put(('dc', None, callback))
+
+                # 2‑element command (cp)
+                cp_cb = queue.SimpleQueue()
+                receiver.put(('cp', cp_cb))
+                print(cp_cb.get())  # True
+
+                # 2‑element disconnect command
+                dc_cb = queue.SimpleQueue()
+                receiver.put(('dc', dc_cb))
+                print(dc_cb.get())  # (True, None)
                 thread.join()
         """
         
@@ -1246,14 +1297,14 @@ class Driver:
             is_set: ``True`` to enable WAL mode, ``False`` to disable it.
             wal_timer: Interval in seconds between automatic checkpoints
                 while WAL is active.  Ignored when ``is_set`` is ``False``.
-                Defaults to 60.
+                Defaults to ``1``.
 
         Returns:
             None.
 
         Raises:
             Exception: Propagated from the writer thread if a ``PRAGMA``
-                statement fails (e.g. database is locked).
+                statement fails (e.g., database is locked).
 
         Example:
             >>> driver = Driver('mydb.db')
@@ -1760,8 +1811,17 @@ class ColumnsOperation:
         """Raise the column expression to a power using SQL exponentiation.
 
         This method implements the ``**`` operator for :class:`ColumnsOperation`.
-        It generates a SQL expression using the exponentiation operator ``**``,
-        which is supported by SQLite (and other databases) for numeric exponentiation.
+        It generates a SQL expression using the exponentiation operator ``**``.
+
+        .. warning::
+            The ``**`` operator is **not** standard SQLite syntax; SQLite does
+            not provide a native power operator.  This method assumes that the
+            underlying SQL execution context either supports ``**`` (some
+            forks or extensions do) or that a custom SQL function (e.g.
+            ``power``) has been registered and aliased to ``**``.  With
+            vanilla SQLite the generated statement will fail at execution
+            time.  The generated expression is wrapped in parentheses to
+            ensure correct operator precedence.
 
         The method supports three types of operands:
 
@@ -2083,11 +2143,12 @@ class ColumnsOperation:
     def __getitem__(self, key: slice):
         """Implement string slicing on a column expression using SQLite's ``substr``.
 
-        This method allows Python-style slicing (e.g., ``column[1:5]``) on a
-        :class:`ColumnsOperation` object. It generates a SQL ``substr`` expression
-        that extracts a substring from the column value or from a previously
-        constructed expression. The behavior mimics Python string slicing with
-        support for positive/negative indices and omitted start/stop values.
+        This method allows Python-style slicing (e.g., ``expr[1:5]``) on a
+        :class:`ColumnsOperation` object that already carries an accumulated
+        SQL expression.  It generates a SQL ``substr`` expression that extracts
+        a substring from the previously-built expression.  The behavior mimics
+        Python string slicing with support for positive/negative indices and
+        omitted start/stop values.
 
         The generated SQL uses SQLite's ``substr(X, Y, Z)`` function, where:
         - The start position is adjusted for 1‑based indexing.
@@ -2095,22 +2156,31 @@ class ColumnsOperation:
         - An omitted start defaults to 0 (beginning).
         - An omitted stop defaults to the end of the string.
 
+        .. note::
+            Because SQLite's ``substr`` is 1‑based and Python's slicing is
+            0‑based with an exclusive stop, the ORM applies ``start+1`` and
+            ``stop+1`` adjustments.  As a consequence, the ``[:N]`` slice
+            produces ``substr(expr, 0, N+1)`` — i.e. **N+1** characters, not
+            ``N``.  This is the historical behaviour of the library; adjust
+            your slices accordingly.
+
         The method updates the instance's ``_output`` attribute with a tuple
-        ``(sql_string, parameters)`` and returns the instance itself for chaining.
+        ``(sql_string, parameters)`` and returns a new :class:`ColumnsOperation`
+        for chaining.
 
         Args:
             key (slice): A slice object defining the substring range. The
                 ``start`` and ``stop`` attributes can be ``None``, positive,
                 or negative integers. Negative values count from the end of
-                the string.
+                the string. Step values are ignored (not supported by SQLite).
 
         Returns:
-            :class:`ColumnsOperation`: The current instance with its ``_output``
-            updated to represent the ``substr`` expression. This allows
-            additional operations to be chained.
+            :class:`ColumnsOperation`: A new operation whose ``_output``
+            attribute contains the SQL substring expression and the list of
+            bound parameters. This allows additional operations to be chained.
 
         Example:
-            Assuming a ``users`` table with a ``name`` column::
+            Slicing on a :class:`ColumnsOperation` (a chained expression)::
 
                 from ormophine.Sqlite import Driver, Table
 
@@ -2118,27 +2188,25 @@ class ColumnsOperation:
                 users = db.users
                 name_col = users.name
 
-                # Extract first 3 characters (Python slice 0:3)
-                expr = name_col[:3]
-                # expr._output[0] -> "substr(users.[name] , 0 , ?)"
-                # expr._output[1] -> [3]  # note: SQLite's substr is 1-based,
-                # but this ORM adjusts: stop+1 is used, so for 0:3, we get substr(..., 0, 3)
-                # Actually this ORM uses 0-based start with substr, so it's fine.
+                # Build an expression first, then slice it
+                expr = (name_col + ' !')[:3]
+                # expr._output[0] -> "(substr((users.[name] || ?) , 0 , ?))"
+                # expr._output[1] -> [' !', 4]   # note: stop+1 = 4
 
-                # Extract from index 1 to 4 (Python slice 1:5)
-                expr2 = name_col[1:5]
-                # expr2._output[0] -> "substr(users.[name] , ? , ?)"
-                # expr2._output[1] -> [2, 4]  # start adjusted to 1-based: 1+1=2, length = 5-1=4
+                # Slice with start and stop
+                expr2 = (name_col.upper())[1:5]
+                # expr2._output[0] -> "(substr((upper(users.[name])) , ? , ?))"
+                # expr2._output[1] -> [2, 4]   # start+1 = 2, stop-start = 4
 
-                # Extract last 3 characters (Python slice -3:)
-                expr3 = name_col[-3:]
-                # expr3._output[0] -> "substr(users.[name] , length(users.[name]) - ? , length(users.[name]))"
-                # expr3._output[1] -> [2]  # -3 becomes abs(-3)-1 = 2
+                # Slice from negative start to the end
+                expr3 = (name_col.strip())[-3:]
+                # expr3._output[0] -> "(substr((trim(users.[name],\\" \\")) , length((trim(users.[name],\\" \\"))) - ? , length((trim(users.[name],\\" \\")))))"
+                # expr3._output[1] -> [2]   # abs(-3) - 1 = 2
 
-                # Use in a query to get initials (first character)
-                initial_expr = name_col[0:1]
-                results = users.get_row([initial_expr], where=users.id == 1)
-                # retrieves the first character of the name for user with id=1
+                # Use in a query
+                condition = expr[:3] == 'Joh'
+                results = users.get_row([name_col], where=condition)
+                # retrieves users whose (name+' !') starts with 'Joh' (first 3 chars of the slice)
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op.current_datatype = str
@@ -3692,7 +3760,7 @@ class ColumnsOperation:
         if not column and not data_list:
             raise Exception("In() requires either data_list or column")
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
+        new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} NOT IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
             
         return new_op
     
@@ -3840,11 +3908,6 @@ class Column:
             reflects the addition/concatenation. This object can be used in further operations
             like comparison or string manipulation.
 
-        Raises:
-            TypeError: If the operand type is incompatible with the column's data type
-                (e.g., adding a number to a text column will still generate ``||``, but the
-                type handling is determined by the column's ``datatype`` attribute).
-
         Example:
             Creating an expression for a SELECT or UPDATE:
 
@@ -3888,10 +3951,6 @@ class Column:
             fragment uses ``||`` if the column's datatype is :class:`str`,
             otherwise ``+``. The parameter list contains any literal values
             that were bound into the expression.
-
-        Raises:
-            No exceptions are raised by this method itself, but further
-            evaluation of the expression may raise database-related errors.
 
         Example:
             >>> col = my_table.name  # datatype is str
@@ -4135,6 +4194,16 @@ class Column:
         expression using the ``**`` operator. The resulting SQL fragment and
         parameters can be used in :meth:`Table.get_row`, :meth:`Table.update`,
         or other query methods.
+
+        .. warning::
+            The ``**`` operator is **not** standard SQLite syntax; SQLite does
+            not provide a native power operator.  This method assumes that the
+            underlying SQL execution context either supports ``**`` (some
+            forks or extensions do) or that a custom SQL function (e.g.
+            ``power``) has been registered and aliased to ``**``.  With
+            vanilla SQLite the generated statement will fail at execution
+            time.  The generated expression is wrapped in parentheses to
+            ensure correct operator precedence.
 
         Args:
             value: The left operand in the exponentiation. It can be:
@@ -4474,39 +4543,56 @@ class Column:
         return temp_ob
 
     def __ne__(self, value):
-        """Inequality operator (`!=`) for constructing SQL WHERE conditions.
+        """Inequality operator (``!=``) for constructing SQL WHERE conditions.
 
-        Generates a SQL inequality comparison between this column and another expression
-        or literal value. The result is a :class:`ColumnsOperation` object that can be
-        combined with other conditions or used directly in a query's ``WHERE`` clause.
+        Generates a SQL inequality comparison between this column and another
+        expression or literal value. The result is a :class:`ColumnsOperation`
+        object that can be combined with other conditions or used directly in
+        a query's ``WHERE`` clause.
+
+        The method supports comparisons with:
+
+        * Another :class:`Column` – compares the column to another column.
+        * A :class:`ColumnsOperation` – compares the column to a computed
+          expression.
+        * A literal value (e.g., ``int``, ``str``, ``float``) – uses a
+          parameterized placeholder (``?``) in the generated SQL.
+        * ``None`` – produces an ``IS NOT NULL`` condition instead of a
+          comparison, which is the SQL-correct way to test for non-null.
 
         Args:
-            value (Union[Column, ColumnsOperation, Any]): The right-hand side of the
-                comparison. Can be another :class:`Column`, a :class:`ColumnsOperation`
-                (e.g., from arithmetic or string operations), or a literal value
-                (e.g., ``int``, ``str``, ``float``). If a literal is provided, it will
-                be used as a parameterized placeholder (``?``) in the generated SQL.
+            value: The right-hand side of the comparison. Can be another
+                :class:`Column`, a :class:`ColumnsOperation`, a literal value
+                (``int``, ``str``, ``float``, etc.), or ``None``.
 
         Returns:
-            ColumnsOperation: A :class:`ColumnsOperation` instance whose internal state
-            represents the inequality condition ``this_column != value``. This object
-            can be used in :meth:`Table.update`, :meth:`Table.delete_row`,
+            :class:`ColumnsOperation`: A :class:`ColumnsOperation` instance
+            whose internal state represents the inequality condition
+            ``this_column != value`` (or ``this_column IS NOT NULL`` when
+            ``value`` is ``None``). This object can be used in
+            :meth:`Table.update`, :meth:`Table.delete_row`,
             :meth:`Table.get_row`, and similar methods that accept a ``where``
             parameter.
-
-        Raises:
-            TypeError: If the `value` type is not supported (e.g., not a :class:`Column`,
-                :class:`ColumnsOperation`, or a literal). The method may fail when
-                accessing ``_output`` or ``name`` attributes of unsupported types.
 
         Example:
             >>> from myorm import Driver, Table, Column
             >>> db = Driver('test.db')
             >>> users = db.users
             >>> age = users.age  # type: Column
+
+            # Compare with a literal
             >>> condition = age != 30  # returns ColumnsOperation
             >>> result = users.get_row([users.name], where=condition)
             # Generated SQL: SELECT [users].[name] FROM [users] WHERE ([users].[age] != ?)
+
+            # Compare with None -> IS NOT NULL
+            >>> not_null_condition = age != None
+            # not_null_condition._output[0] -> "([users].[age] IS NOT NULL)"
+
+            # Compare with another column
+            >>> other = users.min_age
+            >>> condition2 = age != other
+            # condition2._output[0] -> "([users].[age] != [users].[min_age])"
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'({self.name} != {value._output[0]})', value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} != {value.name})', []) if isinstance(value, Column) else (f'({self.name} IS NOT NULL)', []) if value is None else (f'({self.name} != ?)', [value])
@@ -4924,17 +5010,18 @@ class Column:
         slices. The resulting :class:`ColumnsOperation` object can be used in
         queries, updates, or as part of larger expressions.
 
-        The slicing behavior mimics Python string slicing with SQL semantics:
-        - ``column[0:5]`` → ``substr(column, 1, 5)`` (1‑based indexing)
-        - ``column[2:]`` → ``substr(column, 3, length(column))``
-        - ``column[:-2]`` → ``substr(column, 1, length(column)-1)`` (excludes last two chars)
-        - Negative indices are converted to offsets from the end:
-        ``column[-3:]`` → ``substr(column, length(column)-2, length(column))``
-        - End index is exclusive: ``column[0:3]`` takes characters at positions 0,1,2.
+        .. warning::
+            The index adjustments in this ORM differ slightly from Python
+            semantics: ``column[:N]`` produces ``substr(column, 0, N+1)``
+            (i.e. **N+1** characters), and ``column[start:stop]`` produces
+            ``substr(column, start+1, stop-start)``.  Always verify the
+            generated SQL against your intended slice.
 
-        The method adjusts indices because SQLite ``substr()`` uses 1‑based
-        indexing and inclusive end positions, whereas Python uses 0‑based and
-        exclusive end. The implementation handles the conversion transparently.
+        The generated SQL uses SQLite's ``substr(X, Y, Z)`` function, where:
+        - The start position is adjusted for 1‑based indexing.
+        - Negative indices are converted to ``length(X) - N``.
+        - An omitted start defaults to 0 (beginning).
+        - An omitted stop defaults to the end of the string.
 
         Args:
             key (slice): A slice object specifying the start and stop positions.
@@ -4956,24 +5043,29 @@ class Column:
                 users = db.users
                 name_col = users.name
 
-                # Get first 3 characters
+                # Get first 4 characters (note: stop+1 because of the ORM adjustment)
                 expr = name_col[:3]
-                # expr._output[0] -> "substr(users.[name] , 1 , 3)"
-                # expr._output[1] -> []
+                # expr._output[0] -> "(substr(users.[name] , 0 , ?))"
+                # expr._output[1] -> [4]   # stop + 1
 
-                # Get from position 2 to end
+                # Get from index 2 to end (Python slice 2:)
                 expr2 = name_col[2:]
-                # expr2._output[0] -> "substr(users.[name] , 3 , length(users.[name]))"
+                # expr2._output[0] -> "(substr(users.[name] , ? , length(users.[name])))"
+                # expr2._output[1] -> [3]   # start + 1
 
-                # Get last 4 characters (equivalent to name[-4:])
-                expr3 = name_col[-4:]
-                # expr3._output[0] -> "substr(users.[name] , length(users.[name]) - 3 , length(users.[name]))"
-                # expr3._output[1] -> []
+                # Get from index 1 to 4 (Python slice 1:5)
+                expr3 = name_col[1:5]
+                # expr3._output[0] -> "(substr(users.[name] , ? , ?))"
+                # expr3._output[1] -> [2, 4]   # start + 1, stop - start
+
+                # Get last 3 characters (Python slice -3:)
+                expr4 = name_col[-3:]
+                # expr4._output[0] -> "(substr(users.[name] , length(users.[name]) - ? , length(users.[name])))"
+                # expr4._output[1] -> [2]   # abs(-3) - 1
 
                 # Use in a query
                 condition = name_col[:3] == 'Joh'
                 results = users.get_row([name_col], where=condition)
-                # retrieves users whose name starts with 'Joh'
         """
 
         temp_ob = ColumnsOperation(self)
@@ -5025,16 +5117,15 @@ class Column:
 
                 # Strip spaces from both ends
                 trimmed = name.strip()
-                # trimmed._output[0] -> "trim(users.[name],' ')"
+                # trimmed._output[0] -> '(trim(users.[name]," "))'
                 # trimmed._output[1] -> []
 
                 # Strip specific characters (e.g., underscores and dashes)
                 cleaned = name.strip('_-')
-                # cleaned._output[0] -> "trim(users.[name],'_-')"
+                # cleaned._output[0] -> '(trim(users.[name],"_-"))'
 
                 # Use in a SELECT query
                 result = users.get_row([trimmed], where=name.contains('john'))
-                # returns rows where the trimmed name contains 'john'
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'(trim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output[0] else (f'(trim({temp_ob.col_obj.name},"{chars}"))', [])
@@ -5076,19 +5167,19 @@ class Column:
 
                 # Remove leading spaces (default)
                 trimmed = username.lstrip()
-                # trimmed._output[0] -> "ltrim(users.[username],' ')"
+                # trimmed._output[0] -> "(ltrim(users.[username],' '))"
                 # trimmed._output[1] -> []
 
                 # Remove leading underscores and hyphens
                 trimmed_custom = username.lstrip('_-')
-                # trimmed_custom._output[0] -> "ltrim(users.[username],'_-')"
+                # trimmed_custom._output[0] -> "(ltrim(users.[username],'_-'))"
 
                 # Use in a query to get cleaned usernames
                 results = users.get_row([trimmed], where=username != '')
                 # retrieves rows with usernames trimmed on the left
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(trim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output[0] else (f'(trim({temp_ob.col_obj.name},"{chars}"))', [])
+        temp_ob._output = (f'(ltrim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output[0] else (f'(ltrim({temp_ob.col_obj.name},"{chars}"))', [])
         return temp_ob
 
     def rstrip(self, chars: str = ' '):
@@ -5121,11 +5212,11 @@ class Column:
 
                 # Remove trailing spaces
                 clean_expression = name_col.rstrip()
-                # clean_expression._output[0] -> "rtrim(products.[name],' ')"
+                # clean_expression._output[0] -> "(rtrim(products.[name],' '))"
 
                 # Remove trailing hyphens and underscores
                 clean_expression2 = name_col.rstrip('-_')
-                # clean_expression2._output[0] -> "rtrim(products.[name],'-_')"
+                # clean_expression2._output[0] -> "(rtrim(products.[name],'-_'))"
 
                 # Use in an update to sanitize data
                 products.update({name_col: name_col.rstrip()},
@@ -5179,7 +5270,7 @@ class Column:
                 # returns rows with full_name + ' Jr.'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} || {content._output[0]})', [content._output[1]]) if isinstance(content, ColumnsOperation) else (f'({self.name} || {content.name})', []) if isinstance(content, Column) else (f'({self.name} || ?)', [content])
+        temp_ob._output = (f'({self.name} || {content._output[0]})', content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self.name} || {content.name})', []) if isinstance(content, Column) else (f'({self.name} || ?)', [content])
         return temp_ob
 
     def add_first(self, content):
@@ -5235,7 +5326,7 @@ class Column:
         """
 
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({content._output[0]} || {self.name})', [content._output[1]]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self.name})', []) if isinstance(content, Column) else (f'(? || {self.name})', [content])
+        temp_ob._output = (f'({content._output[0]} || {self.name})', content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self.name})', []) if isinstance(content, Column) else (f'(? || {self.name})', [content])
         return temp_ob
     
     def lower(self):
@@ -5247,14 +5338,10 @@ class Column:
         ``WHERE``, or other SQL clauses to perform case‑insensitive
         comparisons or transformations.
 
-        The returned operation can be chained with other operations (e.g.,
-        :meth:`~ColumnsOperation.startswith`, :meth:`~ColumnsOperation.like`)
-        or combined with logical operators (``&``, ``|``).
-
         Returns:
             :class:`ColumnsOperation`: An expression object whose ``_output``
             attribute contains the SQL string for the ``LOWER`` function call
-            (e.g., ``lower(users.[name])``) and an empty parameter list.
+            (e.g., ``(lower(users.[name]))``) and an empty parameter list.
 
         Example:
             Assuming a ``users`` table with a ``name`` column::
@@ -5267,7 +5354,7 @@ class Column:
 
                 # Create a condition for case‑insensitive equality
                 condition = name_col.lower() == 'alice'
-                # condition._output[0] -> "(lower(users.[name]) = ?)"
+                # condition._output[0] -> "((lower(users.[name])) = ?)"
                 # condition._output[1] -> ['alice']
 
                 # Retrieve users whose name is 'alice' (case‑insensitive)
@@ -5321,11 +5408,6 @@ class Column:
         :class:`ColumnsOperation` object that can be used in ``SELECT`` or
         other SQL clauses. The replacement is performed on the database side.
 
-        The method automatically handles both simple column references and
-        previously built expressions (e.g., after concatenation or substring
-        operations) thanks to the internal state of the
-        :class:`ColumnsOperation`.
-
         Args:
             old (str): The substring to be replaced. This is passed as a
                 bound parameter (``?``) in the SQL.
@@ -5334,9 +5416,9 @@ class Column:
         Returns:
             :class:`ColumnsOperation`: An expression object whose ``_output``
             attribute contains the SQL string and parameter list for the
-            ``replace()`` call. The SQL string is either ``replace(column, ?, ?)``
-            or ``replace(expression, ?, ?)`` if the operation was chained.
-            The parameter list includes the ``old`` and ``new`` values.
+            ``replace()`` call. The SQL string is either
+            ``(replace(column , ? , ?))`` or ``(replace(expression , ? , ?))``
+            if the operation was chained.
 
         Example:
             Assuming a ``users`` table with a ``bio`` column::
@@ -5349,17 +5431,11 @@ class Column:
 
                 # Replace 'foo' with 'bar' in the bio column
                 expr = bio_col.replace('foo', 'bar')
-                # expr._output[0] -> "replace(users.[bio] , ? , ?)"
+                # expr._output[0] -> "(replace(users.[bio] , ? , ?))"
                 # expr._output[1] -> ['foo', 'bar']
-
-                # Chain with a substring operation
-                expr2 = bio_col[0:10].replace('x', 'y')
-                # expr2._output[0] -> "replace(substr(users.[bio] , ? , ?) , ? , ?)"
-                # expr2._output[1] -> [1, 10, 'x', 'y']
 
                 # Use in a SELECT query
                 result = users.get_row([expr], where=users.id == 1)
-                # retrieves the transformed bio for user with id=1
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f'(replace({temp_ob._output[0]} , ? , ?))', temp_ob._output[1] + [old, new]) if temp_ob._output[0] else (f'(replace({temp_ob.col_obj.name} , ? , ?))', [old, new])
@@ -6144,36 +6220,287 @@ class JoinQuery:
     """
 
     def __init__(self, table_obj, joins=None, params=None):
+        """Initialize a new :class:`JoinQuery` builder for a base table.
+
+        This class provides a fluent interface for constructing SQL JOIN
+        queries with automatic table aliasing.  It is designed to be created
+        indirectly through the :meth:`Table.inner_join`, :meth:`Table.left_join`,
+        and :meth:`Table.right_join` methods, and then progressively extended
+        by calling :meth:`inner_join`, :meth:`left_join`, or :meth:`right_join`
+        on the returned object.
+
+        Each call to one of the join methods returns a **new** :class:`JoinQuery`
+        instance (immutable-style chaining), so the original object is never
+        mutated.  This makes it safe to reuse a base :class:`JoinQuery` as a
+        starting point for multiple independent queries.
+
+        When the same table appears multiple times in the join chain, the
+        builder automatically assigns a unique alias (e.g. ``orders_0``,
+        ``orders_1``) and rewrites all references to the aliased table inside
+        ON conditions, the SELECT list, the WHERE clause, and the ORDER BY
+        clause.
+
+        Args:
+            table_obj: The base :class:`Table` object on which the join is
+                performed.  This becomes the ``FROM`` table of the generated
+                SQL statement.
+            joins (list[dict], optional): Internal list of join descriptors
+                already accumulated on this instance.  Each entry is a dict
+                with the keys ``'type'`` (e.g. ``'INNER JOIN'``), ``'table'``
+                (a :class:`Table`), ``'condition'`` (a
+                :class:`ColumnsOperation`), and ``'alias'`` (a string or
+                ``None``).  Defaults to ``None`` (empty list).
+            params (list, optional): Parameter values collected from all
+                join conditions.  Defaults to ``None`` (empty list).
+
+        Example:
+            Direct instantiation is not recommended; prefer the :class:`Table`
+            helpers::
+
+                from ormophine.Sqlite import Driver
+
+                db = Driver('shop.db')
+                users = db.users
+                orders = db.orders
+
+                # Start a join via Table helper
+                q = users.inner_join(orders, orders.user_id == users.id)
+                # q is a JoinQuery instance ready for further chaining or .get_row()
+
+                # Or construct manually for advanced use cases:
+                from ormophine.Sqlite import JoinQuery
+                q2 = JoinQuery(users)
+                q2 = q2.inner_join(orders, orders.user_id == users.id)
+        """
         self.table_obj = table_obj
-        # joins: list of dicts {type, table, condition, alias|None}
         self.joins = joins if joins is not None else []
         self.params = params if params is not None else []
         self._output = (self._join_sql(), list(self.params)) if self.joins else ('', [])
-    # ------------------------------------------------------------------ #
-    #  Public join builders                                              #
-    # ------------------------------------------------------------------ #
+
     def inner_join(self, table, condition, alias=None) -> 'JoinQuery':
+        """Add an ``INNER JOIN`` clause to the query builder.
+
+        The returned :class:`JoinQuery` instance is a **new** object that
+        contains all previous joins plus the newly added one; the current
+        instance is left unmodified.  This enables safe chaining and reuse.
+
+        If the same :class:`Table` object has already been joined earlier in
+        the chain and no explicit ``alias`` is provided, a unique alias is
+        automatically generated (e.g. ``orders_0``, ``orders_1``) and all
+        references to that table inside the ON condition are rewritten to use
+        the alias.
+
+        Args:
+            table (Table): The right‑hand table to join with.
+            condition (ColumnsOperation): The ``ON`` condition that links the
+                two tables.  It must be a :class:`ColumnsOperation` produced
+                by comparing columns (e.g. ``orders.user_id == users.id``).
+            alias (str, optional): An explicit alias for the joined table.
+                If ``None`` and the table has been joined previously, a
+                unique alias is generated automatically.  Defaults to ``None``.
+
+        Returns:
+            JoinQuery: A new :class:`JoinQuery` instance with the INNER JOIN
+            added.  Use it for further chaining or for executing the query
+            via :meth:`get_row`.
+
+        Raises:
+            Exception: If ``condition`` is not a :class:`ColumnsOperation`
+                instance.
+
+        Example:
+            Assuming ``users`` and ``orders`` tables::
+
+                from ormophine.Sqlite import Driver
+
+                db = Driver('shop.db')
+                users = db.users
+                orders = db.orders
+
+                # Simple INNER JOIN
+                rows = users.inner_join(
+                    orders,
+                    orders.user_id == users.id
+                ).get_row([users.name, orders.total])
+                # Equivalent SQL:
+                # SELECT users.[name] AS users_name, orders.[total] AS orders_total
+                # FROM [users] INNER JOIN [orders] ON (orders.[user_id] = users.[id])
+
+                # Self-join with automatic alias
+                managers = db.managers  # assume a second table object for managers
+                rows2 = users.inner_join(
+                    users,  # same table, will receive alias 'users_0'
+                    users.id == users.manager_id
+                ).get_row([users.name])
+        """
         return self._add_join('INNER JOIN', table, condition, alias)
 
     def left_join(self, table, condition, alias=None) -> 'JoinQuery':
+        """Add a ``LEFT JOIN`` clause to the query builder.
+
+        Behaves identically to :meth:`inner_join` but emits a ``LEFT JOIN``
+        (also known as ``LEFT OUTER JOIN``).  The returned object is a new
+        :class:`JoinQuery` instance; the current one is left unmodified.
+
+        All rows from the left (base) table are preserved.  Columns from the
+        right table that have no matching row will be ``NULL`` in the result.
+
+        Args:
+            table (Table): The right‑hand table to join with.
+            condition (ColumnsOperation): The ``ON`` condition linking the
+                two tables (e.g. ``orders.user_id == users.id``).
+            alias (str, optional): An explicit alias for the joined table.
+                Defaults to ``None`` (auto‑generated if needed).
+
+        Returns:
+            JoinQuery: A new :class:`JoinQuery` instance with the LEFT JOIN
+            added.
+
+        Raises:
+            Exception: If ``condition`` is not a :class:`ColumnsOperation`.
+
+        Example:
+            Assuming ``users`` and ``orders`` tables, find every user along
+            with their order totals (users with no orders get ``None``)::
+
+                from ormophine.Sqlite import Driver
+
+                db = Driver('shop.db')
+                users = db.users
+                orders = db.orders
+
+                rows = users.left_join(
+                    orders,
+                    orders.user_id == users.id
+                ).get_row([users.name, orders.total])
+                # Equivalent SQL:
+                # SELECT users.[name] AS users_name, orders.[total] AS orders_total
+                # FROM [users] LEFT JOIN [orders] ON (orders.[user_id] = users.[id])
+        """
         return self._add_join('LEFT JOIN', table, condition, alias)
-
+    
     def right_join(self, table, condition, alias=None) -> 'JoinQuery':
-        return self._add_join('RIGHT JOIN', table, condition, alias)
+        """Add a ``RIGHT JOIN`` clause to the query builder.
 
-    # ------------------------------------------------------------------ #
-    #  Internals                                                         #
-    # ------------------------------------------------------------------ #
+        .. warning::
+            SQLite does **not** natively support ``RIGHT JOIN``.  The
+            generated SQL will use the literal ``RIGHT JOIN`` keyword and
+            will fail on stock SQLite.  This method is provided only for
+            compatibility with other SQL backends or for forward‑compat if
+            SQLite adds support.  For SQLite, prefer swapping the table
+            order and using a ``LEFT JOIN``.
+
+        Behaves identically to :meth:`inner_join` in terms of chaining and
+        aliasing.  Returns a new :class:`JoinQuery` instance.
+
+        Args:
+            table (Table): The right‑hand table to join with.
+            condition (ColumnsOperation): The ``ON`` condition linking the
+                two tables.
+            alias (str, optional): An explicit alias for the joined table.
+                Defaults to ``None``.
+
+        Returns:
+            JoinQuery: A new :class:`JoinQuery` instance with the RIGHT JOIN
+            added.
+
+        Raises:
+            Exception: If ``condition`` is not a :class:`ColumnsOperation`.
+
+        Example:
+            Emitting a RIGHT JOIN (will fail on vanilla SQLite)::
+
+                from ormophine.Sqlite import Driver
+
+                db = Driver('shop.db')
+                users = db.users
+                orders = db.orders
+
+                q = users.right_join(orders, orders.user_id == users.id)
+                # The generated SQL contains 'RIGHT JOIN' which SQLite rejects.
+
+            SQLite‑compatible alternative (swap the tables)::
+
+                # Equivalent to users RIGHT JOIN orders
+                # = orders LEFT JOIN users
+                rows = orders.left_join(users, users.id == orders.user_id) \\
+                             .get_row([users.name, orders.total])
+        """
+        return self._add_join('RIGHT JOIN', table, condition, alias)
+    
     def _make_unique_alias(self, table) -> str:
-        """Generate an alias like ``orders_0`` that isn't already used."""
+        """Generate a unique alias for a table being joined a second time.
+
+        The generated alias has the form ``<table_name>_<N>`` where ``N`` is
+        the smallest non‑negative integer such that the alias is not already
+        used by another join in the current :attr:`joins` list.
+
+        This method is used internally by :meth:`_add_join` when the same
+        :class:`Table` object is joined multiple times, ensuring the
+        generated SQL is unambiguous.
+
+        Args:
+            table (Table): The :class:`Table` for which a unique alias is
+                needed.  The table's bracket‑wrapped name (e.g. ``[orders]``)
+                is stripped of its brackets and used as the base alias.
+
+        Returns:
+            str: A unique alias such as ``'orders_0'`` or ``'orders_1'``.
+
+        Example:
+            Typically called indirectly.  For a table named ``orders`` that
+            has already been joined without an alias, calling this method
+            returns ``'orders_0'``::
+
+                q = users.inner_join(orders, orders.user_id == users.id)
+                # Next inner_join of the same orders table will receive
+                # the auto‑generated alias 'orders_0'.
+        """
         base = table.name_[1:-1]
         used = {j['alias'] for j in self.joins if j['alias']}
         i = 0
         while f'{base}_{i}' in used:
             i += 1
         return f'{base}_{i}'
-
+    
     def _add_join(self, join_type, table, condition, alias):
+        """Internal helper that appends a join descriptor and returns a new builder.
+
+        Validates the ``condition`` type, optionally assigns a unique alias
+        when the same table is joined multiple times, and constructs a new
+        :class:`JoinQuery` instance carrying the extended ``joins`` and
+        ``params`` lists.  The current instance is **not** mutated.
+
+        This method is called by :meth:`inner_join`, :meth:`left_join`, and
+        :meth:`right_join`; it should not normally be called directly.
+
+        Args:
+            join_type (str): The SQL join keyword, e.g. ``'INNER JOIN'``,
+                ``'LEFT JOIN'``, or ``'RIGHT JOIN'``.
+            table (Table): The right‑hand table to join.
+            condition (ColumnsOperation): The ``ON`` condition.  Must be a
+                :class:`ColumnsOperation` instance; otherwise an exception
+                is raised.
+            alias (str, optional): An explicit alias for the joined table.
+                If ``None`` and the table is already present in
+                :attr:`joins`, a unique alias is generated automatically.
+
+        Returns:
+            JoinQuery: A new :class:`JoinQuery` with the added join.
+
+        Raises:
+            Exception: If ``condition`` is not a :class:`ColumnsOperation`.
+                The error message suggests building the condition via
+                column comparisons like ``table1.col == table2.col``.
+
+        Example:
+            This is used internally::
+
+                # Equivalent to:
+                q = users.inner_join(orders, orders.user_id == users.id)
+                # Internally calls:
+                # q = users._add_join('INNER JOIN', orders, orders.user_id == users.id, None)
+        """
         if not isinstance(condition, ColumnsOperation):
             raise Exception(
                 f"Join condition must be a ColumnsOperation, got "
@@ -6194,10 +6521,33 @@ class JoinQuery:
         }]
         new_params = self.params + list(condition._output[1])
         return JoinQuery(self.table_obj, new_joins, new_params)
-
-    # --- SQL generation helpers ---------------------------------------- #
+    
     def _join_sql(self) -> str:
-        """Build the JOIN fragments, rewriting table refs to aliases."""
+        """Build the SQL fragment containing all JOIN clauses.
+
+        Iterates over :attr:`joins` in insertion order and produces a single
+        SQL string such as::
+
+            INNER JOIN [orders] ON (orders.[user_id] = [users].[id])
+            LEFT JOIN [orders] AS [orders_0] ON (orders_0.[user_id] = [users].[id])
+
+        When a join descriptor carries an alias, the ON condition is rewritten
+        so that references to the original table (``[orders].[col]``) are
+        replaced with the aliased form (``[orders_0].[col]``).
+
+        This method is called during :meth:`__init__` to compute
+        :attr:`_output` and again by :meth:`get_row`; it should not normally
+        be called directly.
+
+        Returns:
+            str: A space‑separated sequence of JOIN clauses, or an empty
+            string if no joins have been added.
+
+        Example:
+            Assuming two joins have been added, the returned string resembles::
+
+                'INNER JOIN [orders] ON (orders.[user_id] = [users].[id])'
+        """
         parts = []
         for j in self.joins:
             tbl = j['table']
@@ -6213,14 +6563,34 @@ class JoinQuery:
             else:
                 parts.append(f'{j["type"]} {tbl.name_} ON {cond_sql}')
         return ' '.join(parts)
-
+    
     def _resolve_column_ref(self, col) -> str:
-        """
-        Return the SQL reference for a Column.
+        """Return the SQL reference for a column, honouring any join alias.
 
-        Uses the alias of the FIRST join that references this table.
-        If that first join has no alias, the raw table name is used
-        (which is unambiguous because only one unaliased instance exists).
+        Searches :attr:`joins` in order and returns the first join that
+        references the column's parent table.  If that join has an alias,
+        the reference is rewritten as ``[<alias>].[<column>]``; otherwise the
+        column's own :attr:`~Column.name` (``[table].[column]``) is returned.
+        If the column's table is not part of any join, the column's raw name
+        is returned unchanged.
+
+        This method is used internally by :meth:`get_row` to produce SELECT
+        and ORDER BY clauses; it should not normally be called directly.
+
+        Args:
+            col (Column): The :class:`Column` whose SQL reference should be
+                resolved.
+
+        Returns:
+            str: The SQL reference for the column, either in the aliased form
+            ``'[alias].[column]'`` or the plain form ``'[table].[column]'``.
+
+        Example:
+            When ``orders`` has been joined twice and received the alias
+            ``orders_0``, calling::
+
+                q._resolve_column_ref(orders.total)
+                # returns '[orders_0].[total]'
         """
         for j in self.joins:
             if j['table'] is col.table_obj:
@@ -6228,16 +6598,39 @@ class JoinQuery:
                     return f'[{j["alias"]}].[{col.first_name[1:-1]}]'
                 return col.name
         return col.name
-
+    
     def _rewrite_expr(self, expr: str) -> str:
-        """Rewrite table refs inside an expression to use aliases."""
+        """Rewrite table references inside a SQL expression to use aliases.
+
+        Given an SQL fragment that may contain table‑qualified references
+        such as ``[orders].[total]``, this method replaces every reference
+        to an aliased table with the corresponding ``[<alias>].[column]``
+        form.  Tables that were joined without an alias are left untouched.
+
+        This method is used internally by :meth:`get_row` to normalise the
+        SELECT expressions, the WHERE clause, and the ORDER BY clause; it
+        should not normally be called directly.
+
+        Args:
+            expr (str): The SQL expression fragment whose table references
+                should be rewritten.
+
+        Returns:
+            str: The expression with all aliased table references replaced.
+
+        Example:
+            With ``orders`` aliased as ``orders_0``::
+
+                q._rewrite_expr("([orders].[total] > ?)")
+                # returns "([orders_0].[total] > ?)"
+        """
         for j in self.joins:
             if j['alias']:
                 expr = expr.replace(
                     f'{j["table"].name_}.', f'[{j["alias"]}].'
                 )
         return expr
-
+    
     def get_row(
         self,
         which_columns: list,
@@ -6247,6 +6640,90 @@ class JoinQuery:
         offset: int = None,
         from_readers_pool: bool = False
     ):
+        """Execute the JOIN query and return the fetched rows.
+
+        Builds a complete ``SELECT ... FROM <base_table> <joins> [WHERE ...]
+        [ORDER BY ...] [LIMIT ...] [OFFSET ...]`` statement from the
+        accumulated join chain, then executes it on the writer thread (or on
+        a reader‑pool connection if ``from_readers_pool`` is ``True``).
+
+        Each column requested in ``which_columns`` is aliased in the output
+        as ``<table>_<column>`` (e.g. ``users_name``, ``orders_total``) to
+        avoid ambiguity when two joined tables share column names.  Plain
+        :class:`Column` objects and :class:`ColumnsOperation` expressions are
+        both supported; expressions are rewritten to use join aliases where
+        needed.
+
+        Args:
+            which_columns (list): A list of :class:`Column` and/or
+                :class:`ColumnsOperation` objects describing the columns to
+                select.  At least one element is required; an empty list
+                returns ``[]`` immediately.
+            where (ColumnsOperation, optional): An optional filtering
+                condition.  Table references inside the condition are
+                rewritten to use join aliases where applicable.  Defaults
+                to ``None`` (no WHERE clause).
+            order_by (Column | ColumnsOperation, optional): An optional
+                ORDER BY expression.  Defaults to ``None`` (no ordering).
+            limit (int, optional): Maximum number of rows to return.
+                Defaults to ``None`` (no LIMIT).
+            offset (int, optional): Number of rows to skip.  When provided
+                without ``limit``, an implicit ``LIMIT -1`` is used (SQLite
+                requires LIMIT when OFFSET is used).  Defaults to ``None``.
+            from_readers_pool (bool): If ``True``, execute the query on a
+                reader‑pool connection instead of the writer thread.
+                Defaults to ``False``.
+
+        Returns:
+            list[tuple]: A list of tuples, one per matching row.  Each tuple
+            contains the selected values in the order they appear in
+            ``which_columns``.  An empty list is returned if no rows match.
+
+        Raises:
+            Exception: If the underlying SQL execution fails, or (when
+                ``from_readers_pool=True``) a reader‑pool connection cannot
+                be acquired.
+
+        Example:
+            Assuming ``users`` and ``orders`` tables::
+
+                from ormophine.Sqlite import Driver
+
+                db = Driver('shop.db')
+                users = db.users
+                orders = db.orders
+
+                # Basic INNER JOIN selecting columns from both tables
+                rows = users.inner_join(
+                    orders,
+                    orders.user_id == users.id
+                ).get_row([users.name, orders.total])
+                # rows -> [('Alice', 150.0), ('Bob', 200.0), ...]
+
+                # With WHERE, ORDER BY, LIMIT and OFFSET
+                rows2 = users.inner_join(
+                    orders,
+                    orders.user_id == users.id
+                ).get_row(
+                    [users.name, orders.total],
+                    where=orders.total > 100,
+                    order_by=orders.total,
+                    limit=10,
+                    offset=5
+                )
+
+                # With an expression column (concatenation)
+                rows3 = users.inner_join(
+                    orders,
+                    orders.user_id == users.id
+                ).get_row([users.name.add_end('!'), orders.total])
+
+                # Using the reader pool
+                rows4 = users.inner_join(
+                    orders,
+                    orders.user_id == users.id
+                ).get_row([users.name], from_readers_pool=True)
+        """
         if not which_columns:
             return []
 
@@ -6954,7 +7431,7 @@ class Table:
         - CRUD operations: `insert()`, `update()`, `get_row()`, `delete_row()`
         - Bulk operations: `bulk_insert()`, `bulk_update()`, `batch()`
         - Schema management: `add_column()`, `rename_column()`, `delete_column()`, `create_index()`
-        - Joins: `join()` (using `Join` helper classes)
+        - Joins: `inner_join()`, `left_join()`, `right_join()` (returning a `JoinQuery` builder)
         - Raw SQL: `custom_execute()`, `custom_execute_many()`, `custom_execute_with_fetch()`
 
     All methods are **blocking** – each call waits until the operation is completed.
@@ -6980,16 +7457,18 @@ class Table:
         Joining tables:
         >>> orders = db.orders
         >>> customers = db.customers
-        >>> result = orders.join(
-        ...     columns=[customers.name, orders.amount],
-        ...     joins_list=[Join.Inner(customers, customers.id == orders.customer_id)],
+        >>> result = orders.inner_join(
+        ...     customers, customers.id == orders.customer_id
+        ... ).get_row(
+        ...     [customers.name, orders.amount],
         ...     where=orders.amount > 100
         ... )
 
         Bulk operations:
         >>> employees.bulk_insert([employees.name, employees.salary],
         ...                       [['Bob', 3000], ['Charlie', 3500]])
-        >>> employees.bulk_update({employees.salary: '?'}, where=employees.name == '?',
+        >>> employees.bulk_update({employees.salary: employees.PLACE_HOLDER},
+        ...                       where=employees.name == employees.PLACE_HOLDER,
         ...                       data_list=[[4000, 'Bob'], [4500, 'Charlie']])
 
         Batch (transaction):
@@ -6999,7 +7478,7 @@ class Table:
         ...     .run())
 
         Schema changes (dangerous, use with caution):
-        >>> employees.add_column('department', str, default_value='general')
+        >>> employees.add_column('department', DataTypes.TEXT(max_length=50), default_value='general')
         >>> employees.rename_column(employees.department, 'dept')
         >>> employees.delete_column(employees.dept, True, True, True)
 
@@ -7338,71 +7817,110 @@ class Table:
             self.db_obj.pool_holder.put(connection_queue)
         return [i[1] for i in columns]
 
-    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column | ColumnsOperation' = None , limit: int = None ,offset: int = None ,from_readers_pool: bool = False) -> list[Any] | list[tuple]:
-        """Fetch rows from the table with optional filtering, ordering, and expression columns.
+    def get_row(self, which_columns: list['Column' | 'ColumnsOperation'], where: 'ColumnsOperation' = None, order_by: 'Column | ColumnsOperation' = None, limit: int = None, offset: int = None, from_readers_pool: bool = False) -> list[Any] | list[tuple]:
+        """Fetch rows from the table with optional filtering, ordering, paging, and expression columns.
 
-        Builds and executes a ``SELECT`` query on the table. The columns to retrieve can be
-        plain :class:`Column` objects or complex :class:`ColumnsOperation` expressions.
-        If a single column/operation is requested, a flat list of values is returned;
-        otherwise a list of tuples (one per selected column) is returned.
+        Builds and executes a ``SELECT`` query on the table.  The columns to
+        retrieve can be plain :class:`Column` objects or complex
+        :class:`ColumnsOperation` expressions.  If a single column/operation is
+        requested, a flat list of values is returned; otherwise a list of tuples
+        (one per selected column) is returned.
 
         Args:
-            which_columns (list): List of columns or operations to select. Each element can be a
-                :class:`Column` instance (retrieves its raw value) or a
-                :class:`ColumnsOperation` object (evaluates the expression in SQL).
-            where (:class:`ColumnsOperation`, optional): Filtering condition. Only rows for which
-                the condition evaluates to true are included. Defaults to ``None`` (all rows).
-            order_by (:class:`Column`, optional): Column to order results by. If omitted, ordering
-                falls back to the ``ROWID`` pseudo-column.
-            from_readers_pool (bool, optional): If ``True``, the query is dispatched to a dedicated
-                reader thread from the connection pool, which can improve concurrency for
-                read‑heavy workloads. Defaults to ``False``.
+            which_columns (list): List of columns or operations to select.  Each
+                element can be a :class:`Column` instance (retrieves its raw
+                value) or a :class:`ColumnsOperation` object (evaluates the
+                expression in SQL).  Passing an empty list returns ``None``
+                without executing any query.
+            where (ColumnsOperation, optional): Filtering condition.  Only rows
+                for which the condition evaluates to true are included.
+                Defaults to ``None`` (all rows).
+            order_by (Column | ColumnsOperation, optional): Ordering expression.
+                If a :class:`Column` is given, rows are ordered by that column.
+                If a :class:`ColumnsOperation` is given, rows are ordered by the
+                computed expression.  If omitted, ordering falls back to the
+                ``ROWID`` pseudo-column.  Defaults to ``None``.
+            limit (int, optional): Maximum number of rows to return.  Defaults
+                to ``None`` (no LIMIT clause).
+            offset (int, optional): Number of rows to skip before returning
+                results.  When provided without ``limit``, an implicit
+                ``LIMIT -1`` is added because SQLite requires a LIMIT clause
+                when OFFSET is used.  Defaults to ``None``.
+            from_readers_pool (bool, optional): If ``True``, the query is
+                dispatched to a dedicated reader thread from the connection
+                pool, which can improve concurrency for read‑heavy workloads.
+                Defaults to ``False``.
 
         Returns:
-            list: If ``which_columns`` contains a single element, a flat list of column values
-            (e.g., ``['Alice', 'Bob']``). Otherwise a list of tuples, each tuple containing
-            the selected column values in the same order as ``which_columns``.
+            list: If ``which_columns`` contains a single element, a flat list
+            of column values (e.g., ``['Alice', 'Bob']``).  Otherwise a list of
+            tuples, each tuple containing the selected column values in the
+            same order as ``which_columns``.  Returns ``None`` when
+            ``which_columns`` is empty.
 
         Raises:
-            Exception: If the underlying SQL execution fails. The exception message contains
-                the database error details.
+            Exception: If the underlying SQL execution fails (e.g., malformed
+                condition, missing column, or reader‑pool acquisition error).
+                The original error from the database driver is re‑raised.
 
         Example:
-            Simple retrieval of a single column:
+            Simple retrieval of a single column::
 
-            >>> names = my_table.get_row([my_table.name])
-            >>> print(names)
-            ['Alice', 'Bob']
+                >>> names = my_table.get_row([my_table.name])
+                >>> print(names)
+                ['Alice', 'Bob']
 
-            Retrieving multiple columns:
+            Retrieving multiple columns::
 
-            >>> rows = my_table.get_row([my_table.name, my_table.age])
-            >>> for name, age in rows:
-            ...     print(f"{name} is {age} years old")
+                >>> rows = my_table.get_row([my_table.name, my_table.age])
+                >>> for name, age in rows:
+                ...     print(f"{name} is {age} years old")
 
-            Adding a filter and ordering:
+            Adding a filter and ordering::
 
-            >>> adults = my_table.get_row(
-            ...     [my_table.name],
-            ...     where=my_table.age > 18,
-            ...     order_by=my_table.name
-            ... )
-            >>> print(adults)
-            ['Charlie', 'Diana']
+                >>> adults = my_table.get_row(
+                ...     [my_table.name],
+                ...     where=my_table.age > 18,
+                ...     order_by=my_table.name
+                ... )
+                >>> print(adults)
+                ['Charlie', 'Diana']
 
-            Using a :class:`ColumnsOperation` expression (arithmetic, concatenation, etc.):
+            Paging with LIMIT and OFFSET::
 
-            >>> full_name = my_table.first_name + ' ' + my_table.last_name  # __add__ on Column creates ColumnsOperation
-            >>> # Filtering on the computed column
-            >>> condition = full_name.contains('John')
-            >>> results = my_table.get_row([full_name, my_table.age], where=condition)
-            >>> for name, age in results:
-            ...     print(f"Full name: {name}, Age: {age}")
+                >>> page1 = my_table.get_row(
+                ...     [my_table.name],
+                ...     order_by=my_table.ROWID,
+                ...     limit=10
+                ... )
+                >>> page2 = my_table.get_row(
+                ...     [my_table.name],
+                ...     order_by=my_table.ROWID,
+                ...     limit=10,
+                ...     offset=10
+                ... )
 
-            Slicing and string operations:
+            Using a :class:`ColumnsOperation` expression (arithmetic,
+            concatenation, etc.)::
 
-            >>> first_initial = my_table.name[:1]  # substring just like python
-            >>> initials_and_ages = my_table.get_row([first_initial, my_table.age], where=my_table.age >= 30)
+                >>> full_name = my_table.first_name + ' ' + my_table.last_name
+                >>> condition = full_name.contains('John')
+                >>> results = my_table.get_row(
+                ...     [full_name, my_table.age],
+                ...     where=condition
+                ... )
+
+            Slicing and string operations::
+
+                >>> first_initial = my_table.name[:1]  # substring just like python
+                >>> initials_and_ages = my_table.get_row(
+                ...     [first_initial, my_table.age],
+                ...     where=my_table.age >= 30
+                ... )
+
+            Using the reader pool for a non‑blocking read::
+
+                >>> rows = my_table.get_row([my_table.name], from_readers_pool=True)
         """
         if not which_columns:
             return
@@ -8075,7 +8593,8 @@ class Table:
 
         Executes ``PRAGMA index_info({index_name})`` to obtain the list of
         columns that the index covers. The result is returned as a dictionary
-        containing the index name and the names of the indexed columns.
+        containing the index name, the names of the indexed columns, and
+        whether the index is UNIQUE.
 
         Args:
             index_name (str): The name of the index to inspect. Must already
@@ -8085,11 +8604,13 @@ class Table:
                 the reader pool is used, allowing non‑blocking reads.
 
         Returns:
-            dict: A dictionary with two keys:
+            dict: A dictionary with three keys:
                 - ``'name'`` (str): the index name (same as *index_name*).
                 - ``'indexed_columns'`` (list[str]): the column names that
-                are part of the index, in the order they appear in the
-                index definition.
+                  are part of the index, in the order they appear in the
+                  index definition.
+                - ``'unique'`` (bool): ``True`` if the index enforces
+                  uniqueness, ``False`` otherwise.
 
         Raises:
             Exception: If the database query fails (e.g., the index does not
@@ -8104,6 +8625,8 @@ class Table:
             idx_email
             >>> print(info['indexed_columns'])
             ['email']
+            >>> print(info['unique'])
+            True
 
             Using a reader‑pool connection:
             >>> info = users.get_index_info("idx_email", from_readers_pool=True)
@@ -8594,8 +9117,11 @@ class DataTypes:
         - If only ``precision`` is given, the default range is
         ``[0, 10^precision - 1]`` for unsigned, or symmetric around zero
         for signed.
-        - If neither is given, no default range is applied, but custom
-        ``min_val`` and ``max_val`` are still respected.
+        - If only ``scale`` is given, the default range is computed by
+        assuming ``precision=10``, yielding ``[0, 10^(10-scale) - 10^(-scale)]``
+        for unsigned, or symmetric around zero for signed.
+        - If neither ``precision`` nor ``scale`` is given, no default range
+        is applied, but custom ``min_val`` and ``max_val`` are still respected.
 
         The generated string can be used directly in a ``CREATE TABLE`` or
         ``ALTER TABLE ADD COLUMN`` statement.
@@ -8605,8 +9131,8 @@ class DataTypes:
                 fractional part). Used only to compute default range bounds.
             scale (int, optional): The number of digits after the decimal
                 point. Used together with ``precision`` to compute the
-                default maximum value. If not given, default range is
-                computed as if scale = 0.
+                default maximum value. If given alone, a default precision
+                of 10 is assumed.
             min_val (float, optional): Custom minimum allowed value.
                 Overrides any default inferred from precision/scale.
             max_val (float, optional): Custom maximum allowed value.
@@ -8624,6 +9150,8 @@ class DataTypes:
         Raises:
             ValueError: If both ``precision`` and ``scale`` are provided and
                 ``scale`` is greater than ``precision`` (impossible to represent).
+            ValueError: If ``precision`` is provided and less than 1.
+            ValueError: If ``scale`` is provided and less than 0.
 
         Example:
             Using ``DECIMAL`` in a table definition::
@@ -8641,6 +9169,10 @@ class DataTypes:
                 # Unsigned with precision/scale
                 ts.add_column('score', DataTypes.DECIMAL(precision=5, scale=2, unsigned=True))
                 # Produces: "my_saulted_x REAL CHECK(my_saulted_x >= 0 AND my_saulted_x BETWEEN 0 AND 999.99)"
+
+                # Only scale provided (assumes precision=10)
+                ts.add_column('ratio', DataTypes.DECIMAL(scale=4, unsigned=True))
+                # Produces: "my_saulted_x REAL CHECK(my_saulted_x >= 0 AND my_saulted_x BETWEEN 0 AND 999999.9999)"
         """
         if precision is not None and precision < 1:
             raise ValueError("precision must be at least 1")
@@ -8663,9 +9195,8 @@ class DataTypes:
             actual_min = min_val if min_val is not None else default_min
             actual_max = max_val if max_val is not None else default_max
             checks.append(f"my_saulted_x BETWEEN {actual_min} AND {actual_max}")
-        elif scale is not None:  # <-- افزودن این حالت
-            # اگر فقط scale داده شده، یک محدوده پیش‌فرض در نظر بگیرید
-            default_max = 10 ** (10 - scale) - 10 ** (-scale)  # فرض precision=10
+        elif scale is not None:  
+            default_max = 10 ** (10 - scale) - 10 ** (-scale)  
             default_min = 0 if unsigned else -default_max
             actual_min = min_val if min_val is not None else default_min
             actual_max = max_val if max_val is not None else default_max
@@ -8774,6 +9305,7 @@ class DataTypes:
             return f"my_saulted_x TEXT CHECK({' AND '.join(checks)})"
         return f"my_saulted_x TEXT"
 
+    @staticmethod
     def BLOB() -> str:
         """Generate a column definition for binary large object (BLOB) data.
 
@@ -9447,7 +9979,7 @@ class TableStructure:
                 structure = TableStructure('users', strict=True)
 
                 # Add columns
-                structure.add_column('id', DataTypes.INTEGER(primary_key=True))
+                structure.add_column('id', DataTypes.INTEGER(), primary_key=True)
                 structure.add_column('username', DataTypes.VARCHAR(max_length=50))
                 structure.add_column('age', DataTypes.TINYINT(unsigned=True))
 
@@ -9621,16 +10153,15 @@ class TableStructure:
 
         * ``name`` (str): The column name.
         * ``datatype`` (str): The column definition string (including CHECK
-        constraints) as returned by a :class:`DataTypes` method.
+          constraints) as returned by a :class:`DataTypes` method.
         * ``default_value`` (Any): The default value for the column, or ``None``.
         * ``unique`` (bool): Whether the column has a UNIQUE constraint.
         * ``unique_on_conflict`` (str): The ON CONFLICT clause for the UNIQUE
-        constraint (e.g., 'ABORT', 'REPLACE').
+          constraint (e.g., 'ABORT', 'REPLACE').
         * ``not_null`` (bool): Whether the column has a NOT NULL constraint.
         * ``not_null_on_conflict`` (str): The ON CONFLICT clause for the NOT NULL
-        constraint.
+          constraint.
         * ``primary_key`` (bool): Whether the column is part of the primary key.
-        (Note: the key is intentionally misspelled to match the implementation.)
 
         Returns:
             list[dict]: A list of dictionaries, one per column, in the order
@@ -9648,7 +10179,7 @@ class TableStructure:
 
                 columns = structure.get_columns()
                 for col in columns:
-                    print(f"{col['name']}: unique={col['unique']}, pk={col['primari_key']}")
+                    print(f"{col['name']}: unique={col['unique']}, pk={col['primary_key']}")
                 # Output:
                 # id: unique=False, pk=True
                 # name: unique=True, pk=False
@@ -9719,12 +10250,12 @@ class TableStructure:
 
                 # Build customers table first
                 customers_structure = TableStructure('customers')
-                customers_structure.add_column('id', DataTypes.INTEGER(primary_key=True))
+                customers_structure.add_column('id', DataTypes.INTEGER(), primary_key=True) 
                 customers_structure.add_column('name', DataTypes.VARCHAR(max_length=50))
 
                 # Build orders table with a foreign key
                 orders_structure = TableStructure('orders')
-                orders_structure.add_column('id', DataTypes.INTEGER(primary_key=True))
+                orders_structure.add_column('id', DataTypes.INTEGER(), primary_key=True) 
                 orders_structure.add_column('customer_id', DataTypes.INTEGER())
                 orders_structure.add_column('total', DataTypes.DECIMAL(10,2))
 

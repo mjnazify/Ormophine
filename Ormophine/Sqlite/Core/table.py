@@ -11,7 +11,7 @@ class Table:
         - CRUD operations: `insert()`, `update()`, `get_row()`, `delete_row()`
         - Bulk operations: `bulk_insert()`, `bulk_update()`, `batch()`
         - Schema management: `add_column()`, `rename_column()`, `delete_column()`, `create_index()`
-        - Joins: `join()` (using `Join` helper classes)
+        - Joins: `inner_join()`, `left_join()`, `right_join()` (returning a `JoinQuery` builder)
         - Raw SQL: `custom_execute()`, `custom_execute_many()`, `custom_execute_with_fetch()`
 
     All methods are **blocking** – each call waits until the operation is completed.
@@ -37,16 +37,18 @@ class Table:
         Joining tables:
         >>> orders = db.orders
         >>> customers = db.customers
-        >>> result = orders.join(
-        ...     columns=[customers.name, orders.amount],
-        ...     joins_list=[Join.Inner(customers, customers.id == orders.customer_id)],
+        >>> result = orders.inner_join(
+        ...     customers, customers.id == orders.customer_id
+        ... ).get_row(
+        ...     [customers.name, orders.amount],
         ...     where=orders.amount > 100
         ... )
 
         Bulk operations:
         >>> employees.bulk_insert([employees.name, employees.salary],
         ...                       [['Bob', 3000], ['Charlie', 3500]])
-        >>> employees.bulk_update({employees.salary: '?'}, where=employees.name == '?',
+        >>> employees.bulk_update({employees.salary: employees.PLACE_HOLDER},
+        ...                       where=employees.name == employees.PLACE_HOLDER,
         ...                       data_list=[[4000, 'Bob'], [4500, 'Charlie']])
 
         Batch (transaction):
@@ -56,7 +58,7 @@ class Table:
         ...     .run())
 
         Schema changes (dangerous, use with caution):
-        >>> employees.add_column('department', str, default_value='general')
+        >>> employees.add_column('department', DataTypes.TEXT(max_length=50), default_value='general')
         >>> employees.rename_column(employees.department, 'dept')
         >>> employees.delete_column(employees.dept, True, True, True)
 
@@ -395,71 +397,138 @@ class Table:
             self.db_obj.pool_holder.put(connection_queue)
         return [i[1] for i in columns]
 
-    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column | ColumnsOperation' = None , limit: int = None ,offset: int = None ,from_readers_pool: bool = False) -> list[Any] | list[tuple]:
-        """Fetch rows from the table with optional filtering, ordering, and expression columns.
+    def get_row(self, which_columns: list['Column' | 'ColumnsOperation'], where: 'ColumnsOperation' = None, order_by: 'Column | ColumnsOperation' = None, limit: int = None, offset: int = None, from_readers_pool: bool = False) -> list[Any] | list[tuple]:
+        """Fetch rows from the table with optional filtering, ordering, paging, and expression columns.
 
-        Builds and executes a ``SELECT`` query on the table. The columns to retrieve can be
-        plain :class:`Column` objects or complex :class:`ColumnsOperation` expressions.
-        If a single column/operation is requested, a flat list of values is returned;
-        otherwise a list of tuples (one per selected column) is returned.
+        Builds and executes a ``SELECT`` query on the table.  The columns to
+        retrieve can be plain :class:`Column` objects or complex
+        :class:`ColumnsOperation` expressions.  If a single column/operation is
+        requested, a flat list of values is returned; otherwise a list of tuples
+        (one per selected column) is returned.
 
         Args:
-            which_columns (list): List of columns or operations to select. Each element can be a
-                :class:`Column` instance (retrieves its raw value) or a
-                :class:`ColumnsOperation` object (evaluates the expression in SQL).
-            where (:class:`ColumnsOperation`, optional): Filtering condition. Only rows for which
-                the condition evaluates to true are included. Defaults to ``None`` (all rows).
-            order_by (:class:`Column`, optional): Column to order results by. If omitted, ordering
-                falls back to the ``ROWID`` pseudo-column.
-            from_readers_pool (bool, optional): If ``True``, the query is dispatched to a dedicated
-                reader thread from the connection pool, which can improve concurrency for
-                read‑heavy workloads. Defaults to ``False``.
+            which_columns (list): List of columns or operations to select.  Each
+                element can be a :class:`Column` instance (retrieves its raw
+                value) or a :class:`ColumnsOperation` object (evaluates the
+                expression in SQL).  Passing an empty list returns ``None``
+                without executing any query.
+            where (ColumnsOperation, optional): Filtering condition.  Only rows
+                for which the condition evaluates to true are included.
+                Defaults to ``None`` (all rows).
+            order_by (Column | ColumnsOperation, optional): Ordering expression.
+                If a :class:`Column` is given, rows are ordered by that column.
+                If a :class:`ColumnsOperation` is given, rows are ordered by the
+                computed expression.  If omitted, ordering falls back to the
+                ``ROWID`` pseudo-column.  Defaults to ``None``.
+            limit (int, optional): Maximum number of rows to return.  Defaults
+                to ``None`` (no LIMIT clause).
+            offset (int, optional): Number of rows to skip before returning
+                results.  When provided without ``limit``, an implicit
+                ``LIMIT -1`` is added because SQLite requires a LIMIT clause
+                when OFFSET is used.  Defaults to ``None``.
+            from_readers_pool (bool, optional): If ``True``, the query is
+                dispatched to a dedicated reader thread from the connection
+                pool, which can improve concurrency for read‑heavy workloads.
+                Defaults to ``False``.
 
         Returns:
-            list: If ``which_columns`` contains a single element, a flat list of column values
-            (e.g., ``['Alice', 'Bob']``). Otherwise a list of tuples, each tuple containing
-            the selected column values in the same order as ``which_columns``.
+            list: If ``which_columns`` contains a single element, a flat list
+            of column values (e.g., ``['Alice', 'Bob']``).  Otherwise a list of
+            tuples, each tuple containing the selected column values in the
+            same order as ``which_columns``.  Returns ``None`` when
+            ``which_columns`` is empty.
 
         Raises:
-            Exception: If the underlying SQL execution fails. The exception message contains
-                the database error details.
+            Exception: If the underlying SQL execution fails (e.g., malformed
+                condition, missing column, or reader‑pool acquisition error).
+                The original error from the database driver is re‑raised.
 
         Example:
-            Simple retrieval of a single column:
+            Simple retrieval of a single column::
 
-            >>> names = my_table.get_row([my_table.name])
-            >>> print(names)
-            ['Alice', 'Bob']
+                >>> names = my_table.get_row([my_table.name])
+                >>> print(names)
+                ['Alice', 'Bob']
 
-            Retrieving multiple columns:
+            Retrieving multiple columns::
 
-            >>> rows = my_table.get_row([my_table.name, my_table.age])
-            >>> for name, age in rows:
-            ...     print(f"{name} is {age} years old")
+                >>> rows = my_table.get_row([my_table.name, my_table.age])
+                >>> for name, age in rows:
+                ...     print(f"{name} is {age} years old")
 
-            Adding a filter and ordering:
+            Adding a filter and ordering::
 
-            >>> adults = my_table.get_row(
-            ...     [my_table.name],
-            ...     where=my_table.age > 18,
-            ...     order_by=my_table.name
-            ... )
-            >>> print(adults)
-            ['Charlie', 'Diana']
+                >>> adults = my_table.get_row(
+                ...     [my_table.name],
+                ...     where=my_table.age > 18,
+                ...     order_by=my_table.name
+                ... )
+                >>> print(adults)
+                ['Charlie', 'Diana']
 
-            Using a :class:`ColumnsOperation` expression (arithmetic, concatenation, etc.):
+            Paging with LIMIT and OFFSET::
 
-            >>> full_name = my_table.first_name + ' ' + my_table.last_name  # __add__ on Column creates ColumnsOperation
-            >>> # Filtering on the computed column
-            >>> condition = full_name.contains('John')
-            >>> results = my_table.get_row([full_name, my_table.age], where=condition)
-            >>> for name, age in results:
-            ...     print(f"Full name: {name}, Age: {age}")
+                >>> page1 = my_table.get_row(
+                ...     [my_table.name],
+                ...     order_by=my_table.ROWID,
+                ...     limit=10
+                ... )
+                >>> page2 = my_table.get_row(
+                ...     [my_table.name],
+                ...     order_by=my_table.ROWID,
+                ...     limit=10,
+                ...     offset=10
+                ... )
 
-            Slicing and string operations:
+            Using a :class:`ColumnsOperation` expression (arithmetic,
+            concatenation, etc.)::
 
-            >>> first_initial = my_table.name[:1]  # substring just like python
-            >>> initials_and_ages = my_table.get_row([first_initial, my_table.age], where=my_table.age >= 30)
+                >>> full_name = my_table.first_name + ' ' + my_table.last_name
+                >>> condition = full_name.contains('John')
+                >>> results = my_table.get_row(
+                ...     [full_name, my_table.age],
+                ...     where=condition
+                ... )
+
+            Slicing and string operations::
+
+                >>> first_initial = my_table.name[:1]  # substring just like python
+                >>> initials_and_ages = my_table.get_row(
+                ...     [first_initial, my_table.age],
+                ...     where=my_table.age >= 30
+                ... )
+
+            Using the reader pool for a non‑blocking read::
+
+                >>> rows = my_table.get_row([my_table.name], from_readers_pool=True)
+
+                    Ordering by a :class:`ColumnsOperation` expression::
+
+            Order by the length of each user's name (descending order is
+            not directly supported — sort ascending and reverse in Python
+            if needed, or build the expression you want).
+                >>> users.get_row(
+                ...     [users.name],
+                ...     order_by=users.name.lower()
+                ... )
+
+            Order by a computed numeric expression, e.g. discount price.
+                >>> users.get_row(
+                ...     [users.name, users.price],
+                ...     order_by=users.price * 0.9
+                ... )
+
+            Order by a string transformation.
+                >>> users.get_row(
+                ...     [users.name, users.email],
+                ...     order_by=users.name.upper()
+                ... )
+
+            Order by an arithmetic combination of two columns.
+                >>> users.get_row(
+                ...     [users.first_name, users.last_name],
+                ...     order_by=users.age + users.years_active
+                ... )
         """
         if not which_columns:
             return
@@ -1132,7 +1201,8 @@ class Table:
 
         Executes ``PRAGMA index_info({index_name})`` to obtain the list of
         columns that the index covers. The result is returned as a dictionary
-        containing the index name and the names of the indexed columns.
+        containing the index name, the names of the indexed columns, and
+        whether the index is UNIQUE.
 
         Args:
             index_name (str): The name of the index to inspect. Must already
@@ -1142,11 +1212,13 @@ class Table:
                 the reader pool is used, allowing non‑blocking reads.
 
         Returns:
-            dict: A dictionary with two keys:
+            dict: A dictionary with three keys:
                 - ``'name'`` (str): the index name (same as *index_name*).
                 - ``'indexed_columns'`` (list[str]): the column names that
-                are part of the index, in the order they appear in the
-                index definition.
+                  are part of the index, in the order they appear in the
+                  index definition.
+                - ``'unique'`` (bool): ``True`` if the index enforces
+                  uniqueness, ``False`` otherwise.
 
         Raises:
             Exception: If the database query fails (e.g., the index does not
@@ -1161,6 +1233,8 @@ class Table:
             idx_email
             >>> print(info['indexed_columns'])
             ['email']
+            >>> print(info['unique'])
+            True
 
             Using a reader‑pool connection:
             >>> info = users.get_index_info("idx_email", from_readers_pool=True)
@@ -1169,10 +1243,7 @@ class Table:
         if index_name not in indexes:
             raise Exception(f"Index '{index_name}' does not exist")
         query = f'PRAGMA index_info({index_name})'
-        if not from_readers_pool:
-            info = self._exc('qf', (query,))
-        else:
-            pass
+        info = self._exc('qf', (query,))
         unique_query = f"SELECT `unique` FROM pragma_index_list('{self.name_[1:-1]}') WHERE name = '{index_name}'"
         unique_res = self._exc('qf', (unique_query,))
         is_unique = bool(unique_res[0][0]) if unique_res else False
@@ -1223,76 +1294,177 @@ class Table:
         self._exc('qmb', (query, data_list))
 
     def bulk_update(self, update: dict['Column', Any], where: 'ColumnsOperation', data_list: list) -> None:
-        """Performs a batch UPDATE of multiple rows with varying values in one transaction.
+        """Performs a batch UPDATE with per‑row values using SQLite's ``executemany``.
 
-        Constructs an ``UPDATE`` statement with ``?`` placeholders and executes it using
-        SQLite's ``executemany``. The ``update`` dictionary maps :class:`Column` objects
-        to the new values or expressions. Literal values become ``?`` in the template;
-        :class:`Column` references are used directly; :class:`ColumnsOperation`
-        expressions are inserted as SQL. The ``where`` condition is built from a
-        :class:`ColumnsOperation`.
+        This method is the fastest way to update many rows with **different**
+        values in a single round‑trip.  It builds one parameterised SQL
+        template and lets SQLite bind a separate tuple of values for each
+        row.  Because the template uses ``?`` placeholders internally and
+        ``executemany`` also relies on ``?``, the method temporarily
+        substitutes every ``?`` in the template with
+        :attr:`Table.PLACE_HOLDER` (default
+        ``'_MY_S4ULT3D_PL4C3_H0LD3R_?_'``) to distinguish "fill from
+        ``data_list``" from "leave as a literal placeholder in the SQL".
 
-        Because ``executemany`` also relies on ``?``, the method temporarily replaces all
-        ``?`` in the template with :attr:`Table.PLACE_HOLDER` (default
-        ``'_MY_S4ULT3D_PL4C3_H0LD3R_?_'``) to avoid interference. After building the
-        query string, the placeholder is swapped back to ``?`` before execution. The
-        order of values in each tuple of ``data_list`` must match the order of ``?``
-        placeholders that appear in the final query (including those from the ``where``
-        clause if it contains bindings).
+        .. important::
+            You must explicitly mark the positions that should be bound per
+            row with :attr:`Table.PLACE_HOLDER`.  Everything else in the
+            ``update`` and ``where`` arguments is treated as follows:
+
+            * A :class:`Column` → inlined as a column reference
+              (``[table].[column]``), no placeholder consumed.
+            * :attr:`Table.PLACE_HOLDER` → converted to ``?`` in the final
+              SQL and filled from the corresponding position in each tuple
+              of ``data_list``.
+            * A :class:`ColumnsOperation` → its SQL fragment is inlined;
+              every ``?`` inside it that *was* a ``PLACE_HOLDER`` becomes a
+              bind placeholder, and other ``?`` remain untouched.
+            * Any other literal (``int``, ``float``, ``str``) → baked into
+              the SQL as a literal.  Strings are quoted with double quotes
+              (``"value"``).  No placeholder consumed.
+
+        .. note::
+            Because SQLite's ``executemany`` requires a single statement, the
+            ``where`` clause cannot reference columns from other tables.
+            For cross‑table updates, use :meth:`custom_execute_many` instead.
+
+        **Ordering rule for ``data_list`` tuples:**
+
+        The values in each tuple are consumed left to right, in this exact
+        order:
+
+        1. First, every :attr:`PLACE_HOLDER` that appears in the ``update``
+           dictionary, in the iteration order of ``update.items()``
+           (i.e. dictionary insertion order).
+        2. Then, every :attr:`PLACE_HOLDER` that appears in the ``where``
+           clause, in the order they appear in the generated SQL.
+
+        If the number of values per tuple does not match the number of
+        placeholders, an exception with a descriptive message is raised.
 
         Args:
-            update (dict[:class:`Column`, Any]): A dictionary where each key is a
-                :class:`Column` to update. Values can be:
-                - a literal (int, float, str, bytes, etc.) – becomes ``?``,
-                - a :class:`Column` – references another column,
-                - a :class:`ColumnsOperation` – an SQL expression.
-            where (:class:`ColumnsOperation`): The condition selecting which rows to
-                update (e.g., ``table.id == some_value``).
-            data_list (list[tuple]): A list of tuples, each containing the values that
-                replace all ``?`` placeholders in the generated query, in the order they
-                appear. The length of each tuple must exactly match the number of ``?``
-                markers.
+            update (dict[Column, Any]): A mapping of :class:`Column` objects
+                to their new values.  Each value can be:
+                - A literal (``int``, ``float``, ``str``, ``bool``, ...) —
+                  baked into the SQL as‑is.
+                - :attr:`Table.PLACE_HOLDER` — becomes ``?`` and is filled
+                  from ``data_list`` for each row.
+                - A :class:`Column` — inlined as a column reference.
+                - A :class:`ColumnsOperation` — inlined as a SQL expression;
+                  placeholders inside it are resolved as described above.
+            where (ColumnsOperation): The condition that selects which rows
+                to update.  Any :attr:`PLACE_HOLDER` inside the condition
+                becomes a bind placeholder in the final ``WHERE`` clause.
+            data_list (list[tuple]): A list of tuples, one per row to
+                update.  Each tuple must contain exactly as many values as
+                there are :attr:`PLACE_HOLDER` markers in the combined
+                ``update`` + ``where`` expression.
 
         Returns:
-            None: The updates are committed on the writer thread.
+            None: The updates are executed as a single ``executemany`` call
+            on the writer thread and committed.
 
         Raises:
-            Exception: If the database operation fails. A special descriptive error is
-                raised when the number of bindings in a ``data_list`` element does not
-                match the number of ``?`` placeholders, possibly because the literal
-                string :attr:`Table.PLACE_HOLDER` appeared in the data.
+            Exception: If the database operation fails.  A descriptive
+                error is raised specifically when the number of bindings in
+                a ``data_list`` element does not match the number of ``?``
+                placeholders — usually caused by an incorrect count of
+                :attr:`PLACE_HOLDER` markers, or by the literal string
+                ``PLACE_HOLDER`` accidentally appearing in user data (in
+                which case you should reassign
+                ``table.PLACE_HOLDER = table._PlaceHolder("some_unique_token")``).
 
         Example:
-            **Simple example**: update the ``age`` column for multiple users.
+            **1. Single variable column + variable condition** — update
+            each user's ``age`` based on their ``id``::
 
-            >>> db = Driver('mydb.sqlite3')
-            >>> users = db.users
-            >>> # Update ages: user id 1 → 30, id 2 → 25, id 3 → 35
-            >>> users.bulk_update(
-            ...     update={users.age: users.PLACE_HOLDER},
-            ...     where=users.id == users.PLACE_HOLDER,
-            ...     data_list=[
-            ...         (30, 1),
-            ...         (25, 2),
-            ...         (35, 3)
-            ...     ]
-            ... )
+                users = db.users
+                users.bulk_update(
+                    update={users.age: users.PLACE_HOLDER},
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[
+                        (30, 1),   # (new_age, id)
+                        (25, 2),
+                        (35, 3),
+                    ]
+                )
+                # Generated SQL: UPDATE [users] SET [age]=? WHERE ([users].[id] = ?);
 
-            **Complex example**: increase salary by a bonus that varies per user, but only
-            for those whose department name matches a given value.
+            **2. Multiple variable columns** — the order in ``data_list``
+            mirrors the insertion order of ``update`` then ``where``::
 
-            >>> dept = db.departments
-            >>> employees = db.employees
-            >>> # update: salary = salary + bonus, where department name = ?
-            >>> employees.bulk_update(
-            ...     update={employees.salary: employees.salary + db.PLACE_HOLDER},
-            ...     where=(employees.dept_id == dept.id) & (dept.name == db.PLACE_HOLDER),
-            ...     data_list=[
-            ...         (100.0, 'Engineering'),
-            ...         (200.0, 'Sales'),
-            ...         (150.0, 'Engineering')
-            ...     ]
-            ... )
+                users.bulk_update(
+                    update={
+                        users.name: users.PLACE_HOLDER,
+                        users.age:  users.PLACE_HOLDER,
+                    },
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[
+                        ('Alice', 30, 1),   # (name, age, id)
+                        ('Bob',   25, 2),
+                    ]
+                )
+                # UPDATE [users] SET [name]=?, [age]=? WHERE ([users].[id] = ?);
+
+            **3. Mixing fixed literals and placeholders** — ``status`` is
+            the same for every row, only ``age`` and ``id`` vary::
+
+                users.bulk_update(
+                    update={
+                        users.status: 'active',              # baked literal
+                        users.age:    users.PLACE_HOLDER,    # per-row
+                    },
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[(30, 1), (25, 2)]
+                )
+                # UPDATE [users] SET [status]="active", [age]=? WHERE ([users].[id] = ?);
+
+            **4. Placeholder inside an expression** — add a per‑row bonus
+            to each employee's salary::
+
+                employees.bulk_update(
+                    update={employees.salary: employees.salary + employees.PLACE_HOLDER},
+                    where=employees.id == employees.PLACE_HOLDER,
+                    data_list=[(100.0, 1), (200.0, 2), (150.0, 3)]
+                )
+                # UPDATE [employees]
+                #   SET [salary]=([employees].[salary] + ?)
+                #   WHERE ([employees].[id] = ?);
+
+            **5. No placeholder in ``update`` at all** — the same value is
+            applied to a set of selected rows::
+
+                users.bulk_update(
+                    update={users.flag: 1},                       # fixed
+                    where=users.role == users.PLACE_HOLDER,       # varies
+                    data_list=[('admin',), ('moderator',)]
+                )
+                # UPDATE [users] SET [flag]=1 WHERE ([users].[role] = ?);
+
+            **6. Cross‑column copy + placeholder** — copy ``last_name``
+            into ``display_name`` and append a per‑row suffix::
+
+                users.bulk_update(
+                    update={
+                        users.display_name:
+                            users.last_name.add_end(users.PLACE_HOLDER)
+                    },
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[(' (admin)', 1), (' (user)', 2)]
+                )
+                # UPDATE [users]
+                #   SET [display_name]=([users].[last_name] || ?)
+                #   WHERE ([users].[id] = ?);
+
+            **7. Custom placeholder** — change the reserved token if your
+            data might legitimately contain the default string::
+
+                users.PLACE_HOLDER = users._PlaceHolder('@@MY_TOKEN@@')
+                users.bulk_update(
+                    update={users.name: users.PLACE_HOLDER},
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[('Alice', 1)]
+                )
         """
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]

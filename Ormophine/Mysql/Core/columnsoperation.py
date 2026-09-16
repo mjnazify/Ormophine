@@ -2041,7 +2041,7 @@ class ColumnsOperation:
         if not column and not data_list:
             raise Exception("In() requires either data_list or column")
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["%s" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split(".")[0]}{f" WHERE {where._output[0]}" if isinstance(where, ColumnsOperation) else f" WHERE {where.name}" if isinstance(where, Column) else ""}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
+        new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["%s" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} NOT IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split(".")[0]}{f" WHERE {where._output[0]}" if isinstance(where, ColumnsOperation) else f" WHERE {where.name}" if isinstance(where, Column) else ""}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
         
         return new_op
 
