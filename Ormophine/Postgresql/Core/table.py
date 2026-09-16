@@ -445,7 +445,7 @@ class Table:
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self._excp(f"UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value, Column) else f'{key.first_name}=%s' if not isinstance(value, ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key, value in list(update.items()))} WHERE {where._output[0]};", temp_list + where._output[1])
 
-    def get_row(self, which_columns: list['Column' | 'ColumnsOperation'], where: 'ColumnsOperation' = None, order_by: 'Column' = None):
+    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column' = None, limit: int = None, offset: int = None):
         """Fetch rows from the table with selected columns, optional filtering and ordering.
 
         This method builds and executes a SELECT query. The columns can be plain
@@ -505,10 +505,11 @@ class Table:
         """
         if not which_columns:
             return
-        tl = []
-        wc = []
+        tl, wc, af = [], [], []
+        af.append(limit) if not limit is None else None
+        af.append(offset) if not offset is None else None
         [wc.append(i.first_name) if isinstance(i,Column) else [wc.append(i._output[0]), tl.extend(i._output[1])] for i in which_columns]
-        return [row[0] for row in (self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''};', tl+where._output[1]) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',tl) if tl else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',))] if len(which_columns) == 1 else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''};', tl+where._output[1]) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',tl) if tl else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',)
+        return [row[0] for row in (self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};', tl+where._output[1]+af) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',tl+af) if tl else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',af) if af else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',))] if len(which_columns) == 1 else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};', tl+where._output[1]+af) if where else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',tl+af) if tl else self._excfp(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''} {' LIMIT %s ' if not limit is None else ''}{' OFFSET %s ' if not offset is None else ''};',af) if af else self._excf(f'SELECT {', '.join(wc)} FROM {self.name_} {f'ORDER BY {order_by.first_name}' if order_by else ''};',)
         
     def insert(self, insert: dict['Column', Any]) -> None:
         """Insert a single row into the table.

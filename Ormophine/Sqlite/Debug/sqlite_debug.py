@@ -724,24 +724,28 @@ class Table:
             self.db_obj.pool_holder.put(connection_queue)
         return [i[1] for i in columns]
 
-    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column' = None,from_readers_pool: bool = False):
+    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column' = None , limit: int = None ,offset: int = None ,from_readers_pool: bool = False):
         if not which_columns:
             return
-        tl = []
-        wc = []
+        tl, wc, af = [], [], []
         [wc.append(i.first_name) if isinstance(i,Column) else [wc.append(i._output[0]), tl.extend(i._output[1])] for i in which_columns]
-        
-        query = (f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} ORDER BY {order_by.first_name if order_by else 'ROWID'};', tl+where._output[1]) if where else (f'SELECT {', '.join(wc)} FROM {self.name_} ORDER BY {order_by.first_name if order_by else 'ROWID'};',tl) if tl else (f'SELECT {', '.join(wc)} FROM {self.name_} ORDER BY {order_by.first_name if order_by else 'ROWID'};',)
+        af.append(limit) if not limit is None else None
+        if not offset is None and limit is None:
+            limit = -1
+            af.append(limit)
+        af.append(offset) if not offset is None else None
+        query = (f'SELECT {', '.join(wc)} FROM {self.name_} WHERE {where._output[0]} ORDER BY {order_by.first_name if order_by else 'ROWID'} {' LIMIT ? ' if not limit is None else ''}{' OFFSET ? ' if not offset is None else ''};', tl+where._output[1]+af) if where else (f'SELECT {', '.join(wc)} FROM {self.name_} ORDER BY {order_by.first_name if order_by else 'ROWID'} {' LIMIT ? ' if not limit is None else ''}{' OFFSET ? ' if not offset is None else ''};',tl+af) if tl else (f'SELECT {', '.join(wc)} FROM {self.name_} ORDER BY {order_by.first_name if order_by else 'ROWID'} {' LIMIT ? ' if not limit is None else ''}{' OFFSET ? ' if not offset is None else ''};',af) if af else (f'SELECT {', '.join(wc)} FROM {self.name_} ORDER BY {order_by.first_name if order_by else 'ROWID'};',)
         if not from_readers_pool:
             return [row[0] for row in self._exc('qf', query)] if len(which_columns) == 1 else self._exc('qf', query)
         else:
             queueCallBack = SimpleQueue()
             connection_queue = self.db_obj.pool_holder.get(block=True)
             connection_queue.put(['qf', query, queueCallBack])
-            self.db_obj.pool_holder.put(connection_queue)
             if (callback := queueCallBack.get(block=True))[0]:
+                self.db_obj.pool_holder.put(connection_queue)
                 return [row[0] for row in callback[1]] if len(which_columns) == 1 else callback[1]
             else:
+                self.db_obj.pool_holder.put(connection_queue)
                 raise Exception(callback[1])
 
     def insert(self, insert: dict['Column', Any]) -> None:
@@ -768,10 +772,11 @@ class Table:
             queueCallBack = SimpleQueue()
             connection_queue = self.db_obj.pool_holder.get(block=True)
             connection_queue.put(['qf', (query, params), queueCallBack]) if params else connection_queue.put(['qf', (query,), queueCallBack])
-            self.db_obj.pool_holder.put(connection_queue)
             if (callback := queueCallBack.get(block=True))[0]:
+                self.db_obj.pool_holder.put(connection_queue)
                 return callback[1]
             else:
+                self.db_obj.pool_holder.put(connection_queue)
                 raise Exception(callback[1])
 
     def delete_row(self, where: 'ColumnsOperation') -> None:
@@ -918,10 +923,11 @@ class Table:
             queueCallBack= SimpleQueue()
             connection_queue = self.db_obj.pool_holder.get(block=True)
             connection_queue.put(['qf', query, queueCallBack])
-            self.db_obj.pool_holder.put(connection_queue)
             if (callback := queueCallBack.get(block=True))[0]:
+                self.db_obj.pool_holder.put(connection_queue)
                 return callback[1]
             else:
+                self.db_obj.pool_holder.put(connection_queue)
                 raise Exception(callback[1])
 
 
