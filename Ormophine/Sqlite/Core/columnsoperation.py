@@ -1638,7 +1638,7 @@ class ColumnsOperation:
                 results = users.get_row([name_col], where=condition)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} like {value._output[0]})", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} like {value.name})', self._output[1]) if isinstance(value , Column) else (f'({self._output[0]} like ?)', self._output[1] + [f'{value}'])
+        new_op._output = (f"({self._output[0]} like {value._output[0]})", (self._output[1] + value._output[1]) if self._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} like {value.name})', self._output[1]) if isinstance(value , Column) else (f'({self._output[0]} like ?)', self._output[1] + [f'{value}'])
         return new_op
 
     def startswith(self, prefix):
@@ -1696,7 +1696,7 @@ class ColumnsOperation:
                 # condition2._output[0] -> "(users.[name] like users.[prefix] || '%')"
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} like {prefix._output[0]} || '%')", (self._output[1] + prefix._output[1]) if self._output else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f"({self._output[0]} like {prefix.name} || '%')", self._output[1]) if isinstance(prefix , Column) else (f"({self._output[0]} like ? || '%')", self._output[1] + [f'{prefix}'])
+        new_op._output = (f"({self._output[0]} like {prefix._output[0]} || '%')", (self._output[1] + prefix._output[1]) if self._output[0] else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f"({self._output[0]} like {prefix.name} || '%')", self._output[1]) if isinstance(prefix , Column) else (f"({self._output[0]} like ? || '%')", self._output[1] + [f'{prefix}'])
         return new_op
 
     def endswith(self, suffix):
@@ -1752,7 +1752,7 @@ class ColumnsOperation:
                 # condition2._output[0] -> "(users.[name] like '%' || users.[suffix])"
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} like '%' || {suffix._output[0]})", (self._output[1] + suffix._output[1]) if self._output else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f"({self._output[0]} like '%' || {suffix.name})", self._output[1]) if isinstance(suffix , Column) else (f"({self._output[0]} like '%' || ?)", self._output[1] + [f'{suffix}'])
+        new_op._output = (f"({self._output[0]} like '%' || {suffix._output[0]})", (self._output[1] + suffix._output[1]) if self._output[0] else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f"({self._output[0]} like '%' || {suffix.name})", self._output[1]) if isinstance(suffix , Column) else (f"({self._output[0]} like '%' || ?)", self._output[1] + [f'{suffix}'])
         return new_op
 
     def contains(self, value):
@@ -1808,7 +1808,7 @@ class ColumnsOperation:
                 results = products.get_row([name], where=condition)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} like '%' || {value._output[0]} || '%')", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self._output[0]} like '%' || {value.name} || '%')", self._output[1]) if isinstance(value , Column) else (f"({self._output[0]} like '%' || ? || '%')", self._output[1] + [f'{value}'])
+        new_op._output = (f"({self._output[0]} like '%' || {value._output[0]} || '%')", (self._output[1] + value._output[1]) if self._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self._output[0]} like '%' || {value.name} || '%')", self._output[1]) if isinstance(value , Column) else (f"({self._output[0]} like '%' || ? || '%')", self._output[1] + [f'{value}'])
         return new_op
 
     def add_end(self, content):
@@ -1864,7 +1864,7 @@ class ColumnsOperation:
                 # retrieves the concatenated string for the user with id=1
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'({self._output[0]} || ?)', self._output[1]+[content] if self._output else [content])
+        new_op._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output[0] else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output[0] else []) if isinstance(content, Column) else (f'({self._output[0]} || ?)', self._output[1]+[content] if self._output[0] else [content])
         new_op.current_datatype = str
         return new_op
 
@@ -1920,7 +1920,7 @@ class ColumnsOperation:
                 # retrieves the concatenated string for the user with id=1
         """        
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'(? || {self._output[0]})', [content]+self._output[1] if self._output else [content])
+        new_op._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output[0] else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output[0] else []) if isinstance(content, Column) else (f'(? || {self._output[0]})', [content]+self._output[1] if self._output[0] else [content])
         new_op.current_datatype = str
         return new_op
 
@@ -1968,7 +1968,7 @@ class ColumnsOperation:
                 # expr2._output[0] -> "replace(upper(users.[name]) , ? , ?)"
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'(replace({self._output[0]} , ? , ?))', self._output[1] + [old, new]) if self._output else (f'(replace({self.col_obj.name} , ? , ?))', [old, new])
+        new_op._output = (f'(replace({self._output[0]} , ? , ?))', self._output[1] + [old, new]) if self._output[0] else (f'(replace({self.col_obj.name} , ? , ?))', [old, new])
         new_op.current_datatype = str
         return new_op
 
@@ -2011,7 +2011,7 @@ class ColumnsOperation:
                 # expr2._output[0] -> "trim(upper(users.[name]), ' ')"
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'(upper({self._output[0]}))', self._output[1]) if self._output else (f'(upper({self.col_obj.name}))', [])
+        new_op._output = (f'(upper({self._output[0]}))', self._output[1]) if self._output[0] else (f'(upper({self.col_obj.name}))', [])
         new_op.current_datatype = str
         return new_op
 
@@ -2055,7 +2055,7 @@ class ColumnsOperation:
                 # expr2._output[1] -> [' (test)']
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'(lower({self._output[0]}))', self._output[1]) if self._output else (f'(lower({self.col_obj.name}))', [])
+        new_op._output = (f'(lower({self._output[0]}))', self._output[1]) if self._output[0] else (f'(lower({self.col_obj.name}))', [])
         new_op.current_datatype = str
         return new_op
 
@@ -2106,7 +2106,7 @@ class ColumnsOperation:
                 # expr3._output[0] -> 'upper(trim(users.[name]," "))'
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'(trim({self._output[0]},"{chars}"))', self._output[1]) if self._output else (f'(trim({self.col_obj.name},"{chars}"))', [])
+        new_op._output = (f'(trim({self._output[0]},"{chars}"))', self._output[1]) if self._output[0] else (f'(trim({self.col_obj.name},"{chars}"))', [])
         new_op.current_datatype = str
         return new_op
 
@@ -2159,7 +2159,7 @@ class ColumnsOperation:
                 result = users.get_row([expr])
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'(ltrim({self._output[0]},"{chars}"))', self._output[1]) if self._output else (f'(ltrim({self.col_obj.name},"{chars}"))', [])
+        new_op._output = (f'(ltrim({self._output[0]},"{chars}"))', self._output[1]) if self._output[0] else (f'(ltrim({self.col_obj.name},"{chars}"))', [])
         new_op.current_datatype = str
         return new_op
 
@@ -2210,7 +2210,7 @@ class ColumnsOperation:
                 # expr3._output[0] -> 'upper(rtrim(products.[description]," "))'
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'(rtrim({self._output[0]},"{chars}"))', self._output[1]) if self._output else (f'(rtrim({self.col_obj.name},"{chars}"))', [])
+        new_op._output = (f'(rtrim({self._output[0]},"{chars}"))', self._output[1]) if self._output[0] else (f'(rtrim({self.col_obj.name},"{chars}"))', [])
         new_op.current_datatype = str
         return new_op
 
@@ -3990,7 +3990,7 @@ class Column:
                 # retrieves the uppercase name for the user with id=1
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(upper({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output else (f'(upper({temp_ob.col_obj.name}))', [])
+        temp_ob._output = (f'(upper({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output[0] else (f'(upper({temp_ob.col_obj.name}))', [])
         return temp_ob
 
     def replace(self, old, new):
