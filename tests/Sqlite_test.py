@@ -29,7 +29,30 @@ def t(driver):
     tbl.bulk_insert([tbl.id, tbl.val], [(i, i * 10) for i in range(1, 11)])
     return tbl
 
+# =====================================================
+# fixtureهای پر‌داده (فقط برای تست‌های LIMIT/OFFSET)
+# =====================================================
 
+@pytest.fixture
+def users_with_data(driver):               # ← نام جدید
+    schema = Sqlite.TableStructure('users', strict=True)
+    schema.add_column('id',   Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('name', Sqlite.DataTypes.TEXT())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert([tbl.id, tbl.name], [(i, f'U{i}') for i in range(1, 11)])
+    return tbl
+
+
+@pytest.fixture
+def orders_with_data(driver):              # ← نام جدید
+    schema = Sqlite.TableStructure('orders', strict=True)
+    schema.add_column('id',      Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema.add_column('total',   Sqlite.DataTypes.REAL())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert([tbl.id, tbl.user_id, tbl.total],
+                    [(100 + i, i, float(i * 10)) for i in range(1, 11)])
+    return tbl
 # =====================================================
 # Table.get_row  →  LIMIT / OFFSET
 # =====================================================
@@ -149,64 +172,64 @@ def orders(driver):
     return tbl
 
 
-def test_lo_17_join_limit_only(users, orders):
-    res = (users.inner_join(orders, users.id == orders.user_id)
-                .get_row([users.id], order_by=users.id, limit=3))
+def test_lo_17_join_limit_only(users_with_data, orders_with_data):
+    res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
+                .get_row([users_with_data.id], order_by=users_with_data.id, limit=3))
     assert len(res) == 3
     assert [r[0] for r in res] == [1, 2, 3]
 
 
-def test_lo_18_join_offset_only(users, orders):
-    res = (users.inner_join(orders, users.id == orders.user_id)
-                .get_row([users.id], order_by=users.id, offset=5))
+def test_lo_18_join_offset_only(users_with_data, orders_with_data):
+    res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
+                .get_row([users_with_data.id], order_by=users_with_data.id, offset=5))
     assert [r[0] for r in res] == [6, 7, 8, 9, 10]
 
 
-def test_lo_19_join_limit_offset(users, orders):
-    res = (users.inner_join(orders, users.id == orders.user_id)
-                .get_row([users.id], order_by=users.id, limit=3, offset=2))
+def test_lo_19_join_limit_offset(users_with_data, orders_with_data):
+    res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
+                .get_row([users_with_data.id], order_by=users_with_data.id, limit=3, offset=2))
     assert [r[0] for r in res] == [3, 4, 5]
 
 
-def test_lo_20_join_limit_zero(users, orders):
-    res = (users.inner_join(orders, users.id == orders.user_id)
-                .get_row([users.id], limit=0))
+def test_lo_20_join_limit_zero(users_with_data, orders_with_data):
+    res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
+                .get_row([users_with_data.id], limit=0))
     assert res == []
 
 
-def test_lo_21_join_offset_bigger_than_rows(users, orders):
-    res = (users.inner_join(orders, users.id == orders.user_id)
-                .get_row([users.id], offset=100))
+def test_lo_21_join_offset_bigger_than_rows(users_with_data, orders_with_data):
+    res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
+                .get_row([users_with_data.id], offset=100))
     assert res == []
 
 
-def test_lo_22_join_limit_offset_with_where(users, orders):
-    res = (users.inner_join(orders, users.id == orders.user_id)
-                .get_row([users.id, orders.total],
-                         where=orders.total > 30,
-                         order_by=users.id,
+def test_lo_22_join_limit_offset_with_where(users_with_data, orders_with_data):
+    res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
+                .get_row([users_with_data.id, orders_with_data.total],
+                         where=orders_with_data.total > 30,
+                         order_by=users_with_data.id,
                          limit=2, offset=1))
     # vals >30 for id=4,5,... → skip id=4 take id=5,6
     assert [r[0] for r in res] == [5, 6]
 
 
-def test_lo_23_join_limit_reader_pool(users, orders):
-    res = (users.inner_join(orders, users.id == orders.user_id)
-                .get_row([users.id], order_by=users.id,
+def test_lo_23_join_limit_reader_pool(users_with_data, orders_with_data):
+    res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
+                .get_row([users_with_data.id], order_by=users_with_data.id,
                          limit=3, offset=2, from_readers_pool=True))
     assert [r[0] for r in res] == [3, 4, 5]
 
 
-def test_lo_24_join_left_with_limit(users, orders, driver):
+def test_lo_24_join_left_with_limit(users_with_data, orders_with_data, driver):
     # id=11 را در users اضافه می‌کنیم ولی در orders چیزی ندارد
-    users.insert({users.id: 11, users.name: 'U11'})
-    res = (users.left_join(orders, users.id == orders.user_id)
-                .get_row([users.id], order_by=users.id, limit=2, offset=9))
+    users_with_data.insert({users_with_data.id: 11, users_with_data.name: 'U11'})
+    res = (users_with_data.left_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
+                .get_row([users_with_data.id], order_by=users_with_data.id, limit=2, offset=9))
     # 11 rows total → offset 9 limit 2 → id=10 و id=11
     assert [r[0] for r in res] == [10, 11]
 
 
-def test_lo_25_join_chain_with_limit(users, orders, driver):
+def test_lo_25_join_chain_with_limit(users_with_data, orders_with_data, driver):
     schema = Sqlite.TableStructure('logs', strict=True)
     schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
     schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
@@ -214,10 +237,10 @@ def test_lo_25_join_chain_with_limit(users, orders, driver):
     logs = driver.create_table(schema)
     logs.bulk_insert([logs.id, logs.user_id, logs.msg],
                      [(i, i, f'M{i}') for i in range(1, 11)])
-    res = (users.inner_join(orders, users.id == orders.user_id)
-                .inner_join(logs, users.id == logs.user_id)
-                .get_row([users.id, logs.msg],
-                         order_by=users.id, limit=3, offset=4))
+    res = (users_with_data.inner_join(orders_with_data, users_with_data.id == orders_with_data.user_id)
+                .inner_join(logs, users_with_data.id == logs.user_id)
+                .get_row([users_with_data.id, logs.msg],
+                         order_by=users_with_data.id, limit=3, offset=4))
     assert [r[0] for r in res] == [5, 6, 7]
 
 # ---------- LIMIT ----------
@@ -319,7 +342,26 @@ def logs(driver):
 
 
 # ---------- ساختار پایه ----------
+# =====================================================
+# fixtureهای خالی (برای test_join_*، test_251..260، test_351..400)
+# =====================================================
 
+@pytest.fixture
+def users(driver):
+    schema = Sqlite.TableStructure('users', strict=True)
+    schema.add_column('id',   Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('name', Sqlite.DataTypes.TEXT())
+    schema.add_column('age',  Sqlite.DataTypes.INTEGER())    # ← مهم
+    return driver.create_table(schema)
+
+
+@pytest.fixture
+def orders(driver):
+    schema = Sqlite.TableStructure('orders', strict=True)
+    schema.add_column('id',      Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema.add_column('total',   Sqlite.DataTypes.REAL())
+    return driver.create_table(schema)
 def test_join_01_inner_basic(users, orders):
     users.insert({users.id: 1, users.name: 'Ali', users.age: 30})
     orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
@@ -2196,20 +2238,6 @@ def driver(db_path):
         drv.disconnect()
     except:
         pass
-@pytest.fixture
-def users(driver):
-    schema = Sqlite.TableStructure('users', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    schema.add_column('name', Sqlite.DataTypes.TEXT())
-    schema.add_column('age', Sqlite.DataTypes.INTEGER())
-    return driver.create_table(schema)
-@pytest.fixture
-def orders(driver):
-    schema = Sqlite.TableStructure('orders', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
-    schema.add_column('total', Sqlite.DataTypes.REAL())
-    return driver.create_table(schema)
 def test_251_bulk_insert_two_rows(users):
     
     users.bulk_insert([users.id, users.name], [(1, 'Ali'), (2, 'Reza')])
@@ -2697,13 +2725,6 @@ def test_350_delete_column_nonexistent_error(driver):
     tbl = driver.create_table(schema)
     with pytest.raises(Exception):
         tbl.delete_column('ghost_col', True, True, True)
-@pytest.fixture
-def users(driver):
-    schema = Sqlite.TableStructure('users', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    schema.add_column('name', Sqlite.DataTypes.TEXT())
-    schema.add_column('age', Sqlite.DataTypes.INTEGER())
-    return driver.create_table(schema)
 def test_351_create_batch(users):
     
     batch = users.batch()
@@ -3128,20 +3149,6 @@ def test_400_batch_concurrent_writers(driver, users):
            (res[0][0] == 'Init' and res[0][1] == 99) or \
            (res[0][0] == 'Thread1' and res[0][1] == 10)
     
-@pytest.fixture
-def users(driver):
-    schema = Sqlite.TableStructure('users', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    schema.add_column('name', Sqlite.DataTypes.TEXT())
-    schema.add_column('age', Sqlite.DataTypes.INTEGER())
-    return driver.create_table(schema)
-@pytest.fixture
-def orders(driver):
-    schema = Sqlite.TableStructure('orders', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
-    schema.add_column('total', Sqlite.DataTypes.REAL())
-    return driver.create_table(schema)
 def test_451_full_lifecycle(driver):
     
     schema = Sqlite.TableStructure('lifecycle', strict=True)

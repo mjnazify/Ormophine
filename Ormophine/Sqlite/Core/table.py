@@ -1294,15 +1294,15 @@ class Table:
         """
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
-        query_splited = f'UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value, Column) else f'{key.first_name}={self.PLACE_HOLDER}' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0].replace('?', str(self.PLACE_HOLDER))}' for key , value in list(update.items()))} WHERE {where._output[0].replace('?', str(self.PLACE_HOLDER))};'.split(self.PLACE_HOLDER)
+        query_splited = f'UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value, Column) else f'{key.first_name}={str(self.PLACE_HOLDER)}' if not isinstance(value , ColumnsOperation) else f'{key.first_name}={value._output[0].replace('?', str(self.PLACE_HOLDER))}' for key , value in list(update.items()))} WHERE {where._output[0].replace('?', str(self.PLACE_HOLDER))};'.split(str(self.PLACE_HOLDER))
         query= query_splited[0]
         for a,i in enumerate(temp_list+where._output[1]):
-            query = query +( f'"{i}"' if isinstance(i,str) and not i == self.PLACE_HOLDER else str(i))+ query_splited[a+1] #All "? || '%'" thing are because of Column.contain() method and .startswith() and .endswith() that have "%" in output value
+            query = query +( f'"{i}"' if isinstance(i,str) and not i == str(self.PLACE_HOLDER) else str(i))+ query_splited[a+1] #All "? || '%'" thing are because of Column.contain() method and .startswith() and .endswith() that have "%" in output value
         try:
             self._exc('qmb', (query.replace(str(self.PLACE_HOLDER), '?'), data_list))
         except Exception as e:
             if "Incorrect number of bindings" in str(e):
-                raise Exception(f'number of `PLACE_HOLDERS` must be equals to number of items in each of `data_list` items.\n if it is so, make sure that there is no "{self.PLACE_HOLDER}" literal string in your query because it is reserved for this orm. you can change it on you own need with `mytable.PLACE_HOLDER = "you own idea"`')
+                raise Exception(f'number of `PLACE_HOLDERS` must be equals to number of items in each of `data_list` items.\n if it is so, make sure that there is no "{str(self.PLACE_HOLDER)}" literal string in your query because it is reserved for this orm. you can change it on you own need with `mytable.PLACE_HOLDER = "you own idea"`')
             else:
                 raise
 
