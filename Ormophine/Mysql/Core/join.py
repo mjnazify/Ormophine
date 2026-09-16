@@ -1,209 +1,181 @@
 from __future__ import annotations
+from .. import Column, ColumnsOperation
 
-class Join:
+
+class JoinQuery:
     """
-    Namespace for creating JOIN specifications to be used in :meth:`Table.join`.
+    Fluent builder for MySQL/MariaDB JOIN queries with automatic table aliasing.
 
-    The :class:`Join` class serves as a container for three nested classes:
-    :class:`Inner`, :class:`Left`, and :class:`Right`. Each of these classes
-    represents a specific type of SQL JOIN and encapsulates the target table
-    and the join condition. When instantiated, they produce an object with a
-    ``_output`` attribute (a tuple containing the SQL fragment and its
-    parameters) that is consumed by :meth:`Table.join`.
+    Returned by Table.inner_join(), Table.left_join(), and Table.right_join().
+    Supports chaining multiple joins and finally executing with get_row().
 
-    **Nested Classes**
-        - :class:`Join.Inner`: Creates an ``INNER JOIN`` clause.
-        - :class:`Join.Left`: Creates a ``LEFT JOIN`` clause.
-        - :class:`Join.Right`: Creates a ``RIGHT JOIN`` clause.
+    Internal state:
+        table_obj (Table): base table (left side of the first join)
+        joins (list[dict]): each item is {'type', 'table', 'condition', 'alias'}
+        params (list): accumulated bind parameters (%s placeholders)
+        _output (tuple[str, list]): same shape as ColumnsOperation — a SQL
+            fragment and its parameter list, so JoinQuery can be embedded in
+            other expressions if needed.
 
-    Each nested class has the same constructor signature:
-        ``__init__(table: Table, match_case_condition: ColumnsOperation)``
+    MySQL/MariaDB note:
+        Identifier quoting uses backticks (`` `table` ``), unlike PostgreSQL
+        which uses double quotes. RIGHT JOIN is supported by both MySQL and
+        MariaDB natively.
 
     Example:
-        Joining two tables using an INNER JOIN::
+        >>> users.left_join(orders, orders.user == users.username) \\
+        ...      .inner_join(banlist, banlist.id == users.id) \\
+        ...      .get_row([orders.ordername, users.age], where=banlist.id > 20)
+    """
 
-            from ormophine.Mysql import Join
+    def __init__(self, table_obj, joins=None, params=None):
+        self.table_obj = table_obj
+        self.joins = joins if joins is not None else []
+        self.params = params if params is not None else []
+        # _output must be computed after joins/params are stored
+        self._output = (self._join_sql(), list(self.params)) if self.joins else ('', [])
 
-            # Assume we have table objects: users, orders
-            # and column objects: users.id, orders.user_id
+    # ------------------------------------------------------------------ #
+    #  Public join builders                                              #
+    # ------------------------------------------------------------------ #
+    def inner_join(self, table, condition, alias=None) -> 'JoinQuery':
+        return self._add_join('INNER JOIN', table, condition, alias)
 
-            inner_join = Join.Inner(
-                orders,
-                users.id == orders.user_id
+    def left_join(self, table, condition, alias=None) -> 'JoinQuery':
+        return self._add_join('LEFT JOIN', table, condition, alias)
+
+    def right_join(self, table, condition, alias=None) -> 'JoinQuery':
+        return self._add_join('RIGHT JOIN', table, condition, alias)
+
+    # ------------------------------------------------------------------ #
+    #  Internals                                                         #
+    # ------------------------------------------------------------------ #
+    def _make_unique_alias(self, table) -> str:
+        """Generate an alias like ``orders_0`` that isn't already used."""
+        base = table.name_[1:-1]  # strip the surrounding backticks
+        used = {j['alias'] for j in self.joins if j['alias']}
+        i = 0
+        while f'{base}_{i}' in used:
+            i += 1
+        return f'{base}_{i}'
+
+    def _add_join(self, join_type, table, condition, alias):
+        if not isinstance(condition, ColumnsOperation):
+            raise Exception(
+                f"Join condition must be a ColumnsOperation, got "
+                f"{type(condition).__name__}. Build it with column comparisons "
+                f"like `table1.col == table2.col`."
             )
 
-            results = users.join(
-                columns=[users.id, users.name, orders.amount],
-                joins_list=[inner_join],
-                where=users.id > 100
-            )
+        already_joined = any(j['table'] is table for j in self.joins)
+        if alias is None and already_joined:
+            alias = self._make_unique_alias(table)
 
-        Using a LEFT JOIN::
+        new_joins = self.joins + [{
+            'type': join_type,
+            'table': table,
+            'condition': condition,
+            'alias': alias,
+        }]
+        new_params = self.params + list(condition._output[1])
+        return JoinQuery(self.table_obj, new_joins, new_params)
 
-            left_join = Join.Left(
-                orders,
-                users.id == orders.user_id
-            )
+    # --- SQL generation helpers ---------------------------------------- #
+    def _join_sql(self) -> str:
+        """Build the JOIN fragments, rewriting table refs to aliases."""
+        parts = []
+        for j in self.joins:
+            tbl = j['table']
+            cond_sql = j['condition']._output[0]
+            if j['alias']:
+                # `orders`.`col` → `orders_0`.`col`
+                cond_sql = cond_sql.replace(
+                    f'{tbl.name_}.', f'`{j["alias"]}`.'
+                )
+                parts.append(
+                    f'{j["type"]} {tbl.name_} AS `{j["alias"]}` ON {cond_sql}'
+                )
+            else:
+                parts.append(f'{j["type"]} {tbl.name_} ON {cond_sql}')
+        return ' '.join(parts)
 
-            results = users.join(
-                columns=[users.id, users.name, orders.amount],
-                joins_list=[left_join]
-            )
+    def _resolve_column_ref(self, col) -> str:
+        """
+        Return the SQL reference for a Column using the alias of the FIRST
+        join that references this table.
+        """
+        for j in self.joins:
+            if j['table'] is col.table_obj:
+                if j['alias']:
+                    return f'`{j["alias"]}`.`{col.first_name[1:-1]}`'
+                return col.name
+        return col.name
 
-        Using a RIGHT JOIN::
+    def _rewrite_expr(self, expr: str) -> str:
+        """Rewrite table refs inside an expression to use aliases."""
+        for j in self.joins:
+            if j['alias']:
+                expr = expr.replace(
+                    f'{j["table"].name_}.', f'`{j["alias"]}`.'
+                )
+        return expr
 
-            right_join = Join.Right(
-                orders,
-                users.id == orders.user_id
-            )
+    def get_row(
+        self,
+        which_columns: list,
+        where: 'ColumnsOperation' = None,
+        order_by: 'Column' = None,
+        limit: int = None,
+        offset: int = None,
+    ):
+        if not which_columns:
+            return []
 
-            results = users.join(
-                columns=[users.id, users.name, orders.amount],
-                joins_list=[right_join]
-            )
+        tl = []
+        select_parts = []
+        for i in which_columns:
+            if isinstance(i, Column):
+                ref = self._resolve_column_ref(i)
+                alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
+                select_parts.append(f'{ref} AS {alias}')
+            else:
+                expr = self._rewrite_expr(i._output[0])
+                tl.extend(i._output[1])
+                if expr.startswith('(') and expr.endswith(')'):
+                    expr = expr[1:-1]
+                alias = (
+                    f'{i.col_obj.table_obj.name_[1:-1]}_'
+                    f'{i.col_obj.first_name[1:-1]}'
+                )
+                select_parts.append(f'{expr} AS {alias}')
 
-    Note:
-        The join objects are not meant to be used independently; they are
-        designed to be passed as a list to the ``joins_list`` parameter of
-        :meth:`Table.join`. The join condition must be a
-        :class:`ColumnsOperation` expression, typically created using
-        comparison operators (``==``, ``!=``, ``>``, etc.) on :class:`Column`
-        objects.
-    """    
-    class Inner:
-        def __init__(self, table: Table, match_case_condition: ColumnsOperation):
-            """
-            Initialize an INNER JOIN clause between the current table and another table.
+        base_sql = (
+            f"SELECT {', '.join(select_parts)} "
+            f"FROM {self.table_obj.name_} "
+            f"{self._join_sql()}"
+        )
+        all_params = tl + list(self.params)
 
-            This constructor creates an object that represents an ``INNER JOIN`` SQL
-            clause. It stores both the SQL string and the associated parameter values
-            for the join condition. The resulting object is typically used in a list
-            passed to :meth:`Table.join` to perform multi-table queries.
+        if where is not None:
+            base_sql += f' WHERE {self._rewrite_expr(where._output[0])}'
+            all_params += list(where._output[1])
 
-            Args:
-                table (Table): The table to join with. This is the right-hand side
-                    table in the join.
-                match_case_condition (ColumnsOperation): A :class:`ColumnsOperation`
-                    expression that defines the join condition (e.g., ``users.id == orders.user_id``).
-                    This condition will be used in the ``ON`` clause of the join.
+        if order_by is not None:
+            base_sql += f' ORDER BY {self._resolve_column_ref(order_by)}'
 
-            Returns:
-                None: This method does not return a value; it initializes the instance.
+        # ---- LIMIT / OFFSET ----
+        if limit is not None:
+            base_sql += ' LIMIT %s '
+            all_params.append(limit)
 
-            Raises:
-                None: This constructor does not perform any validation and does not
-                    raise exceptions.
+        if offset is not None:
+            if limit is None:
+                base_sql += ' LIMIT 18446744073709551615 '
+            base_sql += ' OFFSET %s '
+            all_params.append(offset)
 
-            Example:
-                Creating an INNER JOIN between the ``users`` table and the ``orders``
-                table::
+        base_sql += ';'
 
-                    from ormophine.Mysql import Join
-
-                    # Assuming we have table objects: users, orders
-                    inner_join = Join.Inner(
-                        orders,
-                        users.id == orders.user_id
-                    )
-
-                    # Then use it in a join query
-                    results = users.join(
-                        columns=[users.name, orders.amount],
-                        joins_list=[inner_join]
-                    )
-            """
-            self._output =  (f'INNER JOIN {table.name_} ON {match_case_condition._output[0]}', match_case_condition._output[1])
-            
-    class Left:
-        def __init__(self, table: Table, match_case_condition: ColumnsOperation):
-            """
-            Initialize a LEFT JOIN clause for a SQL query.
-
-            This constructor creates a representation of a LEFT JOIN between the
-            current table and the specified ``table``, using the provided condition.
-            The resulting object stores a tuple ``_output`` containing the SQL fragment
-            (e.g., ``'LEFT JOIN table_name ON condition'``) and the associated parameter
-            list for safe parameterized execution. This object is intended to be used
-            in the :meth:`Table.join` method.
-
-            Args:
-                table (Table): The table to join with.
-                match_case_condition (ColumnsOperation): A :class:`ColumnsOperation`
-                    expression defining the join condition (e.g., ``users.id == orders.user_id``).
-
-            Returns:
-                None: The constructor initializes the instance and stores the SQL
-                fragment and parameters in ``self._output``.
-
-            Raises:
-                None: This method does not raise any exceptions directly.
-
-            Example:
-                Creating a LEFT JOIN between the ``users`` and ``orders`` tables::
-
-                    from ormophine.Mysql import Join
-
-                    join_clause = Join.Left(
-                        orders,
-                        users.id == orders.user_id
-                    )
-
-                    # The join clause can then be passed to Table.join()
-                    results = users.join(
-                        columns=[users.name, orders.amount],
-                        joins_list=[join_clause]
-                    )
-            """
-            self._output =  (f'LEFT JOIN {table.name_} ON {match_case_condition._output[0]}', match_case_condition._output[1])
-
-    class Right:
-        def __init__(self, table: Table, match_case_condition: ColumnsOperation):
-            """
-            Initialize a RIGHT JOIN clause for a query.
-
-            This constructor creates a RIGHT JOIN specification that can be used
-            in a :meth:`Table.join` call. A RIGHT JOIN returns all rows from the
-            right table (the table being joined) and the matching rows from the
-            left table (the base table). If no match is found on the left side,
-            columns from the left table will contain ``NULL``.
-
-            Args:
-                table (Table): The table to join on the right side. This is the
-                    table from which all rows will be returned (the "right" table).
-                match_case_condition (ColumnsOperation): A :class:`ColumnsOperation`
-                    expression defining the join condition, typically an equality
-                    comparison between columns of the base table and the joined table
-                    (e.g., ``users.id == orders.user_id``).
-
-            Returns:
-                None: This constructor only initializes the join object. The resulting
-                object is meant to be passed to :meth:`Table.join`.
-
-            Raises:
-                Exception: If the underlying SQL generation or execution fails
-                    (indirectly, when the join object is used in a query).
-
-            Example:
-                Performing a RIGHT JOIN between the ``users`` table and an
-                ``orders`` table::
-
-                    from ormophine.Mysql import Join
-
-                    # Assume we have table objects: users, orders
-                    # and column objects: users.id, orders.user_id, orders.amount
-
-                    right_join = Join.Right(
-                        orders,
-                        users.id == orders.user_id
-                    )
-
-                    results = users.join(
-                        columns=[users.id, users.name, orders.amount],
-                        joins_list=[right_join],
-                        where=users.id > 100
-                    )
-                    # This will return all orders, even those without a matching user
-                    # (user columns will be NULL for unmatched orders).
-            """
-            self._output = (f'RIGHT JOIN {table.name_} ON {match_case_condition._output[0]}', match_case_condition._output[1])
-
+        if all_params:
+            return self.table_obj._excfp(base_sql, all_params)
+        return self.table_obj._excf(base_sql)

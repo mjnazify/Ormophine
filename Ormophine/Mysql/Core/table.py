@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .. import Column, ColumnsOperation, BatchOperation, Join
+from .. import Column, ColumnsOperation, BatchOperation, JoinQuery
 from typing import Any
 
 class Table:
@@ -85,7 +85,6 @@ class Table:
         """So when we use placeholders in bulkupdate, it wont confuse to use '+' or '||' when using <users.age + users.PLACE_HOLDER>"""
         def __init__(self, placeholder):
             self.placeholder = placeholder
-            return self
         
         def __str__(self):
             return self.placeholder
@@ -1450,81 +1449,34 @@ class Table:
             else:
                 raise
 
-    def join(
-        self,
-        columns: list['Column'],
-        joins_list: list['Join.Inner | Join.Left | Join.Right'],
-        where: 'ColumnsOperation' = None,
-        order_by: 'Column' = None
-    ) -> Any:
+    def inner_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
         """
-        Perform a SELECT query with JOINs across multiple tables.
+        Start a JOIN query with an INNER JOIN.
 
-        This method constructs and executes a SQL query that joins this table
-        with other tables specified in ``joins_list``. The selected columns are
-        returned with automatically generated aliases in the format
-        ``{table_name}_{column_name}`` to avoid name collisions when columns from
-        different tables have the same name. The result is fetched using the
-        underlying driver's fetch method and returned as a list of tuples.
+        Returns a :class:`JoinQuery` that supports chaining more joins
+        (via ``inner_join``, ``left_join``, ``right_join``) and finally
+        executing with ``get_row(...)``.
 
         Args:
-            columns (list[Column]): A list of :class:`Column` objects or
-                :class:`ColumnsOperation` expressions to select. Each will be
-                included in the SELECT clause. For ``ColumnsOperation`` objects,
-                the SQL expression is used as-is.
-            joins_list (list[Union[Join.Inner, Join.Left, Join.Right]]): A list
-                of join objects (inner, left, or right) that define which tables
-                to join and the join conditions. Each join object is constructed
-                with a target table and a condition (a :class:`ColumnsOperation`
-                expression).
-            where (ColumnsOperation, optional): A :class:`ColumnsOperation`
-                expression for the WHERE clause. If provided, only rows satisfying
-                this condition are returned. Defaults to ``None``.
-            order_by (Column, optional): A :class:`Column` object to order the
-                results by. If provided, an ``ORDER BY`` clause is added.
-                Defaults to ``None``.
+            table (Table): The table to join (right side).
+            condition (ColumnsOperation): The ON condition (e.g.
+                ``orders.user_id == users.id``).
 
         Returns:
-            list of tuple: A list of rows, where each row is a tuple of values
-            corresponding to the selected columns (in the order given). The
-            column values are accessible by position.
-
-        Raises:
-            Exception: If the underlying SQL execution fails (e.g., syntax error,
-                invalid table or column references). The original error and the
-                full query are included in the exception message.
-
-        Example:
-            Performing a join between the ``users`` table and an ``orders`` table::
-
-                from ormophine.Mysql import Join
-
-                # Assume we have table objects: users, orders
-                # and column objects: users.id, users.name, orders.amount, orders.user_id
-
-                # Build join objects
-                inner_join = Join.Inner(
-                    orders,
-                    users.id == orders.user_id
-                )
-
-                # Select columns from both tables
-                results = users.join(
-                    columns=[users.id, users.name, orders.amount],
-                    joins_list=[inner_join],
-                    where=users.id > 100,
-                    order_by=users.name
-                )
-
-                for row in results:
-                    # row[0] -> user.id, row[1] -> user.name, row[2] -> order.amount
-                    print(f"User {row[1]} (ID: {row[0]}) has order amount {row[2]}")
+            JoinQuery: A chainable query builder.
         """
-        tl = []
-        [tl.extend(i._output[1]) if isinstance(i,ColumnsOperation) else None for i in columns]
-        [tl.extend(i._output[1]) for i in joins_list]
-        return self._excfp(f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'if isinstance(i,Column)else f'{i._output[0][1:-1] if i._output[0].startswith("(") and i._output[0].endswith(")")else i._output[0]} AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'WHERE {where._output[0]}'if where else ''} {f'ORDER BY {order_by.name}' if order_by else ''}', tl+where._output[1]) if where else self._excfp(f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}' if isinstance(i,Column) else f'{i._output[0][1:-1] if i._output[0].startswith("(") and i._output[0].endswith(")") else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'ORDER BY {order_by.name}' if order_by else ''}', tl) if tl else self._excf(f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}' if isinstance(i,Column) else f'{i._output[0][1:-1] if i._output[0].startswith('(') and i._output[0].endswith(')') else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'ORDER BY {order_by.name}' if order_by else ''}')
-        # The above line is approximately 1000 characters, which is not standard, but it is written this way
-        # to improve performance in the Driver class and to avoid checking whether the second item in the query
-        # is an empty list for each input.
+        return JoinQuery(self).inner_join(table, condition)
 
+    def left_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        """
+        Start a JOIN query with a LEFT JOIN.
+        """
+        return JoinQuery(self).left_join(table, condition)
+
+    def right_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        """
+        Start a JOIN query with a RIGHT JOIN.
+
+        Note: Both MySQL and MariaDB support RIGHT JOIN natively.
+        """
+        return JoinQuery(self).right_join(table, condition)

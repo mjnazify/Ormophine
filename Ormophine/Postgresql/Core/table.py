@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .. import Column, ColumnsOperation, BatchOperation, Join
+from .. import Column, ColumnsOperation, BatchOperation, JoinQuery
 from typing import Any
 
 class Table:
@@ -8,7 +8,6 @@ class Table:
         """So when we use placeholders in bulkupdate, it wont confuse to use '+' or '||' when using <users.age + users.PLACE_HOLDER>"""
         def __init__(self, placeholder):
             self.placeholder = placeholder
-            return self
         
         def __str__(self):
             return self.placeholder
@@ -1179,94 +1178,32 @@ class Table:
             else:
                 raise
         
-    def join(
-        self,
-        columns: list['Column'],
-        joins_list: list['Join.Inner | Join.Left | Join.Right'],
-        where: 'ColumnsOperation' = None,
-        order_by: 'Column' = None
-    ) -> Any:
-        """Perform a JOIN query on this table with other tables.
+    def inner_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        """
+        Start a JOIN query with an INNER JOIN.
 
-        This method constructs and executes a SELECT statement that joins the current
-        table with one or more other tables using the specified join types
-        (INNER, LEFT, RIGHT). The result set can be filtered with a WHERE clause
-        and ordered by a column. Columns are automatically aliased using the format
-        ``<table_name>_<column_name>`` to avoid name conflicts.
+        Returns a :class:`JoinQuery` that supports chaining more joins
+        (via ``inner_join``, ``left_join``, ``right_join``) and finally
+        executing with ``get_row(...)``.
 
         Args:
-            columns (list[Column]): A list of :class:`Column` objects or
-                :class:`ColumnsOperation` expressions to select. Each item will be
-                included in the SELECT clause.
-            joins_list (list[Union[Join.Inner, Join.Left, Join.Right]]): A list of
-                join definitions created using the :class:`Join` inner classes.
-                Each join specifies a table and the join condition.
-            where (ColumnsOperation, optional): A :class:`ColumnsOperation`
-                expression for filtering rows. Defaults to None (no filter).
-            order_by (Column, optional): A :class:`Column` to order the results by.
-                Defaults to None (no ordering).
+            table (Table): The table to join (right side).
+            condition (ColumnsOperation): The ON condition (e.g.
+                ``orders.user_id == users.id``).
 
         Returns:
-            list[tuple]: A list of tuples where each tuple represents a row in the
-                result set. The values correspond to the selected columns in the
-                order they were specified. If columns include aliases, the result
-                tuples will have the aliased names (though the return format is
-                raw tuples).
-
-        Raises:
-            Exception: Propagates any database errors from the underlying driver,
-                including SQL syntax errors or join condition issues.
-
-        Example:
-            Simple join between employees and departments:
-
-            >>> from ormophine.Postgresql import Driver, Table, Join
-            >>> driver = Driver("localhost", 5432, "user", "pass", "mydb")
-            >>> employees = driver.employees
-            >>> departments = driver.departments
-            >>>
-            >>> # Join employees with departments on department_id
-            >>> results = employees.join(
-            ...     columns=[employees.id, employees.name, departments.name],
-            ...     joins_list=[Join.Inner(departments, employees.dept_id == departments.id)],
-            ...     where=employees.salary > 50000,
-            ...     order_by=employees.name
-            ... )
-            >>> for row in results:
-            ...     print(row)  # e.g., (1, 'Alice', 'Engineering')
-
-        Example:
-            Complex join with multiple tables and computed columns:
-
-            >>> from ormophine.Postgresql import Join, ColumnsOperation
-            >>> # Assume tables: orders, customers, products
-            >>> orders = driver.orders
-            >>> customers = driver.customers
-            >>> products = driver.products
-            >>>
-            >>> # Select order details with customer name and product price with tax
-            >>> results = orders.join(
-            ...     columns=[
-            ...         orders.id,
-            ...         customers.name,
-            ...         products.name,
-            ...         orders.quantity * orders.unit_price,  # ColumnsOperation
-            ...         (orders.quantity * orders.unit_price) * 1.1  # computed total with tax
-            ...     ],
-            ...     joins_list=[
-            ...         Join.Inner(customers, orders.customer_id == customers.id),
-            ...         Join.Left(products, orders.product_id == products.id)
-            ...     ],
-            ...     where=(orders.order_date >= '2024-01-01') & (orders.status == 'completed'),
-            ...     order_by=orders.order_date
-            ... )
-            >>> # Results are returned as tuples with aliased column names
+            JoinQuery: A chainable query builder.
         """
-        tl = []
-        [tl.extend(i._output[1]) if isinstance(i,ColumnsOperation) else None for i in columns]
-        [tl.extend(i._output[1]) for i in joins_list]
-        return self._excfp(f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'if isinstance(i,Column)else f'{i._output[0][1:-1] if i._output[0].startswith("(") and i._output[0].endswith(")")else i._output[0]} AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'WHERE {where._output[0]}'if where else''} {f'ORDER BY {order_by.name}' if order_by else''}', tl+where._output[1]) if where else self._excfp(f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'if isinstance(i,Column)else f'{i._output[0][1:-1] if i._output[0].startswith("(") and i._output[0].endswith(")") else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}'for i in columns)} FROM {self.name_} {' '.join(i._output[0]for i in joins_list)} {f'ORDER BY {order_by.name}' if order_by else''}', tl) if tl else self._excf(f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}' if isinstance(i,Column) else f'{i._output[0][1:-1] if i._output[0].startswith('(') and i._output[0].endswith(')') else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'ORDER BY {order_by.name}'if order_by else''}')
-        # The above line is approximately 1381 characters, which is not standard, but it is written this way
-        # to improve performance in the Driver class and to avoid checking whether the second item in the query
-        # is an empty list for each input.
+        return JoinQuery(self).inner_join(table, condition)
 
+    def left_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        """
+        Start a JOIN query with a LEFT JOIN.
+        """
+        return JoinQuery(self).left_join(table, condition)
+
+    def right_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        """
+        Start a JOIN query with a RIGHT JOIN.
+        """
+        return JoinQuery(self).right_join(table, condition)

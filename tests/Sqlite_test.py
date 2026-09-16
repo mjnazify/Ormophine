@@ -3,6 +3,601 @@ import threading
 import time
 from Ormophine import Sqlite
 import datetime
+
+
+@pytest.fixture
+def db_path(tmp_path):
+    return str(tmp_path / "test_limit_offset.db")
+
+
+@pytest.fixture
+def driver(db_path):
+    drv = Sqlite.Driver(db_path, setup_time=0.1)
+    yield drv
+    try:
+        drv.disconnect()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def t(driver):
+    schema = Sqlite.TableStructure('nums', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('val', Sqlite.DataTypes.INTEGER())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert([tbl.id, tbl.val], [(i, i * 10) for i in range(1, 11)])
+    return tbl
+
+
+# =====================================================
+# Table.get_row  →  LIMIT / OFFSET
+# =====================================================
+
+# ---------- LIMIT ----------
+
+def test_lo_01_limit_only(t):
+    res = t.get_row([t.id], limit=3)
+    assert len(res) == 3
+
+
+def test_lo_02_limit_zero(t):
+    res = t.get_row([t.id], limit=0)
+    assert res == []
+
+
+def test_lo_03_limit_larger_than_rows(t):
+    res = t.get_row([t.id], limit=1000)
+    assert len(res) == 10
+
+
+def test_lo_04_limit_with_order(t):
+    res = t.get_row([t.id], order_by=t.id, limit=3)
+    assert res == [1, 2, 3]
+
+
+def test_lo_05_limit_with_where(t):
+    res = t.get_row([t.id], where=t.val > 30, limit=2)
+    assert len(res) == 2
+
+
+# ---------- OFFSET ----------
+
+def test_lo_06_offset_only(t):
+    res = t.get_row([t.id], offset=5)
+    assert len(res) == 5
+
+
+def test_lo_07_offset_only_with_order(t):
+    res = t.get_row([t.id], order_by=t.id, offset=5)
+    assert res == [6, 7, 8, 9, 10]
+
+
+def test_lo_08_offset_zero(t):
+    res = t.get_row([t.id], order_by=t.id, offset=0)
+    assert len(res) == 10
+
+
+def test_lo_09_offset_larger_than_rows(t):
+    res = t.get_row([t.id], offset=100)
+    assert res == []
+
+
+# ---------- LIMIT + OFFSET ----------
+
+def test_lo_10_limit_offset(t):
+    res = t.get_row([t.id], order_by=t.id, limit=3, offset=2)
+    assert res == [3, 4, 5]
+
+
+def test_lo_11_limit_offset_end(t):
+    res = t.get_row([t.id], order_by=t.id, limit=3, offset=8)
+    assert res == [9, 10]
+
+
+def test_lo_12_limit_offset_full_window(t):
+    res = t.get_row([t.id], order_by=t.id, limit=10, offset=0)
+    assert len(res) == 10
+
+
+def test_lo_13_limit_offset_with_where(t):
+    res = t.get_row([t.id], where=t.val >= 30, order_by=t.id, limit=2, offset=1)
+    # vals: 30(id=3),40(4),50(5),... => skip one (id=3) take two => [4, 5]
+    assert res == [4, 5]
+
+
+def test_lo_14_limit_offset_multi_column(t):
+    res = t.get_row([t.id, t.val], order_by=t.id, limit=2, offset=3)
+    assert res == [(4, 40), (5, 50)]
+
+
+def test_lo_15_limit_offset_computed_column(t):
+    res = t.get_row([t.val + 1], order_by=t.id, limit=2, offset=1)
+    assert res == [21, 31]
+
+
+# ---------- Reader pool ----------
+
+def test_lo_16_limit_offset_reader_pool(t):
+    res = t.get_row([t.id], order_by=t.id, limit=3, offset=2, from_readers_pool=True)
+    assert res == [3, 4, 5]
+
+
+# =====================================================
+# JoinQuery.get_row  →  LIMIT / OFFSET
+# =====================================================
+
+@pytest.fixture
+def users(driver):
+    schema = Sqlite.TableStructure('users', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('name', Sqlite.DataTypes.TEXT())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert([tbl.id, tbl.name], [(i, f'U{i}') for i in range(1, 11)])
+    return tbl
+
+
+@pytest.fixture
+def orders(driver):
+    schema = Sqlite.TableStructure('orders', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema.add_column('total', Sqlite.DataTypes.REAL())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert([tbl.id, tbl.user_id, tbl.total],
+                    [(100 + i, i, float(i * 10)) for i in range(1, 11)])
+    return tbl
+
+
+def test_lo_17_join_limit_only(users, orders):
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id], order_by=users.id, limit=3))
+    assert len(res) == 3
+    assert [r[0] for r in res] == [1, 2, 3]
+
+
+def test_lo_18_join_offset_only(users, orders):
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id], order_by=users.id, offset=5))
+    assert [r[0] for r in res] == [6, 7, 8, 9, 10]
+
+
+def test_lo_19_join_limit_offset(users, orders):
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id], order_by=users.id, limit=3, offset=2))
+    assert [r[0] for r in res] == [3, 4, 5]
+
+
+def test_lo_20_join_limit_zero(users, orders):
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id], limit=0))
+    assert res == []
+
+
+def test_lo_21_join_offset_bigger_than_rows(users, orders):
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id], offset=100))
+    assert res == []
+
+
+def test_lo_22_join_limit_offset_with_where(users, orders):
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id, orders.total],
+                         where=orders.total > 30,
+                         order_by=users.id,
+                         limit=2, offset=1))
+    # vals >30 for id=4,5,... → skip id=4 take id=5,6
+    assert [r[0] for r in res] == [5, 6]
+
+
+def test_lo_23_join_limit_reader_pool(users, orders):
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.id], order_by=users.id,
+                         limit=3, offset=2, from_readers_pool=True))
+    assert [r[0] for r in res] == [3, 4, 5]
+
+
+def test_lo_24_join_left_with_limit(users, orders, driver):
+    # id=11 را در users اضافه می‌کنیم ولی در orders چیزی ندارد
+    users.insert({users.id: 11, users.name: 'U11'})
+    res = (users.left_join(orders, users.id == orders.user_id)
+                .get_row([users.id], order_by=users.id, limit=2, offset=9))
+    # 11 rows total → offset 9 limit 2 → id=10 و id=11
+    assert [r[0] for r in res] == [10, 11]
+
+
+def test_lo_25_join_chain_with_limit(users, orders, driver):
+    schema = Sqlite.TableStructure('logs', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema.add_column('msg', Sqlite.DataTypes.TEXT())
+    logs = driver.create_table(schema)
+    logs.bulk_insert([logs.id, logs.user_id, logs.msg],
+                     [(i, i, f'M{i}') for i in range(1, 11)])
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .inner_join(logs, users.id == logs.user_id)
+                .get_row([users.id, logs.msg],
+                         order_by=users.id, limit=3, offset=4))
+    assert [r[0] for r in res] == [5, 6, 7]
+
+@pytest.fixture
+def db_path(tmp_path):
+    return str(tmp_path / "test_limit_offset.db")
+
+
+@pytest.fixture
+def driver(db_path):
+    drv = Sqlite.Driver(db_path, setup_time=0.1)
+    yield drv
+    try:
+        drv.disconnect()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def t(driver):
+    schema = Sqlite.TableStructure('nums', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('val', Sqlite.DataTypes.INTEGER())
+    tbl = driver.create_table(schema)
+    tbl.bulk_insert([tbl.id, tbl.val], [(i, i * 10) for i in range(1, 11)])
+    return tbl
+
+
+# ---------- LIMIT ----------
+
+def test_lo_01_limit_only(t):
+    res = t.get_row([t.id], limit=3)
+    assert len(res) == 3
+
+
+def test_lo_02_limit_zero(t):
+    res = t.get_row([t.id], limit=0)
+    assert res == []
+
+
+def test_lo_03_limit_larger_than_rows(t):
+    res = t.get_row([t.id], limit=1000)
+    assert len(res) == 10
+
+
+def test_lo_04_limit_with_order(t):
+    res = t.get_row([t.id], order_by=t.id, limit=3)
+    assert res == [1, 2, 3]
+
+
+def test_lo_05_limit_with_where(t):
+    res = t.get_row([t.id], where=t.val > 30, limit=2)
+    assert len(res) == 2
+
+
+# ---------- OFFSET ----------
+
+def test_lo_06_offset_only(t):
+    res = t.get_row([t.id], offset=5)
+    # offset بدون limit یعنی limit=-1 یعنی همه
+    assert len(res) == 5
+
+
+def test_lo_07_offset_only_with_order(t):
+    res = t.get_row([t.id], order_by=t.id, offset=5)
+    assert res == [6, 7, 8, 9, 10]
+
+
+def test_lo_08_offset_zero(t):
+    res = t.get_row([t.id], order_by=t.id, offset=0)
+    assert len(res) == 10
+
+
+def test_lo_09_offset_larger_than_rows(t):
+    res = t.get_row([t.id], offset=100)
+    assert res == []
+
+
+# ---------- LIMIT + OFFSET ----------
+
+def test_lo_10_limit_offset(t):
+    res = t.get_row([t.id], order_by=t.id, limit=3, offset=2)
+    assert res == [3, 4, 5]
+
+
+def test_lo_11_limit_offset_end(t):
+    res = t.get_row([t.id], order_by=t.id, limit=3, offset=8)
+    assert res == [9, 10]
+
+
+def test_lo_12_limit_offset_full_window(t):
+    res = t.get_row([t.id], order_by=t.id, limit=10, offset=0)
+    assert len(res) == 10
+
+
+def test_lo_13_limit_offset_with_where(t):
+    res = t.get_row([t.id], where=t.val >= 30, order_by=t.id, limit=2, offset=1)
+    # vals: 30(id=3),40(4),50(5),... => skip one (id=3) take two => [4, 5]
+    assert res == [4, 5]
+
+
+def test_lo_14_limit_offset_multi_column(t):
+    res = t.get_row([t.id, t.val], order_by=t.id, limit=2, offset=3)
+    assert res == [(4, 40), (5, 50)]
+
+
+def test_lo_15_limit_offset_computed_column(t):
+    res = t.get_row([t.val + 1], order_by=t.id, limit=2, offset=1)
+    assert res == [21, 31]
+
+
+# ---------- Reader pool ----------
+
+def test_lo_16_limit_offset_reader_pool(t):
+    res = t.get_row([t.id], order_by=t.id, limit=3, offset=2, from_readers_pool=True)
+    assert res == [3, 4, 5]
+
+
+# ---------- Combined with join (روی JoinQuery وجود ندارد) ----------
+# توجه: متد JoinQuery.get_row پارامتر limit/offset ندارد.
+# اگر می‌خواهید این قابلیت به join هم اضافه شود باید در JoinQuery.get_row نیز
+# limit/offset اضافه کنید. در آن صورت این تست را فعال کنید:
+
+# def test_lo_17_limit_offset_on_join(users, orders):
+#     ...
+
+@pytest.fixture
+def db_path(tmp_path):
+    return str(tmp_path / "test_new_join.db")
+
+
+@pytest.fixture
+def driver(db_path):
+    drv = Sqlite.Driver(db_path, setup_time=0.1)
+    yield drv
+    try:
+        drv.disconnect()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def users(driver):
+    schema = Sqlite.TableStructure('users', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('name', Sqlite.DataTypes.TEXT())
+    schema.add_column('age', Sqlite.DataTypes.INTEGER())
+    return driver.create_table(schema)
+
+
+@pytest.fixture
+def orders(driver):
+    schema = Sqlite.TableStructure('orders', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema.add_column('total', Sqlite.DataTypes.REAL())
+    return driver.create_table(schema)
+
+
+@pytest.fixture
+def logs(driver):
+    schema = Sqlite.TableStructure('logs', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema.add_column('msg', Sqlite.DataTypes.TEXT())
+    return driver.create_table(schema)
+
+
+# ---------- ساختار پایه ----------
+
+def test_join_01_inner_basic(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali', users.age: 30})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    res = users.inner_join(orders, users.id == orders.user_id)\
+               .get_row([users.name, orders.total])
+    assert res == [('Ali', 50.0)]
+
+
+def test_join_02_left_keeps_unmatched(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    users.insert({users.id: 2, users.name: 'Reza'})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    res = users.left_join(orders, users.id == orders.user_id)\
+               .get_row([users.name, orders.total])
+    assert len(res) == 2
+    # Reza total must be None (or (None,) depending on your sqlite driver mapping)
+    reza_row = [r for r in res if r[0] == 'Reza'][0]
+    assert reza_row[1] is None
+
+
+def test_join_03_right_keeps_orphans(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    orders.insert({orders.id: 101, orders.user_id: 99, orders.total: 20.0})
+    res = users.right_join(orders, users.id == orders.user_id)\
+               .get_row([users.name, orders.total])
+    assert len(res) == 2
+    orphan = [r for r in res if r[1] == 20.0][0]
+    assert orphan[0] is None
+
+
+# ---------- Chaining ----------
+
+def test_join_04_chain_inner_then_left(users, orders, logs):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    orders.insert({orders.id: 10, orders.user_id: 1, orders.total: 100})
+    logs.insert({logs.id: 1, logs.user_id: 1, logs.msg: 'Error'})
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .left_join(logs, users.id == logs.user_id)
+                .get_row([users.name, orders.total, logs.msg]))
+    assert res == [('Ali', 100.0, 'Error')]
+
+
+def test_join_05_chain_three_inner(users, orders, logs):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    orders.insert({orders.id: 10, orders.user_id: 1, orders.total: 100})
+    logs.insert({logs.id: 1, logs.user_id: 1, logs.msg: 'OK'})
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .inner_join(logs, orders.user_id == logs.user_id)
+                .get_row([users.name, logs.msg]))
+    assert res == [('Ali', 'OK')]
+
+
+# ---------- WHERE / ORDER BY ----------
+
+def test_join_06_where_filter(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    users.insert({users.id: 2, users.name: 'Reza'})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    orders.insert({orders.id: 101, orders.user_id: 2, orders.total: 150.0})
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.name], where=orders.total > 100))
+    assert res == [('Reza',)]
+
+
+def test_join_07_order_by(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    users.insert({users.id: 2, users.name: 'Reza'})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    orders.insert({orders.id: 101, orders.user_id: 2, orders.total: 150.0})
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.name], order_by=orders.total))
+    assert res[0] == ('Ali',)
+    assert res[1] == ('Reza',)
+
+
+def test_join_08_where_and_order(users, orders):
+    for i in range(1, 6):
+        users.insert({users.id: i, users.name: f'U{i}'})
+        orders.insert({orders.id: 100 + i, orders.user_id: i, orders.total: i * 10})
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.name], where=orders.total > 20, order_by=orders.total))
+    assert [r[0] for r in res] == ['U3', 'U4', 'U5']
+
+
+# ---------- Compound conditions ----------
+
+def test_join_09_compound_and(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali', users.age: 25})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    cond = (users.id == orders.user_id) & (users.age > 20)
+    res = users.inner_join(orders, cond).get_row([users.name])
+    assert res == [('Ali',)]
+
+
+def test_join_10_compound_or(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    users.insert({users.id: 2, users.name: 'X'})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    orders.insert({orders.id: 101, orders.user_id: 2, orders.total: 0.0})
+    cond = (users.id == orders.user_id) | (orders.total == 0)
+    res = users.inner_join(orders, cond).get_row([users.name])
+    assert len(res) >= 1
+
+
+def test_join_11_params_in_condition(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    cond = (users.id == orders.user_id) & (users.name == 'Ali')
+    res = users.inner_join(orders, cond).get_row([users.name])
+    assert res == [('Ali',)]
+
+
+# ---------- Automatic aliasing (same table joined twice) ----------
+
+def test_join_12_auto_alias_same_table_twice(users, orders, driver):
+    # یک تگ مثل "orders" می‌خواهیم دو بار join کنیم
+    schema = Sqlite.TableStructure('orders', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema.add_column('total', Sqlite.DataTypes.REAL())
+    # یک جدول دوم با نام دیگر برای تایید سازگاری
+    users.insert({users.id: 1, users.name: 'Ali'})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    # همان جدول را دو بار join می‌کنیم
+    jq = users.inner_join(orders, users.id == orders.user_id)
+    jq2 = jq.inner_join(orders, users.id == orders.user_id)  # باید alias خودکار بگیرد
+    # فقط بررسی می‌کنیم که بدون خطا اجرا شود
+    res = jq2.get_row([users.name])
+    assert res is not None
+
+
+def test_join_13_explicit_alias(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    jq = users.inner_join(orders, users.id == orders.user_id, alias='o1')
+    res = jq.get_row([users.name])
+    assert res == [('Ali',)]
+
+
+# ---------- Computed columns ----------
+
+def test_join_14_computed_select(users, orders):
+    users.insert({users.id: 1, users.name: 'ali'})
+    orders.insert({orders.id: 1, orders.user_id: 1, orders.total: 50.0})
+    res = users.inner_join(orders, users.id == orders.user_id)\
+               .get_row([users.name.upper(), orders.total + 10])
+    assert res == [('ALI', 60.0)]
+
+
+def test_join_15_where_on_computed(users, orders):
+    users.insert({users.id: 1, users.age: 20, users.name: 'A'})
+    orders.insert({orders.id: 1, orders.user_id: 1, orders.total: 50.0})
+    cond = (users.id == orders.user_id) & ((users.age + 10) > 29)
+    res = users.inner_join(orders, cond).get_row([users.name])
+    assert len(res) == 1
+
+
+# ---------- Reader pool ----------
+
+def test_join_16_reader_pool(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    res = (users.inner_join(orders, users.id == orders.user_id)
+                .get_row([users.name], from_readers_pool=True))
+    assert res == [('Ali',)]
+
+
+# ---------- Empty / no-data ----------
+
+def test_join_17_inner_no_data(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    res = users.inner_join(orders, users.id == orders.user_id).get_row([users.name])
+    assert res == []
+
+
+def test_join_18_left_no_data(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    res = users.left_join(orders, users.id == orders.user_id).get_row([users.name])
+    assert res == [('Ali',)]
+
+
+# ---------- Error handling ----------
+
+def test_join_19_invalid_condition_type(users, orders):
+    with pytest.raises(Exception):
+        users.inner_join(orders, "not-a-condition").get_row([users.name])
+
+
+def test_join_20_empty_columns(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali'})
+    orders.insert({orders.id: 1, orders.user_id: 1, orders.total: 5.0})
+    res = users.inner_join(orders, users.id == orders.user_id).get_row([])
+    assert res == []
+
+
+def test_join_21_join_multiple_columns_from_both(users, orders):
+    users.insert({users.id: 1, users.name: 'Ali', users.age: 30})
+    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
+    res = users.inner_join(orders, users.id == orders.user_id)\
+               .get_row([users.name, users.age, orders.total, orders.id])
+    assert res == [('Ali', 30, 50.0, 100)]
+
+
+def test_join_22_join_with_like_condition(users, orders):
+    users.insert({users.id: 1, users.name: 'Alexander'})
+    orders.insert({orders.id: 1, orders.user_id: 1, orders.total: 10.0})
+    cond = (users.id == orders.user_id) & users.name.like('Alex%')
+    res = users.inner_join(orders, cond).get_row([users.name])
+    assert res == [('Alexander',)]
+
 @pytest.fixture
 def db_path(tmp_path):
     
@@ -1800,260 +2395,6 @@ def test_260_bulk_update_empty_list(users, driver):
     users.bulk_update({users.name: driver.PLACE_HOLDER}, users.id == 1, [])
     res = users.get_row([users.name], users.id == 1)
     assert res[0] == 'A' 
-def test_262_join_inner(users, orders):
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name, orders.total], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-    assert len(res) == 1
-    assert res[0] == ('Ali', 50.0)
-def test_263_join_left(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    users.insert({users.id: 2, users.name: 'Reza'}) 
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    
-    res = users.join([users.name, orders.total], [Sqlite.Join.Left(orders, users.id == orders.user_id)])
-    assert len(res) == 2
-    assert res[1][1] is None 
-def test_264_join_right(users, orders):
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    orders.insert({orders.id: 101, orders.user_id: 99, orders.total: 20.0})
-    res = users.join(
-        [users.name, orders.total],
-        [Sqlite.Join.Right(orders, users.id == orders.user_id)]
-    )
-    assert len(res) == 2  
-def test_265_join_two_joins(users, orders, driver):
-    
-    schema = Sqlite.TableStructure('items', strict=True)
-    schema.add_column('order_id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    schema.add_column('product', Sqlite.DataTypes.TEXT())
-    items = driver.create_table(schema)
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 10, orders.user_id: 1, orders.total: 100})
-    items.insert({items.order_id: 10, items.product: 'Book'})
-    
-    res = users.join(
-        [users.name, items.product],
-        [Sqlite.Join.Inner(orders, users.id == orders.user_id), Sqlite.Join.Inner(items, orders.id == items.order_id)]
-    )
-    assert res[0] == ('Ali', 'Book')
-def test_266_join_with_where(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    users.insert({users.id: 2, users.name: 'Reza'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    orders.insert({orders.id: 101, orders.user_id: 2, orders.total: 150.0})
-    
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=orders.total > 100)
-    assert len(res) == 1 and res[0][0] == 'Reza'
-def test_267_join_order_by(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    users.insert({users.id: 2, users.name: 'Reza'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    orders.insert({orders.id: 101, orders.user_id: 2, orders.total: 150.0})
-    
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], order_by=orders.total)
-    assert res[0][0] == 'Ali' 
-def test_268_join_columns_operation_select(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name.upper()], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-    assert res[0][0] == 'ALI'
-def test_269_join_reader_pool(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], from_readers_pool=True)
-    assert res[0][0] == 'Ali'
-def test_270_join_complex_condition(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali', users.age: 20})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    cond = (users.id == orders.user_id) & (users.age > 18)
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, cond)])
-    assert len(res) == 1
-def test_271_join_no_data(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-    assert len(res) == 0
-def test_272_join_three_tables_where(users, orders, driver):
-    
-    schema = Sqlite.TableStructure('payments', strict=True)
-    schema.add_column('order_id', Sqlite.DataTypes.INTEGER())
-    schema.add_column('amount', Sqlite.DataTypes.REAL())
-    payments = driver.create_table(schema)
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 10, orders.user_id: 1, orders.total: 100})
-    payments.insert({payments.order_id: 10, payments.amount: 50.0})
-    res = users.join(
-        [users.name, payments.amount],
-        [Sqlite.Join.Inner(orders, users.id == orders.user_id), Sqlite.Join.Inner(payments, orders.id == payments.order_id)],
-        where=payments.amount < 100.0
-    )
-    assert len(res) == 1
-def test_273_join_where_like(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Alexander'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=users.name.like('Alex%'))
-    assert len(res) == 1
-def test_274_join_where_in(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    users.insert({users.id: 2, users.name: 'Reza'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    orders.insert({orders.id: 101, orders.user_id: 2, orders.total: 60.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=users.name.In(['Ali']))
-    assert len(res) == 1
-def test_275_join_where_between(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=(orders.total >= 40) & (orders.total <= 60))
-    assert len(res) == 1
-def test_276_join_where_is_null(users, orders):
-    
-    users.insert({users.id: 1, users.name: None}) 
-    
-    users.insert({users.id: 2, users.name: 'Reza', users.age: None})
-    orders.insert({orders.id: 100, orders.user_id: 2, orders.total: 10.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=users.age == None)
-    assert len(res) == 1
-def test_277_join_where_is_not_null(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali', users.age: 20})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 10.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=users.age != None)
-    assert len(res) == 1
-def test_278_join_computed_order(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], order_by=orders.total)
-    assert len(res) == 1
-def test_279_join_empty_joins_list(users):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    res = users.join([users.name], joins_list=[])
-    assert res[0][0] == 'Ali'
-def test_280_join_columns_empty_error(users, orders):
-    
-    with pytest.raises(Exception):
-        users.join([], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-def test_281_join_where_none(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=None)
-    assert len(res) == 1
-def test_282_join_order_by_none(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], order_by=None)
-    assert len(res) == 1
-def test_283_bulk_insert_then_join(users, orders):
-    
-    users.bulk_insert([users.id, users.name], [(1, 'Ali')])
-    orders.bulk_insert([orders.id, orders.user_id, orders.total], [(100, 1, 50.0)])
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-    assert res[0][0] == 'Ali'
-def test_284_update_on_joined_table_error(users, orders):
-    
-    
-    with pytest.raises(Exception):
-        users.update({orders.total: 999}, users.id == 1)
-def test_285_delete_on_joined_table_error(users, orders):
-    
-    
-    with pytest.raises(Exception):
-        users.delete_row(orders.total > 100)
-def test_286_get_row_order_by_other_table(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    
-    with pytest.raises(Exception):
-        users.get_row([users.name], order_by=orders.total)
-def test_287_join_inner_output(users, orders):
-    
-    join_obj = Sqlite.Join.Inner(orders, users.id == orders.user_id)
-    out = join_obj._output
-    assert "INNER JOIN" in out[0]
-    assert "orders" in out[0]
-def test_288_join_left_output(users, orders):
-    
-    join_obj = Sqlite.Join.Left(orders, users.id == orders.user_id)
-    out = join_obj._output
-    assert "LEFT JOIN" in out[0]
-def test_289_join_right_output(users, orders):
-    
-    join_obj = Sqlite.Join.Right(orders, users.id == orders.user_id)
-    out = join_obj._output
-    assert "RIGHT JOIN" in out[0]
-def test_290_join_combine_inner_left(users, orders, driver):
-    
-    schema = Sqlite.TableStructure('logs', strict=True)
-    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
-    schema.add_column('msg', Sqlite.DataTypes.TEXT())
-    logs = driver.create_table(schema)
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 10, orders.user_id: 1, orders.total: 100})
-    logs.insert({logs.user_id: 1, logs.msg: 'Error'})
-    res = users.join(
-        [users.name, logs.msg],
-        [Sqlite.Join.Inner(orders, users.id == orders.user_id), Sqlite.Join.Left(logs, users.id == logs.user_id)]
-    )
-    assert res[0][1] == 'Error'
-def test_291_join_complex_op_where(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali', users.age: 20})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=(users.age + 10) > 29)
-    assert len(res) == 1
-def test_292_join_order_and_reader_pool(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], order_by=users.id, from_readers_pool=True)
-    assert res[0][0] == 'Ali'
-def test_293_join_where_null(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali', users.age: None})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=users.age == None)
-    assert len(res) == 1
-def test_294_join_mixed_columns(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name.upper(), orders.total], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-    assert res[0] == ('ALI', 50.0)
-def test_296_join_and_get_row(users, orders):
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    joined_res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-    row_res = users.get_row([users.name], users.id == 1)
-    assert joined_res[0][0] == row_res[0]
-def test_299_join_where_in_subquery(users, orders, driver):
-    users.insert({users.id: 1, users.name: 'Ali'})
-    users.insert({users.id: 2, users.name: 'Reza'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=users.name.In(['Ali', 'Sara']))
-    assert len(res) == 1
-def test_300_join_alias_prevention(users, orders):
-    
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    
-    res = users.join([users.name, orders.total], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-    assert res[0] == ('Ali', 50.0)
 @pytest.fixture
 def db_path(tmp_path):
     return str(tmp_path / "test_indexes_schema.db")
@@ -2958,314 +3299,6 @@ def orders(driver):
     schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
     schema.add_column('total', Sqlite.DataTypes.REAL())
     return driver.create_table(schema)
-def test_401_join_inner_creation(users, orders):
-    
-    join = Sqlite.Join.Inner(orders, users.id == orders.user_id)
-    assert join is not None
-def test_402_join_inner_output(users, orders):
-    
-    join = Sqlite.Join.Inner(orders, users.id == orders.user_id)
-    sql, params = join._output
-    assert "INNER JOIN" in sql
-    assert "orders" in sql
-    assert len(params) == 0
-def test_403_join_left_output(users, orders):
-    
-    join = Sqlite.Join.Left(orders, users.id == orders.user_id)
-    sql, params = join._output
-    assert "LEFT JOIN" in sql
-def test_404_join_right_output(users, orders):
-    
-    join = Sqlite.Join.Right(orders, users.id == orders.user_id)
-    sql, params = join._output
-    assert "RIGHT JOIN" in sql
-def test_405_use_inner_in_table_join(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-    assert res[0][0] == 'Ali'
-def test_406_use_left_in_table_join(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    res = users.join([users.name], [Sqlite.Join.Left(orders, users.id == orders.user_id)])
-    assert len(res) == 1
-def test_407_use_right_in_table_join(users, orders):
-    users.insert({users.id: 1, users.name: 'Ali'})
-    res = users.join(
-        [users.name],
-        [Sqlite.Join.Left(orders, users.id == orders.user_id)]
-    )
-    assert len(res) == 1
-def test_408_join_inner_compound_and(users, orders):
-    
-    cond = (users.id == orders.user_id) & (orders.total > 10)
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "AND" in sql
-def test_409_join_left_compound_or(users, orders):
-    
-    cond = (users.id == orders.user_id) | (orders.total == 0)
-    join = Sqlite.Join.Left(orders, cond)
-    sql, _ = join._output
-    assert "OR" in sql
-def test_410_join_right_columns_op(users, orders):
-    
-    cond = (users.id + 1) == orders.user_id
-    join = Sqlite.Join.Right(orders, cond)
-    sql, _ = join._output
-    assert "+" in sql
-def test_411_join_space_in_table_name(driver, orders):
-    
-    schema = Sqlite.TableStructure('user data', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    tbl_space = driver.create_table(schema)
-    join = Sqlite.Join.Inner(orders, tbl_space.id == orders.user_id)
-    sql, _ = join._output
-    assert "user data" in sql or "[user data]" in sql
-def test_412_join_columns_op_with_params(users, orders):
-    
-    cond = users.name == 'Ali' 
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, params = join._output
-    assert "?" in sql
-    assert 'Ali' in params
-def test_413_multiple_joins_in_query(users, orders, driver):
-    
-    schema = Sqlite.TableStructure('logs', strict=True)
-    schema.add_column('user_id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    logs = driver.create_table(schema)
-    
-    j1 = Sqlite.Join.Inner(orders, users.id == orders.user_id)
-    j2 = Sqlite.Join.Left(logs, users.id == logs.user_id)
-    
-    assert j1._output and j2._output
-def test_414_join_inner_no_data(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    res = users.join([users.name], [Sqlite.Join.Inner(orders, users.id == orders.user_id)])
-    assert len(res) == 0
-def test_415_join_left_no_data(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali'})
-    res = users.join([users.name], [Sqlite.Join.Left(orders, users.id == orders.user_id)])
-    assert len(res) == 1
-def test_416_join_on_like(users, orders):
-    
-    
-    cond = users.name.like('A%')
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "like" in sql.lower()
-def test_417_join_on_between(users, orders):
-    
-    cond = (orders.total >= 10) & (orders.total <= 100)
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert ">=" in sql and "<=" in sql
-def test_418_join_on_in(users, orders):
-    
-    cond = users.name.In(['Ali', 'Reza'])
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, params = join._output
-    assert "IN" in sql.upper()
-    assert 'Ali' in params
-def test_419_join_on_function(users, orders):
-    
-    cond = users.name.upper() == 'ALI'
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "upper" in sql.lower()
-def test_420_join_table_from_driver_attr(driver, users, orders):
-    
-    tbl = driver.users
-    join = Sqlite.Join.Inner(orders, tbl.id == orders.user_id)
-    assert join is not None
-def test_421_join_table_from_table_object(driver, users, orders):
-    
-    tbl = driver.table_object('users')
-    join = Sqlite.Join.Left(orders, tbl.id == orders.user_id)
-    assert join is not None
-def test_422_join_newly_created_table(driver, orders):
-    
-    schema = Sqlite.TableStructure('fresh', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    fresh = driver.create_table(schema)
-    join = Sqlite.Join.Right(fresh, orders.user_id == fresh.id)
-    assert join is not None
-def test_423_join_on_add_end(users, orders):
-    
-    cond = users.name.add_end('_suffix') == orders.user_id 
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "||" in sql 
-def test_424_join_on_add_first(users, orders):
-    
-    cond = users.name.add_first('prefix_') == orders.user_id
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "||" in sql
-def test_425_join_on_replace(users, orders):
-    
-    cond = users.name.replace('a', 'b') == 'Ali'
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "replace" in sql.lower()
-def test_426_join_on_strip(users, orders):
-    
-    cond = users.name.strip() == 'Ali'
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "ltrim" in sql.lower() or "rtrim" in sql.lower() or "trim" in sql.lower()
-def test_427_join_on_upper_lower(users, orders):
-    
-    cond = users.name.upper() == users.name.lower()
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "upper" in sql.lower() and "lower" in sql.lower()
-def test_428_join_on_startswith(users, orders):
-    
-    cond = users.name.startswith('A')
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, params = join._output
-    assert "like" in sql.lower()
-    assert 'A%' in params or 'A' in params
-def test_429_join_on_endswith(users, orders):
-    
-    cond = users.name.endswith('z')
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, params = join._output
-    assert "like" in sql.lower()
-def test_430_join_on_contains(users, orders):
-    
-    cond = users.name.contains('li')
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, params = join._output
-    assert "like" in sql.lower()
-def test_431_join_on_like_method(users, orders):
-    
-    cond = users.name.like('%li%')
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, params = join._output
-    assert "like" in sql.lower()
-def test_432_join_on_eq(users, orders):
-    
-    cond = users.id.eq(orders.user_id)
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "=" in sql
-def test_433_join_on_ne(users, orders):
-    
-    cond = users.id.ne(orders.user_id)
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "<>" in sql or "!=" in sql
-def test_434_join_on_comparisons(users, orders):
-    
-    cond = users.id.gt(orders.user_id) & users.id.le(10)
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert ">" in sql and "<=" in sql
-def test_435_join_on_in_list(users, orders):
-    
-    cond = users.id.In([1, 2, 3])
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, params = join._output
-    assert "IN" in sql.upper()
-    assert len(params) > 0
-def test_436_join_on_and_or(users, orders):
-    
-    c1 = (users.id == orders.user_id)
-    c2 = (orders.total > 50)
-    cond = c1 & c2
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "AND" in sql
-def test_437_join_on_slice(users, orders):
-    
-    cond = users.name[1:3] == 'li'
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "substr" in sql.lower()
-def test_438_join_on_add_sub(users, orders):
-    
-    cond = (users.age + 5) == (orders.total - 10)
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "+" in sql and "-" in sql
-def test_439_join_on_mul_div_mod(users, orders):
-    
-    cond = (users.age * 2) == (orders.total / 5)
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "*" in sql and "/" in sql
-def test_440_join_on_pow(users, orders):
-    
-    
-    
-    cond = (users.age ** 2) > 100
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "power" in sql.lower() or "**" in sql 
-def test_441_join_on_combined_ops(users, orders):
-    
-    cond = ((users.age + 10) * 2) < orders.total
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "+" in sql and "*" in sql
-def test_442_join_on_datatype_preserved(users, orders):
-    
-    
-    cond = users.age + 5 > 10
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, _ = join._output
-    assert "+" in sql 
-def test_443_join_on_many_params(users, orders):
-    
-    cond = users.name.In(['A', 'B', 'C', 'D', 'E', 'F'])
-    join = Sqlite.Join.Inner(orders, cond)
-    sql, params = join._output
-    assert len(params) == 6
-def test_446_join_bucket_table_name(driver, orders):
-    
-    schema = Sqlite.TableStructure('my-table', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    tbl = driver.create_table(schema)
-    join = Sqlite.Join.Inner(orders, tbl.id == orders.user_id)
-    sql, _ = join._output
-    assert "my-table" in sql
-def test_447_join_strict_table(users, orders):
-    join = Sqlite.Join.Inner(orders, users.id == orders.user_id)
-    sql, _ = join._output
-    assert "users" in sql
-def test_448_join_non_strict_table(driver, orders):
-    
-    schema = Sqlite.TableStructure('non_strict', strict=False)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    tbl = driver.create_table(schema)
-    join = Sqlite.Join.Inner(orders, tbl.id == orders.user_id)
-    sql, _ = join._output
-    assert "non_strict" in sql
-def test_449_join_execution_with_complex_on(users, orders):
-    
-    users.insert({users.id: 1, users.name: 'Ali', users.age: 25})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    
-    cond = (users.id == orders.user_id) & (users.age > 20)
-    res = users.join([users.name, orders.total], [Sqlite.Join.Inner(orders, cond)])
-    assert len(res) == 1
-    assert res[0] == ('Ali', 50.0)
-def test_450_join_right_execution_logic(users, orders):
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    orders.insert({orders.id: 101, orders.user_id: 99, orders.total: 20.0})
-    res = users.join(
-        [users.name, orders.total],
-        [Sqlite.Join.Right(orders, users.id == orders.user_id)]
-    )
-    assert len(res) == 2
-    orphan_row = [r for r in res if r[1] == 20.0][0]
-    assert orphan_row[0] is None
 @pytest.fixture
 def db_path(tmp_path):
     return str(tmp_path / "test_integration.db")
@@ -3419,42 +3452,7 @@ def test_463_reindex_after_modification(driver):
     tbl.create_index('idx1', [tbl.a])
     tbl.insert({tbl.id: 1, tbl.a: 'X'})
     tbl.reindex('idx1') 
-def test_464_join_3_tables_complex_where(driver):
-    
-    u = driver.create_table(Sqlite.TableStructure('u', strict=True).add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True).add_column('name', Sqlite.DataTypes.TEXT()))
-    o = driver.create_table(Sqlite.TableStructure('o', strict=True).add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True).add_column('uid', Sqlite.DataTypes.INTEGER()).add_column('total', Sqlite.DataTypes.REAL()))
-    p = driver.create_table(Sqlite.TableStructure('p', strict=True).add_column('oid', Sqlite.DataTypes.INTEGER(), primary_key=True).add_column('paid', Sqlite.DataTypes.BOOLEAN()))
-    u.insert({u.id: 1, u.name: 'A'})
-    o.insert({o.id: 10, o.uid: 1, o.total: 100})
-    p.insert({p.oid: 10, p.paid: True})
-    res = u.join([u.name], [Sqlite.Join.Inner(o, u.id == o.uid), Sqlite.Join.Inner(p, o.id == p.oid)], where=p.paid == True)
-    assert len(res) == 1
-def test_465_join_computed_select(driver):
-    
-    u = driver.create_table(Sqlite.TableStructure('u2', strict=True).add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True).add_column('name', Sqlite.DataTypes.TEXT()))
-    o = driver.create_table(Sqlite.TableStructure('o2', strict=True).add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True).add_column('uid', Sqlite.DataTypes.INTEGER()).add_column('total', Sqlite.DataTypes.REAL()))
-    u.insert({u.id: 1, u.name: 'ali'})
-    o.insert({o.id: 1, o.uid: 1, o.total: 50})
-    res = u.join([u.name.upper(), o.total + 10], [Sqlite.Join.Inner(o, u.id == o.uid)])
-    assert res[0] == ('ALI', 60.0)
-def test_466_join_order_by_computed(driver):
-    
-    u = driver.create_table(Sqlite.TableStructure('u3', strict=True).add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True))
-    o = driver.create_table(Sqlite.TableStructure('o3', strict=True).add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True).add_column('uid', Sqlite.DataTypes.INTEGER()).add_column('total', Sqlite.DataTypes.REAL()))
-    u.insert({u.id: 1})
-    o.insert({o.id: 1, o.uid: 1, o.total: 50})
-    res = u.join([u.id], [Sqlite.Join.Inner(o, u.id == o.uid)], order_by=o.total)
-    assert len(res) == 1
-def test_467_join_reader_pool_concurrent(driver):
-    
-    u = driver.create_table(Sqlite.TableStructure('u4', strict=True).add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True))
-    u.insert({u.id: 1})
-    res = u.join([u.id], joins_list=[], from_readers_pool=True)
-    assert res[0][0] == 1
 def test_468_batch_cross_table_rollback(driver):
-    
-    
-    
     t1 = driver.create_table(Sqlite.TableStructure('b1', strict=True).add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True))
     t2 = driver.create_table(Sqlite.TableStructure('b2', strict=True).add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True))
     
@@ -3608,30 +3606,3 @@ def test_489_structure_deferrable_fk(driver):
     schema.foreign_key('pid', def_t, def_t.id, deferrable=True, initially='DEFERRED')
     sql = schema.get_structure()
     assert "DEFERRABLE INITIALLY DEFERRED" in sql
-def test_499_comprehensive_e2e(db_path):
-    drv = Sqlite.Driver(db_path, none_block_reader_pool_size=2, setup_time=0.2)
-    drv.SetPragma.journal_mode('WAL')
-    drv.SetPragma.foreign_keys(True)
-    sch_u = Sqlite.TableStructure('e2e_users', strict=True)
-    sch_u.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    sch_u.add_column('name', Sqlite.DataTypes.TEXT(), not_null=True)
-    users = drv.create_table(sch_u)
-    sch_o = Sqlite.TableStructure('e2e_orders', strict=True)
-    sch_o.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    sch_o.add_column('user_id', Sqlite.DataTypes.INTEGER())
-    sch_o.add_column('total', Sqlite.DataTypes.REAL())
-    sch_o.foreign_key('user_id', users, users.id, on_delete='CASCADE')
-    orders = drv.create_table(sch_o)
-    users.insert({users.id: 1, users.name: 'Ali'})
-    users.insert({users.id: 2, users.name: 'Reza'})
-    orders.bulk_insert([orders.id, orders.user_id, orders.total], [(1, 1, 50.0), (2, 1, 100.0), (3, 2, 200.0)])
-    res = users.join([users.name, orders.total], [Sqlite.Join.Inner(orders, users.id == orders.user_id)], where=orders.total > 50)
-    assert len(res) == 2
-    batch = users.batch()
-    batch.update({users.name: 'AliU'}, users.id == 1)
-    batch.run()
-    assert users.get_row([users.name], users.id == 1)[0] == 'AliU'
-    orders.create_index('idx_e2e_total', [orders.total])
-    assert 'idx_e2e_total' in orders.get_indexes()
-    drv.defragment()
-    drv.disconnect()

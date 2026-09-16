@@ -1,142 +1,171 @@
 from __future__ import annotations
+from .. import Column, ColumnsOperation
 
-class Join:
 
-    """Factory namespace for creating SQL JOIN clauses.
-
-    This class serves as a container for nested join type classes (`Inner`, `Left`,
-    `Right`). Each nested class, when instantiated, produces a join fragment that
-    can be passed to the :meth:`Table.join` method to build complex SELECT queries
-    with joined tables.
-
-    The nested classes store both the SQL join string and its associated
-    parameter list, which are used internally by the ORM.
-
-    Example:
-        Basic usage with an INNER JOIN:
-
-        >>> employees = driver.employees
-        >>> departments = driver.departments
-        >>> join_condition = employees.dept_id == departments.id
-        >>> inner = Join.Inner(departments, join_condition)
-        >>> results = employees.join(
-        ...     [employees.name, departments.name],
-        ...     [inner]
-        ... )
-
-    Example:
-        Using a LEFT JOIN to include all employees even if they have no department:
-
-        >>> left = Join.Left(departments, join_condition)
-        >>> results = employees.join(
-        ...     [employees.name, departments.name],
-        ...     [left],
-        ...     where=employees.salary > 50000
-        ... )
-
-    Example:
-        Using a RIGHT JOIN to include all departments even if they have no employees:
-
-        >>> right = Join.Right(departments, join_condition)
-        >>> results = employees.join(
-        ...     [employees.name, departments.name],
-        ...     [right]
-        ... )
-
-    Note:
-        Multiple joins can be combined by passing a list of join objects to
-        :meth:`Table.join`.
+class JoinQuery:
     """
-        
-    class Inner:
-        def __init__(self, table: Table, match_case_condition: ColumnsOperation):
-            """Initialize an INNER JOIN clause for a query.
+    Fluent builder for PostgreSQL JOIN queries with automatic table aliasing.
 
-            This constructor creates an INNER JOIN fragment that can be used in the
-            :meth:`Table.join` method. It stores the SQL representation and its
-            associated parameters for later use in building a complete SELECT query.
+    Returned by Table.inner_join(), Table.left_join(), and Table.right_join().
+    Supports chaining multiple joins and finally executing with get_row().
 
-            Args:
-                table (Table): The table to join with.
-                match_case_condition (ColumnsOperation): The join condition, typically
-                    a comparison between columns from the main table and the joined table.
+    Internal state:
+        table_obj (Table): base table (left side of the first join)
+        joins (list[dict]): each item is {'type', 'table', 'condition', 'alias'}
+        params (list): accumulated bind parameters (%s placeholders)
+        _output (tuple[str, list]): same shape as ColumnsOperation — a SQL
+            fragment and its parameter list, so JoinQuery can be embedded in
+            other expressions if needed.
 
-            Returns:
-                None: This method initializes the instance and does not return a value.
+    Example:
+        >>> users.left_join(orders, orders.user == users.username) \\
+        ...      .inner_join(banlist, banlist.id == users.id) \\
+        ...      .get_row([orders.ordername, users.age], where=banlist.id > 20)
+    """
 
-            Example:
-                >>> employees = driver.employees
-                >>> departments = driver.departments
-                >>> join_condition = employees.dept_id == departments.id
-                >>> inner_join = Join.Inner(departments, join_condition)
-                >>> # Then use in a join query:
-                >>> results = employees.join(
-                ...     [employees.name, departments.name],
-                ...     [inner_join]
-                ... )
-            """
-            self._output = (f'INNER JOIN {table.name_} ON {match_case_condition._output[0]}', match_case_condition._output[1])
-            
-    class Left:
-        def __init__(self, table: Table, match_case_condition: ColumnsOperation):
-            """Create a LEFT JOIN clause for use in a :meth:`Table.join` query.
+    def __init__(self, table_obj, joins=None, params=None):
+        self.table_obj = table_obj
+        self.joins = joins if joins is not None else []
+        self.params = params if params is not None else []
+        # _output must be computed after joins/params are stored
+        self._output = (self._join_sql(), list(self.params)) if self.joins else ('', [])
 
-            This class represents a LEFT JOIN between the current table and another
-            table, with a specified join condition. It stores the generated SQL
-            fragment and its parameters in the `_output` attribute, which is
-            consumed by :meth:`Table.join` to build the final query.
+    # ------------------------------------------------------------------ #
+    #  Public join builders                                              #
+    # ------------------------------------------------------------------ #
+    def inner_join(self, table, condition, alias=None) -> 'JoinQuery':
+        return self._add_join('INNER JOIN', table, condition, alias)
 
-            Args:
-                table (Table): The table to join with.
-                match_case_condition (ColumnsOperation): A condition expression
-                    defining how the tables are related (e.g., using equality
-                    comparisons). This is used in the `ON` clause of the join.
+    def left_join(self, table, condition, alias=None) -> 'JoinQuery':
+        return self._add_join('LEFT JOIN', table, condition, alias)
 
-            Returns:
-                None: The constructor initializes the instance and does not return
-                a value.
+    def right_join(self, table, condition, alias=None) -> 'JoinQuery':
+        return self._add_join('RIGHT JOIN', table, condition, alias)
 
-            Example:
-                >>> employees = driver.employees
-                >>> departments = driver.departments
-                >>> join_condition = employees.dept_id == departments.id
-                >>> left_join = Join.Left(departments, join_condition)
-                >>> results = employees.join(
-                ...     [employees.name, departments.name],
-                ...     [left_join]
-                ... )
-                >>> # This generates: SELECT ... FROM "employees"
-                >>> # LEFT JOIN "departments" ON ("employees"."dept_id" = "departments"."id")
-            """
-            self._output = (f'LEFT JOIN {table.name_} ON {match_case_condition._output[0]}', match_case_condition._output[1])
+    # ------------------------------------------------------------------ #
+    #  Internals                                                         #
+    # ------------------------------------------------------------------ #
+    def _make_unique_alias(self, table) -> str:
+        """Generate an alias like ``orders_0`` that isn't already used."""
+        base = table.name_[1:-1]  # strip the surrounding double quotes
+        used = {j['alias'] for j in self.joins if j['alias']}
+        i = 0
+        while f'{base}_{i}' in used:
+            i += 1
+        return f'{base}_{i}'
 
-    class Right:
-        def __init__(self, table: Table, match_case_condition: ColumnsOperation):
-            """Initialize a RIGHT JOIN clause for a query.
+    def _add_join(self, join_type, table, condition, alias):
+        if not isinstance(condition, ColumnsOperation):
+            raise Exception(
+                f"Join condition must be a ColumnsOperation, got "
+                f"{type(condition).__name__}. Build it with column comparisons "
+                f"like `table1.col == table2.col`."
+            )
 
-            This constructor creates a RIGHT JOIN fragment that can be used in the
-            :meth:`Table.join` method. A RIGHT JOIN returns all rows from the right
-            table (the one being joined), and the matching rows from the left table.
-            If no match is found, NULL values are returned for the left table's columns.
+        already_joined = any(j['table'] is table for j in self.joins)
+        if alias is None and already_joined:
+            alias = self._make_unique_alias(table)
 
-            Args:
-                table (Table): The table to join with (the right side of the join).
-                match_case_condition (ColumnsOperation): The join condition, typically
-                    a comparison between columns from the main table and the joined table.
+        new_joins = self.joins + [{
+            'type': join_type,
+            'table': table,
+            'condition': condition,
+            'alias': alias,
+        }]
+        new_params = self.params + list(condition._output[1])
+        return JoinQuery(self.table_obj, new_joins, new_params)
 
-            Returns:
-                None: This method initializes the instance and does not return a value.
+    # --- SQL generation helpers ---------------------------------------- #
+    def _join_sql(self) -> str:
+        """Build the JOIN fragments, rewriting table refs to aliases."""
+        parts = []
+        for j in self.joins:
+            tbl = j['table']
+            cond_sql = j['condition']._output[0]
+            if j['alias']:
+                cond_sql = cond_sql.replace(
+                    f'{tbl.name_}.', f'"{j["alias"]}".'
+                )
+                parts.append(
+                    f'{j["type"]} {tbl.name_} AS "{j["alias"]}" ON {cond_sql}'
+                )
+            else:
+                parts.append(f'{j["type"]} {tbl.name_} ON {cond_sql}')
+        return ' '.join(parts)
 
-            Example:
-                >>> employees = driver.employees
-                >>> departments = driver.departments
-                >>> join_condition = employees.dept_id == departments.id
-                >>> right_join = Join.Right(departments, join_condition)
-                >>> # This will include all departments, even those with no employees.
-                >>> results = employees.join(
-                ...     [employees.name, departments.name],
-                ...     [right_join]
-                ... )
-            """
-            self._output = (f'RIGHT JOIN {table.name_} ON {match_case_condition._output[0]}', match_case_condition._output[1])
-            
+    def _resolve_column_ref(self, col) -> str:
+        """
+        Return the SQL reference for a Column using the alias of the FIRST
+        join that references this table.
+        """
+        for j in self.joins:
+            if j['table'] is col.table_obj:
+                if j['alias']:
+                    return f'"{j["alias"]}"."{col.first_name[1:-1]}"'
+                return col.name
+        return col.name
+
+    def _rewrite_expr(self, expr: str) -> str:
+        """Rewrite table refs inside an expression to use aliases."""
+        for j in self.joins:
+            if j['alias']:
+                expr = expr.replace(
+                    f'{j["table"].name_}.', f'"{j["alias"]}".'
+                )
+        return expr
+
+def get_row(
+    self,
+    which_columns: list,
+    where: 'ColumnsOperation' = None,
+    order_by: 'Column' = None,
+    limit: int = None,       
+    offset: int = None,      
+):
+    if not which_columns:
+        return []
+
+    tl = []
+    select_parts = []
+    for i in which_columns:
+        if isinstance(i, Column):
+            ref = self._resolve_column_ref(i)
+            alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
+            select_parts.append(f'{ref} AS {alias}')
+        else:
+            expr = self._rewrite_expr(i._output[0])
+            tl.extend(i._output[1])
+            if expr.startswith('(') and expr.endswith(')'):
+                expr = expr[1:-1]
+            alias = (
+                f'{i.col_obj.table_obj.name_[1:-1]}_'
+                f'{i.col_obj.first_name[1:-1]}'
+            )
+            select_parts.append(f'{expr} AS {alias}')
+
+    base_sql = (
+        f"SELECT {', '.join(select_parts)} "
+        f"FROM {self.table_obj.name_} "
+        f"{self._join_sql()}"
+    )
+    all_params = tl + list(self.params)
+
+    if where is not None:
+        base_sql += f' WHERE {self._rewrite_expr(where._output[0])}'
+        all_params += list(where._output[1])
+
+    if order_by is not None:
+        base_sql += f' ORDER BY {self._resolve_column_ref(order_by)}'
+
+    if limit is not None:               
+        base_sql += ' LIMIT %s '          
+        all_params.append(limit)          
+    if offset is not None:                
+        base_sql += ' OFFSET %s '         
+        all_params.append(offset)         
+
+    base_sql += ';'
+
+    if all_params:
+        return self.table_obj._excfp(base_sql, all_params)
+    return self.table_obj._excf(base_sql)

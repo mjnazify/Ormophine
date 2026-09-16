@@ -560,22 +560,171 @@ class BatchOperation:
         self.table_obj.main_queue.put(['qsb', self.script, queue_call_back])
         if not (callback := queue_call_back.get(block=True))[0]:
             raise Exception(callback[1])
+class JoinQuery:
+    """
+    Fluent builder for SQL JOIN queries with automatic table aliasing.
 
-class Join:
-    
-    class Inner:
-        def __init__(self, table: Table, match_case_condition: ColumnsOperation):
-            self._output =  (f'INNER JOIN {table.name_} ON {match_case_condition._output[0]}', match_case_condition._output[1])
+    Joins the same table twice safely by automatically assigning unique
+    aliases (e.g. ``orders_0``, ``orders_1``) and rewriting all references
+    to the aliased table inside conditions, SELECT lists, WHERE, and ORDER BY.
+    """
+
+    def __init__(self, table_obj, joins=None, params=None):
+        self.table_obj = table_obj
+        # joins: list of dicts {type, table, condition, alias|None}
+        self.joins = joins if joins is not None else []
+        self.params = params if params is not None else []
+        self._output = (self._join_sql(), list(self.params)) if self.joins else ('', [])
+    # ------------------------------------------------------------------ #
+    #  Public join builders                                              #
+    # ------------------------------------------------------------------ #
+    def inner_join(self, table, condition, alias=None) -> 'JoinQuery':
+        return self._add_join('INNER JOIN', table, condition, alias)
+
+    def left_join(self, table, condition, alias=None) -> 'JoinQuery':
+        return self._add_join('LEFT JOIN', table, condition, alias)
+
+    def right_join(self, table, condition, alias=None) -> 'JoinQuery':
+        return self._add_join('RIGHT JOIN', table, condition, alias)
+
+    # ------------------------------------------------------------------ #
+    #  Internals                                                         #
+    # ------------------------------------------------------------------ #
+    def _make_unique_alias(self, table) -> str:
+        """Generate an alias like ``orders_0`` that isn't already used."""
+        base = table.name_[1:-1]
+        used = {j['alias'] for j in self.joins if j['alias']}
+        i = 0
+        while f'{base}_{i}' in used:
+            i += 1
+        return f'{base}_{i}'
+
+    def _add_join(self, join_type, table, condition, alias):
+        if not isinstance(condition, ColumnsOperation):
+            raise Exception(
+                f"Join condition must be a ColumnsOperation, got "
+                f"{type(condition).__name__}. Build it with column comparisons "
+                f"like `table1.col == table2.col`."
+            )
+
+        # If table already joined (or explicit alias), assign a unique alias.
+        already_joined = any(j['table'] is table for j in self.joins)
+        if alias is None and already_joined:
+            alias = self._make_unique_alias(table)
+
+        new_joins = self.joins + [{
+            'type': join_type,
+            'table': table,
+            'condition': condition,
+            'alias': alias,
+        }]
+        new_params = self.params + list(condition._output[1])
+        return JoinQuery(self.table_obj, new_joins, new_params)
+
+    # --- SQL generation helpers ---------------------------------------- #
+    def _join_sql(self) -> str:
+        """Build the JOIN fragments, rewriting table refs to aliases."""
+        parts = []
+        for j in self.joins:
+            tbl = j['table']
+            cond_sql = j['condition']._output[0]
+            if j['alias']:
+                # [orders].[col] → [orders_0].[col]
+                cond_sql = cond_sql.replace(
+                    f'{tbl.name_}.', f'[{j["alias"]}].'
+                )
+                parts.append(
+                    f'{j["type"]} {tbl.name_} AS [{j["alias"]}] ON {cond_sql}'
+                )
+            else:
+                parts.append(f'{j["type"]} {tbl.name_} ON {cond_sql}')
+        return ' '.join(parts)
+
+    def _resolve_column_ref(self, col) -> str:
+        """
+        Return the SQL reference for a Column.
+
+        Uses the alias of the FIRST join that references this table.
+        If that first join has no alias, the raw table name is used
+        (which is unambiguous because only one unaliased instance exists).
+        """
+        for j in self.joins:
+            if j['table'] is col.table_obj:
+                if j['alias']:
+                    return f'[{j["alias"]}].[{col.first_name[1:-1]}]'
+                return col.name
+        return col.name
+
+    def _rewrite_expr(self, expr: str) -> str:
+        """Rewrite table refs inside an expression to use aliases."""
+        for j in self.joins:
+            if j['alias']:
+                expr = expr.replace(
+                    f'{j["table"].name_}.', f'[{j["alias"]}].'
+                )
+        return expr
+
+    # ------------------------------------------------------------------ #
+    #  Execution                                                         #
+    # ------------------------------------------------------------------ #
+    def get_row(
+        self,
+        which_columns: list,
+        where: 'ColumnsOperation' = None,
+        order_by: 'Column' = None,
+        from_readers_pool: bool = False
+    ):
+        if not which_columns:
+            return []
+
+        tl = []
+        select_parts = []
+        for i in which_columns:
+            if isinstance(i, Column):
+                ref = self._resolve_column_ref(i)
+                alias = f'{i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}'
+                select_parts.append(f'{ref} AS {alias}')
+            else:
+                expr = self._rewrite_expr(i._output[0])
+                tl.extend(i._output[1])
+                if expr.startswith('(') and expr.endswith(')'):
+                    expr = expr[1:-1]
+                alias = (
+                    f'{i.col_obj.table_obj.name_[1:-1]}_'
+                    f'{i.col_obj.first_name[1:-1]}'
+                )
+                select_parts.append(f'{expr} AS {alias}')
+
+        base_sql = (
+            f"SELECT {', '.join(select_parts)} "
+            f"FROM {self.table_obj.name_} "
+            f"{self._join_sql()}"
+        )
+        all_params = tl + list(self.params)
+
+        if where is not None:
+            where_sql = self._rewrite_expr(where._output[0])
+            base_sql += f' WHERE {where_sql}'
+            all_params += list(where._output[1])
+
+        if order_by is not None:
+            base_sql += f' ORDER BY {self._resolve_column_ref(order_by)}'
+
+        query = (base_sql, all_params) if all_params else (base_sql,)
+
+        if not from_readers_pool:
+            return self.table_obj._exc('qf', query)
+        else:
+            queueCallBack = SimpleQueue()
+            connection_queue = self.table_obj.db_obj.pool_holder.get(block=True)
+            connection_queue.put(['qf', query, queueCallBack])
+            self.table_obj.db_obj.pool_holder.put(connection_queue)
+            if (callback := queueCallBack.get(block=True))[0]:
+                return callback[1]
+            else:
+                raise Exception(callback[1])
+
             
-    class Left:
-        def __init__(self, table: Table, match_case_condition: ColumnsOperation):
-            self._output =  (f'LEFT JOIN {table.name_} ON {match_case_condition._output[0]}', match_case_condition._output[1])
-
-    class Right:
-        def __init__(self, table: Table, match_case_condition: ColumnsOperation):
-            self._output = (f'RIGHT JOIN {table.name_} ON {match_case_condition._output[0]}', match_case_condition._output[1])
-
-
 class SetPragma:
 
     def __init__(self, connector_obj):
@@ -657,7 +806,6 @@ class Table:
     class _PlaceHolder:
         def __init__(self, placeholder):
             self.placeholder = placeholder
-            return self
         
         def __str__(self):
             return self.placeholder
@@ -902,34 +1050,14 @@ class Table:
             else:
                 raise
 
-    def join(
-        self,
-        columns: list['Column'],
-        joins_list: list['Join.Inner | Join.Left | Join.Right'],
-        where: 'ColumnsOperation' = None,
-        order_by: 'Column' = None,
-        from_readers_pool: bool = False
-        ) -> Any:
-        tl = []
-        [tl.extend(i._output[1]) if isinstance(i,ColumnsOperation) else None for i in columns]
-        [tl.extend(i._output[1]) for i in joins_list]
-        query= (f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}' if isinstance(i,Column)  else f'{i._output[0][1:-1] if i._output[0].startswith("(") and i._output[0].endswith(")") else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.name}' if order_by else ''}', tl+where._output[1]) if where else (f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}' if isinstance(i,Column)  else f'{i._output[0][1:-1] if i._output[0].startswith("(") and i._output[0].endswith(")") else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'ORDER BY {order_by.name}' if order_by else ''}', tl) if tl else (f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}' if isinstance(i,Column)  else f'{i._output[0][1:-1] if i._output[0].startswith('(') and i._output[0].endswith(')') else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'ORDER BY {order_by.name}' if order_by else ''}',)
-        # The above line is approximately 1000 characters, which is not standard, but it is written this way
-        # to improve performance in the Driver class and to avoid checking whether the second item in the query
-        # is an empty list for each input.
-        if not from_readers_pool:
-            return self._exc('qf', query)
-        else:
-            queueCallBack= SimpleQueue()
-            connection_queue = self.db_obj.pool_holder.get(block=True)
-            connection_queue.put(['qf', query, queueCallBack])
-            if (callback := queueCallBack.get(block=True))[0]:
-                self.db_obj.pool_holder.put(connection_queue)
-                return callback[1]
-            else:
-                self.db_obj.pool_holder.put(connection_queue)
-                raise Exception(callback[1])
+    def inner_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        return JoinQuery(self).inner_join(table, condition)
 
+    def left_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        return JoinQuery(self).left_join(table, condition)
+
+    def right_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        return JoinQuery(self).right_join(table, condition)
 
 class DataTypes:
     """

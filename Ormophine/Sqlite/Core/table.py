@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .. import Column, ColumnsOperation, BatchOperation, Join
+from .. import Column, ColumnsOperation, BatchOperation, JoinQuery
 from queue import SimpleQueue
 from typing import Any
 
@@ -70,7 +70,6 @@ class Table:
         """So when we use placeholders in bulkupdate, it wont confuse to use '+' or '||' when using <users.age + users.PLACE_HOLDER>"""
         def __init__(self, placeholder):
             self.placeholder = placeholder
-            return self
         
         def __str__(self):
             return self.placeholder
@@ -1307,100 +1306,58 @@ class Table:
             else:
                 raise
 
-    def join(
-        self,
-        columns: list['Column'],
-        joins_list: list['Join.Inner | Join.Left | Join.Right'],
-        where: 'ColumnsOperation' = None,
-        order_by: 'Column' = None,
-        from_readers_pool: bool = False
-        ) -> Any:
-        """Executes a SELECT query with one or more JOIN clauses on this table.
+    def inner_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        """
+        Start a JOIN query with an INNER JOIN.
 
-        Builds and runs a SQL query that selects the given columns from this
-        table, joining other tables as specified. Column expressions can be
-        raw :class:`Column` instances or :class:`ColumnsOperation` objects
-        (e.g., the result of arithmetic or string operations). The method
-        automatically generates aliases to avoid name collisions.
+        Returns a :class:`JoinQuery` object that supports chaining more joins
+        (via ``inner_join``, ``left_join``, ``right_join``) and finally
+        executing with ``get_row(...)``.
 
         Args:
-            columns: A list of columns to retrieve. Each element can be a
-                :class:`Column` (which will be aliased as
-                ``{tablename}_{columnname}``) or a :class:`ColumnsOperation`
-                (the expression is used directly, aliased similarly).
-            joins_list: A list of join objects created with :class:`Join.Inner`,
-                :class:`Join.Left`, or :class:`Join.Right`. Each specifies the
-                table and the join condition (a :class:`ColumnsOperation`).
-            where: An optional :class:`ColumnsOperation` representing the
-                ``WHERE`` clause. Defaults to ``None`` (no filter).
-            order_by: An optional :class:`Column` by which to sort the results.
-                Defaults to ``None`` (no explicit ordering).
-            from_readers_pool: If ``True``, the query is executed on one of the
-                reader‑pool connections, allowing concurrent reads without
-                blocking the writer. Defaults to ``False`` (uses the main
-                writer connection).
+            table (Table): The table to join (right side).
+            condition (ColumnsOperation): The ON condition (e.g.
+                ``orders.user_id == users.id``).
 
         Returns:
-            list[tuple]: The fetched rows as tuples. Each tuple corresponds to
-            the order of ``columns``. If an error occurs, an exception is
-            raised rather than returning a value.
+            JoinQuery: A chainable query builder.
 
-        Raises:
-            Exception: If the query fails (syntax error, constraint violation,
-                reader‑pool exhaustion, etc.). The original error is re‑raised.
-
-        Examples:
-            Simple join between two tables:
-
-            >>> db = Driver("store.db")
-            >>> users = db.users
-            >>> orders = db.orders
-            >>> # INNER JOIN users with orders on user_id
-            >>> result = users.join(
-            ...     columns=[users.name, orders.total],
-            ...     joins_list=[Join.Inner(orders, users.id == orders.user_id)]
-            ... )
-            >>> for row in result:
-            ...     print(row)
-            ('Alice', 150.0)
-            ('Bob', 200.0)
-
-            Complex example with multiple joins, expressions, and filtering:
-
-            >>> # Using column operations (string concatenation) and LEFT JOIN
-            >>> full_name = users.first_name + ' ' + users.last_name
-            >>> condition = (orders.total > 100) & (orders.status == 'active')
-            >>> result = users.join(
-            ...     columns=[full_name, orders.total, products.name],
-            ...     joins_list=[
-            ...         Join.Inner(orders, users.id == orders.user_id),
-            ...         Join.Left(products, orders.product_id == products.id)
-            ...     ],
-            ...     where=condition,
-            ...     order_by=orders.total
-            ... )
-            >>> for row in result:
-            ...     print(row)
-            ('Alice Smith', 150.0, 'Widget')
-            ('Bob Johnson', 200.0, 'Gadget')
+        Example:
+            >>> users.inner_join(orders, orders.user_id == users.id) \\
+            ...      .get_row([orders.total, users.name])
         """
-        tl = []
-        [tl.extend(i._output[1]) if isinstance(i,ColumnsOperation) else None for i in columns]
-        [tl.extend(i._output[1]) for i in joins_list]
-        query= (f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}' if isinstance(i,Column)  else f'{i._output[0][1:-1] if i._output[0].startswith("(") and i._output[0].endswith(")") else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'WHERE {where._output[0]}' if where else ''} {f'ORDER BY {order_by.name}' if order_by else ''}', tl+where._output[1]) if where else (f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}' if isinstance(i,Column)  else f'{i._output[0][1:-1] if i._output[0].startswith("(") and i._output[0].endswith(")") else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'ORDER BY {order_by.name}' if order_by else ''}', tl) if tl else (f'SELECT {','.join(f'{i.name} AS {i.table_obj.name_[1:-1]}_{i.first_name[1:-1]}' if isinstance(i,Column)  else f'{i._output[0][1:-1] if i._output[0].startswith('(') and i._output[0].endswith(')') else i._output[0] } AS {i.col_obj.table_obj.name_[1:-1]}_{i.col_obj.first_name[1:-1]}' for i in columns)} FROM {self.name_} {' '.join(i._output[0] for i in joins_list)} {f'ORDER BY {order_by.name}' if order_by else ''}',)
-        # The above line is approximately 1000 characters, which is not standard, but it is written this way
-        # to improve performance in the Driver class and to avoid checking whether the second item in the query
-        # is an empty list for each input.
-        if not from_readers_pool:
-            return self._exc('qf', query)
-        else:
-            queueCallBack= SimpleQueue()
-            connection_queue = self.db_obj.pool_holder.get(block=True)
-            connection_queue.put(['qf', query, queueCallBack])
-            if (callback := queueCallBack.get(block=True))[0]:
-                self.db_obj.pool_holder.put(connection_queue)
-                return callback[1]
-            else:
-                self.db_obj.pool_holder.put(connection_queue)
-                raise Exception(callback[1])
+        return JoinQuery(self).inner_join(table, condition)
+
+    def left_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        """
+        Start a JOIN query with a LEFT JOIN.
+
+        Args:
+            table (Table): The table to join (right side).
+            condition (ColumnsOperation): The ON condition.
+
+        Returns:
+            JoinQuery: A chainable query builder.
+
+        Example:
+            >>> users.left_join(orders, orders.user_id == users.id) \\
+            ...      .get_row([orders.total, users.name])
+        """
+        return JoinQuery(self).left_join(table, condition)
+
+    def right_join(self, table: 'Table', condition: 'ColumnsOperation') -> 'JoinQuery':
+        """
+        Start a JOIN query with a RIGHT JOIN.
+
+        Note: SQLite does not natively support RIGHT JOIN; the generated SQL
+        is provided for compatibility with other backends.
+
+        Args:
+            table (Table): The table to join (right side).
+            condition (ColumnsOperation): The ON condition.
+
+        Returns:
+            JoinQuery: A chainable query builder.
+        """
+        return JoinQuery(self).right_join(table, condition)
 

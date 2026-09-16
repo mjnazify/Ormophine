@@ -1,5 +1,5 @@
 from .Core.columnsoperation import ColumnsOperation, Column, BatchOperation
-from .Core.join import Join
+from .Core.join import JoinQuery
 from .Core.setpragma import SetPragma
 from .Core.table import Table
 from .Core.tablestructure import TableStructure, DataTypes
@@ -9,7 +9,7 @@ __all__ = [
     'BatchOperation',
     'Column',
     'ColumnsOperation',
-    'Join',
+    'JoinQuery',
     'SetPragma',
     'Table',
     'DataTypes',
