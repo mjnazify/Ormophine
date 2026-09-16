@@ -1255,7 +1255,7 @@ class ColumnsOperation:
             >>> final_cond = cond & (employees.salary > 50000)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} like {value._output[0]})", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} like {value.name})', self._output[1]) if isinstance(value , Column) else (f'({self._output[0]} like %s)', self._output[1] + [f'{value}'])
+        new_op._output = (f"({self._output[0]} like {value._output[0]})", (self._output[1] + value._output[1]) if self._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self._output[0]} like {value.name})', self._output[1]) if isinstance(value , Column) else (f'({self._output[0]} like %s)', self._output[1] + [f'{value}'])
         return new_op
 
     def startswith(self, prefix):
@@ -1293,7 +1293,7 @@ class ColumnsOperation:
             >>> # The generated SQL will be like: "employees"."name" LIKE 'A%'
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} like {prefix._output[0]} || '%%')", (self._output[1] + prefix._output[1]) if self._output else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f"({self._output[0]} like {prefix.name} || '%%')", self._output[1]) if isinstance(prefix , Column) else (f"({self._output[0]} like %s || '%%')", self._output[1] + [f'{prefix}'])
+        new_op._output = (f"({self._output[0]} like {prefix._output[0]} || '%%')", (self._output[1] + prefix._output[1]) if self._output[0] else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f"({self._output[0]} like {prefix.name} || '%%')", self._output[1]) if isinstance(prefix , Column) else (f"({self._output[0]} like %s || '%%')", self._output[1] + [f'{prefix}'])
         return new_op
 
     def endswith(self, suffix):
@@ -1327,7 +1327,7 @@ class ColumnsOperation:
             >>> final = cond & (employees.salary > 50000)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} like '%%' || {suffix._output[0]})", (self._output[1] + suffix._output[1]) if self._output else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f"({self._output[0]} like '%%' || {suffix.name})", self._output[1]) if isinstance(suffix , Column) else (f"({self._output[0]} like '%%' || %s)", self._output[1] + [f'{suffix}'])
+        new_op._output = (f"({self._output[0]} like '%%' || {suffix._output[0]})", (self._output[1] + suffix._output[1]) if self._output[0] else suffix._output[1]) if isinstance(suffix, ColumnsOperation) else (f"({self._output[0]} like '%%' || {suffix.name})", self._output[1]) if isinstance(suffix , Column) else (f"({self._output[0]} like '%%' || %s)", self._output[1] + [f'{suffix}'])
         return new_op
 
     def contains(self, value):
@@ -1366,7 +1366,7 @@ class ColumnsOperation:
             >>> final_cond = cond & (employees.department == "Sales")
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"({self._output[0]} like '%%' || {value._output[0]} || '%%')", (self._output[1] + value._output[1]) if self._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self._output[0]} like '%%' || {value.name} || '%%')", self._output[1]) if isinstance(value , Column) else (f"({self._output[0]} like '%%' || %s || '%%')", self._output[1] + [f'{value}'])
+        new_op._output = (f"({self._output[0]} like '%%' || {value._output[0]} || '%%')", (self._output[1] + value._output[1]) if self._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self._output[0]} like '%%' || {value.name} || '%%')", self._output[1]) if isinstance(value , Column) else (f"({self._output[0]} like '%%' || %s || '%%')", self._output[1] + [f'{value}'])
         return new_op
 
     def add_end(self, content):
@@ -1410,7 +1410,7 @@ class ColumnsOperation:
             >>> # Generates: (("first_name" || ' ') || "last_name")
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'({self._output[0]} || %s)', self._output[1]+[content] if self._output else [content])
+        new_op._output = (f'({self._output[0]} || {content._output[0]})', self._output[1]+content._output[1] if self._output[0] else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self._output[0]} || {content.name})', self._output[1] if self._output[0] else []) if isinstance(content, Column) else (f'({self._output[0]} || %s)', self._output[1]+[content] if self._output[0] else [content])
         new_op.current_datatype = str
         return new_op
 
@@ -1453,7 +1453,7 @@ class ColumnsOperation:
             >>> # Generates SQL: (%s || LOWER("employees"."name"))
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output else []) if isinstance(content, Column) else (f'(%s || {self._output[0]})', [content]+self._output[1] if self._output else [content])
+        new_op._output = (f'({content._output[0]} || {self._output[0]})', content._output[1]+self._output[1] if self._output[0] else content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self._output[0]})', self._output[1] if self._output[0] else []) if isinstance(content, Column) else (f'(%s || {self._output[0]})', [content]+self._output[1] if self._output[0] else [content])
         new_op.current_datatype = str
         return new_op
 
@@ -1490,7 +1490,7 @@ class ColumnsOperation:
             >>> op2 = employees.name.upper().replace('A', 'B')
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'(REPLACE({self._output[0]} , %s , %s))', self._output[1] + [old, new]) if self._output else (f'(REPLACE({self.col_obj.name} , %s , %s))', [old, new])
+        new_op._output = (f'(REPLACE({self._output[0]} , %s , %s))', self._output[1] + [old, new]) if self._output[0] else (f'(REPLACE({self.col_obj.name} , %s , %s))', [old, new])
         new_op.current_datatype = str
         return new_op
 
@@ -1521,7 +1521,7 @@ class ColumnsOperation:
             >>> op2 = employees.name.strip().upper()
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'(UPPER({self._output[0]}))', self._output[1]) if self._output else (f'(UPPER({self.col_obj.name}))', [])
+        new_op._output = (f'(UPPER({self._output[0]}))', self._output[1]) if self._output[0] else (f'(UPPER({self.col_obj.name}))', [])
         new_op.current_datatype = str
         return new_op
 
@@ -1554,7 +1554,7 @@ class ColumnsOperation:
             'LOWER(UPPER("employees"."name"))'
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'(LOWER({self._output[0]}))', self._output[1]) if self._output else (f'(LOWER({self.col_obj.name}))', [])
+        new_op._output = (f'(LOWER({self._output[0]}))', self._output[1]) if self._output[0] else (f'(LOWER({self.col_obj.name}))', [])
         new_op.current_datatype = str
         return new_op
 
@@ -1588,7 +1588,7 @@ class ColumnsOperation:
             "TRIM(BOTH '_' FROM UPPER(\"employees\".\"name\"))"
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"(TRIM(BOTH '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output else (f"(TRIM(BOTH '{chars}' FROM {self.col_obj.name}))", [])
+        new_op._output = (f"(TRIM(BOTH '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output[0] else (f"(TRIM(BOTH '{chars}' FROM {self.col_obj.name}))", [])
         new_op.current_datatype = str
         return new_op
 
@@ -1625,7 +1625,7 @@ class ColumnsOperation:
             "TRIM(LEADING '#' FROM (\"employees\".\"code\" || \"employees\".\"suffix\"))"
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"(TRIM(LEADING '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output else (f"(TRIM(LEADING '{chars}' FROM {self.col_obj.name}))", [])
+        new_op._output = (f"(TRIM(LEADING '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output[0] else (f"(TRIM(LEADING '{chars}' FROM {self.col_obj.name}))", [])
         new_op.current_datatype = str
         return new_op
 
@@ -1667,7 +1667,7 @@ class ColumnsOperation:
             []
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f"(TRIM(TRAILING '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output else (f"(TRIM(TRAILING '{chars}' FROM {self.col_obj.name}))", [])
+        new_op._output = (f"(TRIM(TRAILING '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output[0] else (f"(TRIM(TRAILING '{chars}' FROM {self.col_obj.name}))", [])
         new_op.current_datatype = str
         return new_op
 
@@ -3046,7 +3046,7 @@ class Column:
             >>> op2 = employees.code.strip('_')
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"(TRIM(BOTH '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output else (f"(TRIM(BOTH '{chars}' FROM {temp_ob.col_obj.name}))", [])
+        temp_ob._output = (f"(TRIM(BOTH '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output[0] else (f"(TRIM(BOTH '{chars}' FROM {temp_ob.col_obj.name}))", [])
         return temp_ob
 
     def lstrip(self, chars: str = ' '):
@@ -3080,7 +3080,7 @@ class Column:
             >>> cond = employees.name.lstrip().upper().contains('SMITH')
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"(TRIM(LEADING '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output else (f"(TRIM(LEADING '{chars}' FROM {temp_ob.col_obj.name}))", [])
+        temp_ob._output = (f"(TRIM(LEADING '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output[0] else (f"(TRIM(LEADING '{chars}' FROM {temp_ob.col_obj.name}))", [])
         return temp_ob
 
     def rstrip(self, chars: str = ' '):
@@ -3113,7 +3113,7 @@ class Column:
             "TRIM(TRAILING 'x' FROM \"employees\".\"name\")"
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"(TRIM(TRAILING '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output else (f"(TRIM(TRAILING '{chars}' FROM {temp_ob.col_obj.name}))", [])
+        temp_ob._output = (f"(TRIM(TRAILING '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output[0] else (f"(TRIM(TRAILING '{chars}' FROM {temp_ob.col_obj.name}))", [])
         return temp_ob
 
     def add_end(self, content):
@@ -3224,7 +3224,7 @@ class Column:
             >>> results = employees.get_row([employees.name], where=cond)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(LOWER({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output else (f'(LOWER({temp_ob.col_obj.name}))', [])
+        temp_ob._output = (f'(LOWER({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output[0] else (f'(LOWER({temp_ob.col_obj.name}))', [])
         return temp_ob
 
     def upper(self):
@@ -3250,7 +3250,7 @@ class Column:
             >>> cond = employees.name.upper() == 'JOHN DOE'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(UPPER({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output else (f'(UPPER({temp_ob.col_obj.name}))', [])
+        temp_ob._output = (f'(UPPER({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output[0] else (f'(UPPER({temp_ob.col_obj.name}))', [])
         return temp_ob
 
     def replace(self, old, new):
@@ -3284,7 +3284,7 @@ class Column:
             >>> op2 = employees.name.upper().replace('A', 'X')
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(REPLACE({temp_ob._output[0]} , %s , %s))', temp_ob._output[1] + [old, new]) if temp_ob._output else (f'(REPLACE({temp_ob.col_obj.name} , %s , %s))', [old, new])
+        temp_ob._output = (f'(REPLACE({temp_ob._output[0]} , %s , %s))', temp_ob._output[1] + [old, new]) if temp_ob._output[0] else (f'(REPLACE({temp_ob.col_obj.name} , %s , %s))', [old, new])
         return temp_ob
 
     def like(self, value):
@@ -3326,7 +3326,7 @@ class Column:
             >>> cond2 = employees.name.like(pattern)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"({self.name} like {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} like {value.name})', temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f'({self.name} like %s)', (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} like {value.name})', temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f'({self.name} like %s)', (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
         return temp_ob
 
     def startswith(self, value):
@@ -3372,7 +3372,7 @@ class Column:
             >>> final_cond = cond & (employees.salary > 50000)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"({self.name} like {value._output[0]} || '%%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like {value.name} || '%%')", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like %s || '%%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like {value._output[0]} || '%%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like {value.name} || '%%')", temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f"({self.name} like %s || '%%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
         return temp_ob
     
     def endswith(self, value):
@@ -3418,7 +3418,7 @@ class Column:
             >>> cond3 = employees.last_name.endswith(op)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"({self.name} like '%%' || {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%%' || {value.name})", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like '%%' || %s)", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like '%%' || {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%%' || {value.name})", temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f"({self.name} like '%%' || %s)", (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
         return temp_ob
 
     def contains(self, value):
@@ -3459,7 +3459,7 @@ class Column:
             >>> # Generated SQL: (("first_name" || ' ') || "last_name") LIKE '%' || %s || '%'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"({self.name} like '%%' || {value._output[0]} || '%%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%%' || {value.name} || '%%')", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like '%%' || %s || '%%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like '%%' || {value._output[0]} || '%%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%%' || {value.name} || '%%')", temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f"({self.name} like '%%' || %s || '%%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
         return temp_ob
 
     def rename(self, column: 'Column', new_name: str) -> None:

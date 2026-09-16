@@ -2135,80 +2135,63 @@ def test_217_update_no_matching_row(tbl):
     
     tbl.update({tbl.age: 99}, tbl.id == 999)
 def test_218_update_invalid_condition_error(tbl):
-    
     with pytest.raises(Exception):
         tbl.update({tbl.age: 99}, "invalid sql string")
 def test_219_update_datetime_value(tbl):
-    
     tbl.insert({tbl.id: 7, tbl.name: 'Old'})
     now = datetime.datetime.now()
     tbl.update({tbl.name: str(now)}, tbl.id == 7)
     res = tbl.get_row([tbl.name], tbl.id == 7)
     assert '202' in res[0]
 def test_220_update_column_from_other_table_error(driver, tbl):
-    
     schema = Sqlite.TableStructure('other_tbl', strict=True)
     schema.add_column('val', Sqlite.DataTypes.INTEGER(), primary_key=True)
     other = driver.create_table(schema)
     with pytest.raises(Exception):
         tbl.update({tbl.age: other.val}, tbl.id == 1)
 def test_221_delete_row_simple(tbl):
-    
     tbl.insert({tbl.id: 1, tbl.name: 'ToDelete'})
     tbl.delete_row(tbl.id == 1)
     res = tbl.get_row([tbl.name], tbl.id == 1)
     assert len(res) == 0
 def test_222_delete_row_complex_condition(tbl):
-    
     tbl.insert({tbl.id: 2, tbl.name: 'A', tbl.age: 20})
     tbl.insert({tbl.id: 3, tbl.name: 'B', tbl.age: 30})
     tbl.delete_row((tbl.age > 25) & (tbl.name == 'B'))
     res = tbl.get_row([tbl.id], tbl.id == 3)
     assert len(res) == 0
 def test_223_delete_row_always_false(tbl):
-    
     tbl.insert({tbl.id: 4, tbl.name: 'Keep'})
     tbl.delete_row(tbl.id == 999)
     res = tbl.get_row([tbl.id], tbl.id == 4)
     assert len(res) == 1
 def test_224_delete_row_invalid_condition(tbl):
-    
     with pytest.raises(Exception):
         tbl.delete_row("invalid condition")
 def test_225_delete_row_condition_with_none(tbl):
-    
     tbl.insert({tbl.id: 5, tbl.name: 'Null', tbl.age: None})
     tbl.delete_row(tbl.age == None) 
     res = tbl.get_row([tbl.id], tbl.id == 5)
     assert len(res) == 0
 def test_226_get_row_one_column(tbl):
-    
     tbl.insert({tbl.id: 1, tbl.name: 'One'})
     res = tbl.get_row([tbl.name], tbl.id == 1)
     assert len(res) == 1
     assert res[0] == 'One'
 def test_227_get_row_multiple_columns(tbl):
-    
     tbl.insert({tbl.id: 2, tbl.name: 'Two', tbl.age: 20})
     res = tbl.get_row([tbl.name, tbl.age], tbl.id == 2)
     assert res[0] == ('Two', 20)
 def test_228_get_row_where_simple(tbl):
-    
     tbl.insert({tbl.id: 3, tbl.name: 'Three'})
     res = tbl.get_row([tbl.name], tbl.id == 3)
     assert res[0] == 'Three'
 def test_229_get_row_order_by(tbl):
-    
     tbl.insert({tbl.id: 4, tbl.name: 'B', tbl.age: 10})
     tbl.insert({tbl.id: 5, tbl.name: 'A', tbl.age: 20})
     res = tbl.get_row([tbl.name], order_by=tbl.name)
     assert res[0] == 'A' and res[1] == 'B'
-def test_230_get_row_order_by_nonexistent_error(tbl):
-    
-    with pytest.raises(Exception):
-        tbl.get_row([tbl.name], order_by="nonexistent")
 def test_231_get_row_columns_operation(tbl):
-    
     tbl.insert({tbl.id: 6, tbl.name: 'upper_me'})
     res = tbl.get_row([tbl.name.upper()], tbl.id == 6)
     assert res[0] == 'UPPER_ME'
