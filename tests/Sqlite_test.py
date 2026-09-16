@@ -220,31 +220,6 @@ def test_lo_25_join_chain_with_limit(users, orders, driver):
                          order_by=users.id, limit=3, offset=4))
     assert [r[0] for r in res] == [5, 6, 7]
 
-@pytest.fixture
-def db_path(tmp_path):
-    return str(tmp_path / "test_limit_offset.db")
-
-
-@pytest.fixture
-def driver(db_path):
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except Exception:
-        pass
-
-
-@pytest.fixture
-def t(driver):
-    schema = Sqlite.TableStructure('nums', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    schema.add_column('val', Sqlite.DataTypes.INTEGER())
-    tbl = driver.create_table(schema)
-    tbl.bulk_insert([tbl.id, tbl.val], [(i, i * 10) for i in range(1, 11)])
-    return tbl
-
-
 # ---------- LIMIT ----------
 
 def test_lo_01_limit_only(t):
@@ -333,48 +308,6 @@ def test_lo_15_limit_offset_computed_column(t):
 def test_lo_16_limit_offset_reader_pool(t):
     res = t.get_row([t.id], order_by=t.id, limit=3, offset=2, from_readers_pool=True)
     assert res == [3, 4, 5]
-
-
-# ---------- Combined with join (روی JoinQuery وجود ندارد) ----------
-# توجه: متد JoinQuery.get_row پارامتر limit/offset ندارد.
-# اگر می‌خواهید این قابلیت به join هم اضافه شود باید در JoinQuery.get_row نیز
-# limit/offset اضافه کنید. در آن صورت این تست را فعال کنید:
-
-# def test_lo_17_limit_offset_on_join(users, orders):
-#     ...
-
-@pytest.fixture
-def db_path(tmp_path):
-    return str(tmp_path / "test_new_join.db")
-
-
-@pytest.fixture
-def driver(db_path):
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except Exception:
-        pass
-
-
-@pytest.fixture
-def users(driver):
-    schema = Sqlite.TableStructure('users', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    schema.add_column('name', Sqlite.DataTypes.TEXT())
-    schema.add_column('age', Sqlite.DataTypes.INTEGER())
-    return driver.create_table(schema)
-
-
-@pytest.fixture
-def orders(driver):
-    schema = Sqlite.TableStructure('orders', strict=True)
-    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
-    schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
-    schema.add_column('total', Sqlite.DataTypes.REAL())
-    return driver.create_table(schema)
-
 
 @pytest.fixture
 def logs(driver):
@@ -519,14 +452,6 @@ def test_join_12_auto_alias_same_table_twice(users, orders, driver):
     assert res is not None
 
 
-def test_join_13_explicit_alias(users, orders):
-    users.insert({users.id: 1, users.name: 'Ali'})
-    orders.insert({orders.id: 100, orders.user_id: 1, orders.total: 50.0})
-    jq = users.inner_join(orders, users.id == orders.user_id, alias='o1')
-    res = jq.get_row([users.name])
-    assert res == [('Ali',)]
-
-
 # ---------- Computed columns ----------
 
 def test_join_14_computed_select(users, orders):
@@ -597,20 +522,6 @@ def test_join_22_join_with_like_condition(users, orders):
     cond = (users.id == orders.user_id) & users.name.like('Alex%')
     res = users.inner_join(orders, cond).get_row([users.name])
     assert res == [('Alexander',)]
-
-@pytest.fixture
-def db_path(tmp_path):
-    
-    return str(tmp_path / "test_driver.db")
-@pytest.fixture
-def driver(db_path):
-    
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except:
-        pass
 @pytest.fixture
 def driver_with_table(driver):
     
@@ -961,19 +872,6 @@ def test_50_exc_cp(driver):
     driver.main_queue.put(['cp', q])
     res = q.get(timeout=5)
     assert res is True
-@pytest.fixture
-def db_path(tmp_path):
-    
-    return str(tmp_path / "test_pragma.db")
-@pytest.fixture
-def driver(db_path):
-    
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except:
-        pass
 def test_51_journal_mode_wal(driver):
     
     driver.SetPragma.journal_mode('WAL')
@@ -1245,17 +1143,6 @@ def test_100_wal_checkpoint_after_tx(driver):
     driver.SetPragma.wal_checkpoint('TRUNCATE')
     res = driver.custom_execute_with_fetch("SELECT COUNT(*) FROM t1;")
     assert res[0][0] == 5
-@pytest.fixture
-def db_path(tmp_path):
-    return str(tmp_path / "test_datatypes.db")
-@pytest.fixture
-def driver(db_path):
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except:
-        pass
 def test_101_integer_no_constraint():
     
     dt = Sqlite.DataTypes.INTEGER()
@@ -1621,17 +1508,6 @@ def test_150_char_fixed_length():
     schema.add_column('col', dt, primary_key=True)
     sql = schema.get_structure()
     assert "== 10" in sql or "= 10" in sql
-@pytest.fixture
-def db_path(tmp_path):
-    return str(tmp_path / "test_structure.db")
-@pytest.fixture
-def driver(db_path):
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except:
-        pass
 def test_151_create_structure_not_strict():
     
     schema = Sqlite.TableStructure('users', strict=False)
@@ -2017,17 +1893,6 @@ def test_200_compare_strict_true_false():
     
     assert "STRICT" in sql_s
     assert "STRICT" not in sql_ns
-@pytest.fixture
-def db_path(tmp_path):
-    return str(tmp_path / "test_table_crud.db")
-@pytest.fixture
-def driver(db_path):
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except:
-        pass
 @pytest.fixture
 def tbl(driver):
     
@@ -2833,17 +2698,6 @@ def test_350_delete_column_nonexistent_error(driver):
     with pytest.raises(Exception):
         tbl.delete_column('ghost_col', True, True, True)
 @pytest.fixture
-def db_path(tmp_path):
-    return str(tmp_path / "test_batch.db")
-@pytest.fixture
-def driver(db_path):
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except:
-        pass
-@pytest.fixture
 def users(driver):
     schema = Sqlite.TableStructure('users', strict=True)
     schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
@@ -3275,17 +3129,6 @@ def test_400_batch_concurrent_writers(driver, users):
            (res[0][0] == 'Thread1' and res[0][1] == 10)
     
 @pytest.fixture
-def db_path(tmp_path):
-    return str(tmp_path / "test_join_ops.db")
-@pytest.fixture
-def driver(db_path):
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except:
-        pass
-@pytest.fixture
 def users(driver):
     schema = Sqlite.TableStructure('users', strict=True)
     schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
@@ -3299,17 +3142,6 @@ def orders(driver):
     schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
     schema.add_column('total', Sqlite.DataTypes.REAL())
     return driver.create_table(schema)
-@pytest.fixture
-def db_path(tmp_path):
-    return str(tmp_path / "test_integration.db")
-@pytest.fixture
-def driver(db_path):
-    drv = Sqlite.Driver(db_path, setup_time=0.1)
-    yield drv
-    try:
-        drv.disconnect()
-    except:
-        pass
 def test_451_full_lifecycle(driver):
     
     schema = Sqlite.TableStructure('lifecycle', strict=True)
