@@ -529,6 +529,16 @@ from typing import Any, Literal
 from threading import Thread, Event
 from queue import SimpleQueue
 
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
 class Driver:
     """
     Comprehensive SQLite Driver for Ormophine.
@@ -627,13 +637,14 @@ class Driver:
 
     >>> # 7. Complex join
     >>> orders = driver.table_object('orders')  # assuming orders table exists
-    >>> joined = users.join(
-    ...     columns=[users.name, orders.total],
-    ...     joins_list=[Join.Inner(orders, users.id == orders.user_id)],
+    >>> joined = users.inner_join(
+    ...     orders, orders.id == orders.user_id
+    ... ).get_row(
+    ...     [users.name, orders.total],
     ...     where=orders.total > 100
     ... )
     >>> print(joined)
-
+    
     >>> # 8. Non-blocking read (reader pool)
     >>> res = users.get_row([users.name], from_readers_pool=True)
 
@@ -3856,7 +3867,7 @@ class Column:
             >>> from myorm import Driver, Table, Column
             >>> driver = Driver('example.db') #tables automatically imported to this object, and columns imported to each table
             >>> my_table = driver.my_sample_table #Table object
-            >>> users = mytable.users #Column object
+            >>> users = my_table.users #Column object
         """
         self.name= table_obj.name_+'.['+column_name+']'
         self.first_name= f'[{column_name}]'
@@ -6212,11 +6223,138 @@ from .. import Column, ColumnsOperation
 
 class JoinQuery:
     """
-    Fluent builder for SQL JOIN queries with automatic table aliasing.
+    Immutable, fluent builder for SQL ``JOIN`` queries with automatic table aliasing.
 
-    Joins the same table twice safely by automatically assigning unique
-    aliases (e.g. ``orders_0``, ``orders_1``) and rewriting all references
-    to the aliased table inside conditions, SELECT lists, WHERE, and ORDER BY.
+    :class:`JoinQuery` is the object returned by :meth:`Table.inner_join`,
+    :meth:`Table.left_join`, and :meth:`Table.right_join`.  It collects one
+    or more join descriptors and, when the user finally calls
+    :meth:`get_row`, renders a complete ``SELECT ... FROM ... JOIN ...
+    WHERE ... ORDER BY ... LIMIT ... OFFSET ...`` statement and executes it
+    on the underlying driver.
+
+    Why a dedicated class?
+    ----------------------
+
+    * **Chainable joins.**  Multiple joins can be layered on top of each
+      other without writing the SQL by hand::
+
+          q = users.inner_join(orders, orders.user_id == users.id) \\
+                   .left_join(payments, payments.order_id == orders.id)
+
+    * **Safe self‑joins.**  Joining the *same* :class:`Table` object twice
+      normally produces ambiguous SQL (two ``[orders]`` references in the
+      same statement).  :class:`JoinQuery` detects this situation and
+      automatically assigns a unique alias (``orders_0``, ``orders_1``,
+      …), rewriting every reference to the aliased table inside ON
+      conditions, the SELECT list, the WHERE clause, and the ORDER BY
+      clause.
+
+    * **Immutable-style chaining.**  Every call to :meth:`inner_join`,
+      :meth:`left_join`, or :meth:`right_join` returns a **new**
+      :class:`JoinQuery` instance; the receiver is never mutated.  This
+      makes it safe to fork a base join and build several independent
+      queries from it::
+
+          base = users.inner_join(orders, orders.user_id == users.id)
+          q_active = base.get_row([users.name], where=users.active == 1)
+          q_recent = base.get_row([users.name], where=orders.total > 1000)
+
+    * **Expression support.**  Both plain :class:`Column` objects and
+      :class:`ColumnsOperation` expressions can be used in the SELECT list,
+      the WHERE clause, and the ORDER BY clause.  Table references inside
+      expressions are rewritten to the correct alias automatically.
+
+    Attributes:
+        table_obj (Table): The base (left‑hand) table of the join chain.
+            This becomes the ``FROM`` table in the generated SQL.
+        joins (list[dict]): An internal list of join descriptors.  Each
+            entry is a dictionary with the keys ``'type'`` (e.g.
+            ``'INNER JOIN'``), ``'table'`` (a :class:`Table`),
+            ``'condition'`` (a :class:`ColumnsOperation`), and ``'alias'``
+            (a string or ``None``).
+        params (list): The accumulated parameter values from every join's
+            ON condition, in the order the joins were added.
+        _output (tuple): A ``(join_sql_fragment, params)`` tuple, computed
+            eagerly when the object is constructed.  Mostly an internal
+            detail.
+
+    Column aliasing in the result
+    -----------------------------
+
+    When :meth:`get_row` is called, every plain :class:`Column` in
+    ``which_columns`` is aliased in the output as
+    ``<table>_<column>`` (e.g. ``users_name``, ``orders_total``) so that
+    columns with the same name in different tables do not collide.  This
+    matters if you plan to feed the result into another layer that reads
+    by column name.
+
+    Example — basic usage::
+
+        from ormophine.Sqlite import Driver
+
+        db = Driver('shop.db')
+        users = db.users
+        orders = db.orders
+
+        # A single INNER JOIN
+        rows = users.inner_join(
+            orders, orders.user_id == users.id
+        ).get_row([users.name, orders.total])
+        # rows -> [('Alice', 150.0), ('Bob', 200.0), ...]
+
+    Example — chained joins::
+
+        payments = db.payments
+        rows = (
+            users
+            .inner_join(orders,  orders.user_id  == users.id)
+            .left_join(payments, payments.order_id == orders.id)
+            .get_row([users.name, orders.total, payments.amount])
+        )
+
+    Example — self‑join with automatic alias::
+
+        # Find each user's manager (both live in the same table)
+        rows = users.inner_join(
+            users, users.manager_id == users.id
+        ).get_row([users.name, users.name])
+        # The second `users` is aliased to `users_0` automatically,
+        # and its columns are rewritten to `[users_0].[...]`.
+
+    Example — WHERE / ORDER BY / LIMIT / OFFSET::
+
+        rows = users.inner_join(
+            orders, orders.user_id == users.id
+        ).get_row(
+            [users.name, orders.total],
+            where=orders.total > 100,
+            order_by=orders.total,
+            limit=10,
+            offset=5,
+        )
+
+    Example — expression columns and ``order_by`` with ``ColumnsOperation``::
+
+        # SELECT users.[name] || '!', orders.[total] * 1.1
+        # ORDER BY the computed discounted total
+        rows = users.inner_join(
+            orders, orders.user_id == users.id
+        ).get_row(
+            [users.name.add_end('!'), orders.total * 1.1],
+            order_by=orders.total * 1.1,
+        )
+
+    Example — non‑blocking read via the reader pool::
+
+        rows = users.inner_join(
+            orders, orders.user_id == users.id
+        ).get_row([users.name], from_readers_pool=True)
+
+    Note:
+        SQLite does not support ``RIGHT JOIN`` natively.  The
+        :meth:`right_join` method is provided for compatibility, but on
+        stock SQLite you should swap the tables and use a ``LEFT JOIN``
+        instead.  See :meth:`right_join` for details.
     """
 
     def __init__(self, table_obj, joins=None, params=None):
@@ -6664,7 +6802,16 @@ class JoinQuery:
                 rewritten to use join aliases where applicable.  Defaults
                 to ``None`` (no WHERE clause).
             order_by (Column | ColumnsOperation, optional): An optional
-                ORDER BY expression.  Defaults to ``None`` (no ordering).
+                ORDER BY expression.
+                * If a :class:`Column` is given, the rows are ordered by
+                  that column (using the join alias if the column's table
+                  was joined more than once).
+                * If a :class:`ColumnsOperation` is given, the rows are
+                  ordered by the computed expression.  Table references
+                  inside the expression are rewritten to use join aliases
+                  automatically, and any parameter values embedded in the
+                  expression are appended to the bind list in order.
+                Defaults to ``None`` (no ordering).
             limit (int, optional): Maximum number of rows to return.
                 Defaults to ``None`` (no LIMIT).
             offset (int, optional): Number of rows to skip.  When provided
@@ -6723,6 +6870,33 @@ class JoinQuery:
                     orders,
                     orders.user_id == users.id
                 ).get_row([users.name], from_readers_pool=True)
+                                # ORDER BY a computed expression (ColumnsOperation)
+                # — sort by the discounted total instead of the raw total.
+                rows5 = users.inner_join(
+                    orders, orders.user_id == users.id
+                ).get_row(
+                    [users.name, orders.total * 0.9],
+                    order_by=orders.total * 0.9,
+                )
+
+                # ORDER BY a string expression — e.g. by the length of the
+                # user's name or by an uppercased version of it.
+                rows6 = users.inner_join(
+                    orders, orders.user_id == users.id
+                ).get_row(
+                    [users.name, orders.total],
+                    order_by=users.name.upper(),
+                )
+
+                # Combine WHERE + ORDER BY with expressions on the join
+                rows7 = users.inner_join(
+                    orders, orders.user_id == users.id
+                ).get_row(
+                    [users.name, orders.total * 1.1],
+                    where=orders.total > 100,
+                    order_by=orders.total * 1.1,
+                    limit=20,
+                )
         """
         if not which_columns:
             return []
@@ -7921,6 +8095,34 @@ class Table:
             Using the reader pool for a non‑blocking read::
 
                 >>> rows = my_table.get_row([my_table.name], from_readers_pool=True)
+
+                    Ordering by a :class:`ColumnsOperation` expression::
+
+            Order by the length of each user's name (descending order is
+            not directly supported — sort ascending and reverse in Python
+            if needed, or build the expression you want).
+                >>> users.get_row(
+                ...     [users.name],
+                ...     order_by=users.name.lower()
+                ... )
+
+            Order by a computed numeric expression, e.g. discount price.
+                >>> users.get_row(
+                ...     [users.name, users.price],
+                ...     order_by=users.price * 0.9
+                ... )
+
+            Order by a string transformation.
+                >>> users.get_row(
+                ...     [users.name, users.email],
+                ...     order_by=users.name.upper()
+                ... )
+
+            Order by an arithmetic combination of two columns.
+                >>> users.get_row(
+                ...     [users.first_name, users.last_name],
+                ...     order_by=users.age + users.years_active
+                ... )
         """
         if not which_columns:
             return
@@ -8635,10 +8837,7 @@ class Table:
         if index_name not in indexes:
             raise Exception(f"Index '{index_name}' does not exist")
         query = f'PRAGMA index_info({index_name})'
-        if not from_readers_pool:
-            info = self._exc('qf', (query,))
-        else:
-            pass
+        info = self._exc('qf', (query,))
         unique_query = f"SELECT `unique` FROM pragma_index_list('{self.name_[1:-1]}') WHERE name = '{index_name}'"
         unique_res = self._exc('qf', (unique_query,))
         is_unique = bool(unique_res[0][0]) if unique_res else False
@@ -8689,76 +8888,177 @@ class Table:
         self._exc('qmb', (query, data_list))
 
     def bulk_update(self, update: dict['Column', Any], where: 'ColumnsOperation', data_list: list) -> None:
-        """Performs a batch UPDATE of multiple rows with varying values in one transaction.
+        """Performs a batch UPDATE with per‑row values using SQLite's ``executemany``.
 
-        Constructs an ``UPDATE`` statement with ``?`` placeholders and executes it using
-        SQLite's ``executemany``. The ``update`` dictionary maps :class:`Column` objects
-        to the new values or expressions. Literal values become ``?`` in the template;
-        :class:`Column` references are used directly; :class:`ColumnsOperation`
-        expressions are inserted as SQL. The ``where`` condition is built from a
-        :class:`ColumnsOperation`.
+        This method is the fastest way to update many rows with **different**
+        values in a single round‑trip.  It builds one parameterised SQL
+        template and lets SQLite bind a separate tuple of values for each
+        row.  Because the template uses ``?`` placeholders internally and
+        ``executemany`` also relies on ``?``, the method temporarily
+        substitutes every ``?`` in the template with
+        :attr:`Table.PLACE_HOLDER` (default
+        ``'_MY_S4ULT3D_PL4C3_H0LD3R_?_'``) to distinguish "fill from
+        ``data_list``" from "leave as a literal placeholder in the SQL".
 
-        Because ``executemany`` also relies on ``?``, the method temporarily replaces all
-        ``?`` in the template with :attr:`Table.PLACE_HOLDER` (default
-        ``'_MY_S4ULT3D_PL4C3_H0LD3R_?_'``) to avoid interference. After building the
-        query string, the placeholder is swapped back to ``?`` before execution. The
-        order of values in each tuple of ``data_list`` must match the order of ``?``
-        placeholders that appear in the final query (including those from the ``where``
-        clause if it contains bindings).
+        .. important::
+            You must explicitly mark the positions that should be bound per
+            row with :attr:`Table.PLACE_HOLDER`.  Everything else in the
+            ``update`` and ``where`` arguments is treated as follows:
+
+            * A :class:`Column` → inlined as a column reference
+              (``[table].[column]``), no placeholder consumed.
+            * :attr:`Table.PLACE_HOLDER` → converted to ``?`` in the final
+              SQL and filled from the corresponding position in each tuple
+              of ``data_list``.
+            * A :class:`ColumnsOperation` → its SQL fragment is inlined;
+              every ``?`` inside it that *was* a ``PLACE_HOLDER`` becomes a
+              bind placeholder, and other ``?`` remain untouched.
+            * Any other literal (``int``, ``float``, ``str``) → baked into
+              the SQL as a literal.  Strings are quoted with double quotes
+              (``"value"``).  No placeholder consumed.
+
+        .. note::
+            Because SQLite's ``executemany`` requires a single statement, the
+            ``where`` clause cannot reference columns from other tables.
+            For cross‑table updates, use :meth:`custom_execute_many` instead.
+
+        **Ordering rule for ``data_list`` tuples:**
+
+        The values in each tuple are consumed left to right, in this exact
+        order:
+
+        1. First, every :attr:`PLACE_HOLDER` that appears in the ``update``
+           dictionary, in the iteration order of ``update.items()``
+           (i.e. dictionary insertion order).
+        2. Then, every :attr:`PLACE_HOLDER` that appears in the ``where``
+           clause, in the order they appear in the generated SQL.
+
+        If the number of values per tuple does not match the number of
+        placeholders, an exception with a descriptive message is raised.
 
         Args:
-            update (dict[:class:`Column`, Any]): A dictionary where each key is a
-                :class:`Column` to update. Values can be:
-                - a literal (int, float, str, bytes, etc.) – becomes ``?``,
-                - a :class:`Column` – references another column,
-                - a :class:`ColumnsOperation` – an SQL expression.
-            where (:class:`ColumnsOperation`): The condition selecting which rows to
-                update (e.g., ``table.id == some_value``).
-            data_list (list[tuple]): A list of tuples, each containing the values that
-                replace all ``?`` placeholders in the generated query, in the order they
-                appear. The length of each tuple must exactly match the number of ``?``
-                markers.
+            update (dict[Column, Any]): A mapping of :class:`Column` objects
+                to their new values.  Each value can be:
+                - A literal (``int``, ``float``, ``str``, ``bool``, ...) —
+                  baked into the SQL as‑is.
+                - :attr:`Table.PLACE_HOLDER` — becomes ``?`` and is filled
+                  from ``data_list`` for each row.
+                - A :class:`Column` — inlined as a column reference.
+                - A :class:`ColumnsOperation` — inlined as a SQL expression;
+                  placeholders inside it are resolved as described above.
+            where (ColumnsOperation): The condition that selects which rows
+                to update.  Any :attr:`PLACE_HOLDER` inside the condition
+                becomes a bind placeholder in the final ``WHERE`` clause.
+            data_list (list[tuple]): A list of tuples, one per row to
+                update.  Each tuple must contain exactly as many values as
+                there are :attr:`PLACE_HOLDER` markers in the combined
+                ``update`` + ``where`` expression.
 
         Returns:
-            None: The updates are committed on the writer thread.
+            None: The updates are executed as a single ``executemany`` call
+            on the writer thread and committed.
 
         Raises:
-            Exception: If the database operation fails. A special descriptive error is
-                raised when the number of bindings in a ``data_list`` element does not
-                match the number of ``?`` placeholders, possibly because the literal
-                string :attr:`Table.PLACE_HOLDER` appeared in the data.
+            Exception: If the database operation fails.  A descriptive
+                error is raised specifically when the number of bindings in
+                a ``data_list`` element does not match the number of ``?``
+                placeholders — usually caused by an incorrect count of
+                :attr:`PLACE_HOLDER` markers, or by the literal string
+                ``PLACE_HOLDER`` accidentally appearing in user data (in
+                which case you should reassign
+                ``table.PLACE_HOLDER = table._PlaceHolder("some_unique_token")``).
 
         Example:
-            **Simple example**: update the ``age`` column for multiple users.
+            **1. Single variable column + variable condition** — update
+            each user's ``age`` based on their ``id``::
 
-            >>> db = Driver('mydb.sqlite3')
-            >>> users = db.users
-            >>> # Update ages: user id 1 → 30, id 2 → 25, id 3 → 35
-            >>> users.bulk_update(
-            ...     update={users.age: users.PLACE_HOLDER},
-            ...     where=users.id == users.PLACE_HOLDER,
-            ...     data_list=[
-            ...         (30, 1),
-            ...         (25, 2),
-            ...         (35, 3)
-            ...     ]
-            ... )
+                users = db.users
+                users.bulk_update(
+                    update={users.age: users.PLACE_HOLDER},
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[
+                        (30, 1),   # (new_age, id)
+                        (25, 2),
+                        (35, 3),
+                    ]
+                )
+                # Generated SQL: UPDATE [users] SET [age]=? WHERE ([users].[id] = ?);
 
-            **Complex example**: increase salary by a bonus that varies per user, but only
-            for those whose department name matches a given value.
+            **2. Multiple variable columns** — the order in ``data_list``
+            mirrors the insertion order of ``update`` then ``where``::
 
-            >>> dept = db.departments
-            >>> employees = db.employees
-            >>> # update: salary = salary + bonus, where department name = ?
-            >>> employees.bulk_update(
-            ...     update={employees.salary: employees.salary + db.PLACE_HOLDER},
-            ...     where=(employees.dept_id == dept.id) & (dept.name == db.PLACE_HOLDER),
-            ...     data_list=[
-            ...         (100.0, 'Engineering'),
-            ...         (200.0, 'Sales'),
-            ...         (150.0, 'Engineering')
-            ...     ]
-            ... )
+                users.bulk_update(
+                    update={
+                        users.name: users.PLACE_HOLDER,
+                        users.age:  users.PLACE_HOLDER,
+                    },
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[
+                        ('Alice', 30, 1),   # (name, age, id)
+                        ('Bob',   25, 2),
+                    ]
+                )
+                # UPDATE [users] SET [name]=?, [age]=? WHERE ([users].[id] = ?);
+
+            **3. Mixing fixed literals and placeholders** — ``status`` is
+            the same for every row, only ``age`` and ``id`` vary::
+
+                users.bulk_update(
+                    update={
+                        users.status: 'active',              # baked literal
+                        users.age:    users.PLACE_HOLDER,    # per-row
+                    },
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[(30, 1), (25, 2)]
+                )
+                # UPDATE [users] SET [status]="active", [age]=? WHERE ([users].[id] = ?);
+
+            **4. Placeholder inside an expression** — add a per‑row bonus
+            to each employee's salary::
+
+                employees.bulk_update(
+                    update={employees.salary: employees.salary + employees.PLACE_HOLDER},
+                    where=employees.id == employees.PLACE_HOLDER,
+                    data_list=[(100.0, 1), (200.0, 2), (150.0, 3)]
+                )
+                # UPDATE [employees]
+                #   SET [salary]=([employees].[salary] + ?)
+                #   WHERE ([employees].[id] = ?);
+
+            **5. No placeholder in ``update`` at all** — the same value is
+            applied to a set of selected rows::
+
+                users.bulk_update(
+                    update={users.flag: 1},                       # fixed
+                    where=users.role == users.PLACE_HOLDER,       # varies
+                    data_list=[('admin',), ('moderator',)]
+                )
+                # UPDATE [users] SET [flag]=1 WHERE ([users].[role] = ?);
+
+            **6. Cross‑column copy + placeholder** — copy ``last_name``
+            into ``display_name`` and append a per‑row suffix::
+
+                users.bulk_update(
+                    update={
+                        users.display_name:
+                            users.last_name.add_end(users.PLACE_HOLDER)
+                    },
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[(' (admin)', 1), (' (user)', 2)]
+                )
+                # UPDATE [users]
+                #   SET [display_name]=([users].[last_name] || ?)
+                #   WHERE ([users].[id] = ?);
+
+            **7. Custom placeholder** — change the reserved token if your
+            data might legitimately contain the default string::
+
+                users.PLACE_HOLDER = users._PlaceHolder('@@MY_TOKEN@@')
+                users.bulk_update(
+                    update={users.name: users.PLACE_HOLDER},
+                    where=users.id == users.PLACE_HOLDER,
+                    data_list=[('Alice', 1)]
+                )
         """
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
