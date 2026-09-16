@@ -3718,7 +3718,7 @@ class Column:
                 # returns rows where the trimmed name contains 'john'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(trim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output else (f'(trim({temp_ob.col_obj.name},"{chars}"))', [])
+        temp_ob._output = (f'(trim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output[0] else (f'(trim({temp_ob.col_obj.name},"{chars}"))', [])
         return temp_ob
 
     def lstrip(self, chars: str = ' '):
@@ -3769,7 +3769,7 @@ class Column:
                 # retrieves rows with usernames trimmed on the left
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(trim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output else (f'(trim({temp_ob.col_obj.name},"{chars}"))', [])
+        temp_ob._output = (f'(trim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output[0] else (f'(trim({temp_ob.col_obj.name},"{chars}"))', [])
         return temp_ob
 
     def rstrip(self, chars: str = ' '):
@@ -3814,7 +3814,7 @@ class Column:
                 # Updates rows where name ends with a space.
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(rtrim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output else (f'(rtrim({temp_ob.col_obj.name},"{chars}"))', [])
+        temp_ob._output = (f'(rtrim({temp_ob._output[0]},"{chars}"))', temp_ob._output[1]) if temp_ob._output[0] else (f'(rtrim({temp_ob.col_obj.name},"{chars}"))', [])
         return temp_ob
 
     def add_end(self, content):
@@ -3955,7 +3955,7 @@ class Column:
                 results = users.get_row([name_col], where=condition)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(lower({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output else (f'(lower({temp_ob.col_obj.name}))', [])
+        temp_ob._output = (f'(lower({temp_ob._output[0]}))', temp_ob._output[1]) if temp_ob._output[0] else (f'(lower({temp_ob.col_obj.name}))', [])
         return temp_ob
 
     def upper(self):
@@ -4043,7 +4043,7 @@ class Column:
                 # retrieves the transformed bio for user with id=1
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'(replace({temp_ob._output[0]} , ? , ?))', temp_ob._output[1] + [old, new]) if temp_ob._output else (f'(replace({temp_ob.col_obj.name} , ? , ?))', [old, new])
+        temp_ob._output = (f'(replace({temp_ob._output[0]} , ? , ?))', temp_ob._output[1] + [old, new]) if temp_ob._output[0] else (f'(replace({temp_ob.col_obj.name} , ? , ?))', [old, new])
         return temp_ob
 
     def like(self, value):
@@ -4102,7 +4102,7 @@ class Column:
                 results = users.get_row([name_col], where=full_condition)
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"({self.name} like {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} like {value.name})', temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f'({self.name} like ?)', (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f'({self.name} like {value.name})', temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f'({self.name} like ?)', (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
         return temp_ob
 
     def startswith(self, value):
@@ -4159,7 +4159,7 @@ class Column:
                 # condition2._output[0] -> "(users.[name] like users.[prefix] || '%')"
         """        
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"({self.name} like {value._output[0]} || '%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like {value.name} || '%')", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like ? || '%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like {value._output[0]} || '%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like {value.name} || '%')", temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f"({self.name} like ? || '%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
         return temp_ob
 
     def endswith(self, value):
@@ -4210,7 +4210,7 @@ class Column:
                 # condition2._output[0] -> "users.[email] like '%' || users.[domain_suffix]"
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"({self.name} like '%' || {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%' || {value.name})", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like '%' || ?)", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like '%' || {value._output[0]})", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%' || {value.name})", temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f"({self.name} like '%' || ?)", (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
         return temp_ob
 
     def contains(self, value):
@@ -4267,7 +4267,7 @@ class Column:
                 # condition2._output[0] -> "(users.[name] like '%' || users.[search_term] || '%')"
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f"({self.name} like '%' || {value._output[0]} || '%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%' || {value.name} || '%')", temp_ob._output[1] if temp_ob._output else []) if isinstance(value , Column) else (f"({self.name} like '%' || ? || '%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output else [f'{value}'])
+        temp_ob._output = (f"({self.name} like '%' || {value._output[0]} || '%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%' || {value.name} || '%')", temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f"({self.name} like '%' || ? || '%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
         return temp_ob
 
     def rename(self, new_name: str) -> None:
