@@ -450,6 +450,14 @@ from queue import SimpleQueue, Empty
 from typing import Literal
 
             
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
 class Driver():
     """High-level PostgreSQL driver for Ormophine.
 
@@ -999,7 +1007,7 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
-        except Exception as e:   # <--- اضافه کنید
+        except Exception as e:   
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
@@ -1199,10 +1207,11 @@ class Driver():
                 con.rollback()
                 self.connection_pool.put((con, cur))
                 raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
-        except ProgrammingError as e:
+        except Exception as e:
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+
 
     def _handle_broken_connection(self, con):
         """Closes a broken connection, removes it from the pool, and creates a fresh one.
