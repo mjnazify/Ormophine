@@ -5,7 +5,17 @@ from typing import Any
 class Table:
 
     class _PlaceHolder:
-        """So when we use placeholders in bulkupdate, it wont confuse to use '+' or '||' when using <users.age + users.PLACE_HOLDER>"""
+        """Marker object used in :meth:`Table.bulk_update` to inject row values.
+
+        When building a bulk update such as ``employees.salary + employees.PLACE_HOLDER``,
+        the placeholder tells :class:`ColumnsOperation` to treat the operand as numeric
+        (not string), avoiding ambiguity between ``+`` and ``||``. During
+        :meth:`Table.bulk_update`, each placeholder is replaced by a fresh ``%s`` and
+        bound to the matching value from ``data_list``. Users normally interact with
+        ``table.PLACE_HOLDER``; the literal string can be changed per-table if it
+        collides with application data:
+        ``my_table.PLACE_HOLDER = "your_own_marker"``.
+        """
         def __init__(self, placeholder):
             self.placeholder = placeholder
         
@@ -444,63 +454,75 @@ class Table:
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]
         self._excp(f"UPDATE {self.name_} SET {', '.join(f'{key.first_name} = {value.first_name}' if isinstance(value, Column) else f'{key.first_name}=%s' if not isinstance(value, ColumnsOperation) else f'{key.first_name}={value._output[0]}' for key, value in list(update.items()))} WHERE {where._output[0]};", temp_list + where._output[1])
 
-    def get_row(self,which_columns: list['Column' | 'ColumnsOperation'],where: 'ColumnsOperation' = None,order_by: 'Column | ColumnsOperation' = None, limit: int = None, offset: int = None):
-        """Fetch rows from the table with selected columns, optional filtering and ordering.
+    def get_row(self, which_columns: list['Column' | 'ColumnsOperation'], where: 'ColumnsOperation' = None, order_by: 'Column | ColumnsOperation' = None, limit: int = None, offset: int = None):
+        """Fetch rows from the table with selected columns, filtering, ordering and pagination.
 
-        This method builds and executes a SELECT query. The columns can be plain
-        :class:`Column` objects or computed :class:`ColumnsOperation` expressions.
-        If only one column is requested, the method returns a flat list of values
-        from that column; otherwise, it returns a list of tuples representing the
-        full rows.
+        Builds and executes a ``SELECT`` query. The columns can be plain
+        :class:`Column` objects or computed :class:`ColumnsOperation`
+        expressions. If only one column is requested, the method returns a
+        flat list of values from that column; otherwise, it returns a list of
+        tuples representing the full rows.
 
         Args:
-            which_columns (list[Column | ColumnsOperation]): A list of columns or
-                expressions to select. Each element can be a :class:`Column` object
-                or a :class:`ColumnsOperation` (e.g., arithmetic, string functions).
-            where (ColumnsOperation, optional): A condition object for filtering
-                rows. Defaults to None (no filter).
-            order_by (Column, optional): A :class:`Column` object to order the
-                results by. Defaults to None (no ordering).
+            which_columns (list[Column | ColumnsOperation]): A list of columns
+                or expressions to select. Each element can be a :class:`Column`
+                object or a :class:`ColumnsOperation` (e.g., arithmetic,
+                string functions).
+            where (ColumnsOperation, optional): A condition object for
+                filtering rows. Defaults to ``None`` (no filter).
+            order_by (Column | ColumnsOperation, optional): A :class:`Column`
+                or a computed :class:`ColumnsOperation` to order the results
+                by (e.g. ``tbl.val * -1`` for descending, ``tbl.name.upper()``
+                for case-insensitive sorting). Defaults to ``None``
+                (no ordering).
+            limit (int, optional): Maximum number of rows to return. A value
+                of ``0`` returns an empty list. Defaults to ``None`` (no
+                limit).
+            offset (int, optional): Number of rows to skip before returning
+                results. When greater than the total row count, returns an
+                empty list. Defaults to ``None`` (no offset).
 
         Returns:
-            list: If only one column is specified in `which_columns`, returns a list
-                of the values from that column (one per row). If multiple columns
-                are specified, returns a list of tuples, each tuple representing a
-                row with values in the order of the selected columns.
+            list: If only one column is specified in ``which_columns``, returns
+                a list of the values from that column (one per row). If
+                multiple columns are specified, returns a list of tuples, each
+                tuple representing a row with values in the order of the
+                selected columns.
 
         Raises:
             Exception: Propagates any database errors (OperationalError,
                 ProgrammingError, etc.) with additional context about the query.
 
         Example:
-            Simple selection with a condition and ordering:
+            Simple selection with a condition and ordering::
 
-            >>> from ormophine.Postgresql import Driver, Table, Column
-            >>> driver = Driver("localhost", 5432, "user", "pass", "mydb")
-            >>> employees = driver.employees
-            >>> # Assume columns: id, name, salary, department
-            >>> # Get names of all engineers, ordered by salary
-            >>> names = employees.get_row(
-            ...     [employees.name],
-            ...     where=employees.department == "Engineering",
-            ...     order_by=employees.salary
-            ... )
-            >>> # names is a list like ['Alice', 'Bob', ...]
+                >>> employees = driver.employees
+                >>> names = employees.get_row(
+                ...     [employees.name],
+                ...     where=employees.department == "Engineering",
+                ...     order_by=employees.salary
+                ... )
 
-        Example:
-            Complex query with computed columns using :class:`ColumnsOperation`:
+            Complex query with computed columns, ``ORDER BY`` on an operation,
+            and pagination::
 
-            >>> from ormophine.Postgresql import ColumnsOperation
-            >>> # Get employee id and full name (concatenated) for those with
-            >>> # salary greater than average (using arithmetic and string ops)
-            >>> employees.get_row(
-            ...     [
-            ...         employees.id,
-            ...         employees.first_name + " " + employees.last_name  # string concat
-            ...     ],
-            ...     where=employees.salary > (employees.salary * 0.5 + 30000)  # complex condition
-            ... )
-            >>> # Returns list of tuples like [(1, 'John Doe'), (2, 'Jane Smith')]
+                >>> employees.get_row(
+                ...     [employees.id,
+                ...      employees.first_name + " " + employees.last_name],
+                ...     where=employees.salary > 50000,
+                ...     order_by=employees.salary * -1,
+                ...     limit=10,
+                ...     offset=20
+                ... )
+                # ORDER BY ("salary" * -1) LIMIT 10 OFFSET 20
+
+            Case-insensitive ordering using a string operation::
+
+                >>> names = employees.get_row(
+                ...     [employees.name],
+                ...     order_by=employees.name.upper()
+                ... )
+                # ORDER BY (UPPER("name"))
         """
         if not which_columns:
             return
@@ -1105,66 +1127,88 @@ class Table:
     def bulk_update(self, update: dict['Column', Any], where: 'ColumnsOperation', data_list: list) -> None:
         """Execute a bulk UPDATE operation with parameterized placeholders.
 
-        This method performs a single UPDATE statement for multiple rows by using
-        placeholders (`PLACE_HOLDER`) that are replaced with values from each row
-        in `data_list`. It is designed for efficient batch updates where the same
-        update structure applies to many rows, but the specific values differ per row.
+        This method performs a single UPDATE statement for multiple rows by
+        using placeholders (``PLACE_HOLDER``) that are replaced with values
+        from each row in ``data_list``. It is designed for efficient batch
+        updates where the same update structure applies to many rows, but the
+        specific values differ per row.
 
-        The `update` dictionary and the `where` condition can contain the special
-        placeholder `self.PLACE_HOLDER` (or `db.PLACE_HOLDER`) to indicate that the
-        actual value should be taken from the corresponding position in each row of
-        `data_list`. The method constructs the final SQL by replacing `%s` placeholders
-        with `PLACE_HOLDER`, builds a parameterized query, and then executes it using
-        `executemany` with the `data_list`.
+        The ``update`` dictionary and the ``where`` condition can contain the
+        special placeholder ``self.PLACE_HOLDER`` (or ``db.PLACE_HOLDER``) to
+        indicate that the actual value should be taken from the corresponding
+        position in each row of ``data_list``. The method constructs the final
+        SQL by replacing ``%s`` placeholders with ``PLACE_HOLDER``, builds a
+        parameterized query, and then executes it using ``executemany`` with
+        the ``data_list``.
+
+        The number of ``PLACE_HOLDER`` occurrences across ``update`` values
+        and the ``where`` clause must equal the number of items in each row
+        of ``data_list``. The order of ``PLACE_HOLDER`` occurrences in the
+        final SQL is preserved (values from ``update`` first, in dict order,
+        then values from ``where``).
 
         Args:
-            update (dict[Column, Any]): A dictionary mapping :class:`Column` objects
-                to new values. Values can be literals, :class:`Column` objects (for
-                column-to-column assignment), or :class:`ColumnsOperation` objects.
-                Use `PLACE_HOLDER` for values that should come from `data_list`.
-            where (ColumnsOperation): A :class:`ColumnsOperation` object representing
-                the condition that determines which rows to update. Can also contain
-                `PLACE_HOLDER` to be substituted from `data_list`.
-            data_list (list): A list of rows, where each row is a list/tuple of values
-                corresponding to the `PLACE_HOLDER` occurrences in the `update` and
-                `where` clauses (in order of appearance).
+            update (dict[Column, Any]): A dictionary mapping :class:`Column`
+                objects to new values. Values can be literals, :class:`Column`
+                objects (for column-to-column assignment), or
+                :class:`ColumnsOperation` objects (which may embed
+                ``PLACE_HOLDER``). Use ``PLACE_HOLDER`` for values that should
+                come from ``data_list``.
+            where (ColumnsOperation): A :class:`ColumnsOperation` representing
+                the condition that determines which rows to update. May also
+                contain ``PLACE_HOLDER`` to be substituted from ``data_list``.
+            data_list (list): A list of rows, where each row is a list/tuple
+                of values corresponding to the ``PLACE_HOLDER`` occurrences in
+                ``update`` and ``where`` (in order of appearance).
 
         Returns:
-            None: This method executes the bulk update and does not return a value.
+            None: This method executes the bulk update and does not return a
+            value.
 
         Raises:
-            Exception: If the number of `PLACE_HOLDER` occurrences does not match the
-                number of items in each row of `data_list`. Also propagates other
-                database errors.
+            Exception: If the number of ``PLACE_HOLDER`` occurrences does not
+                match the number of items in each row of ``data_list``. Also
+                propagates other database errors.
 
         Example:
-            Simple bulk update using placeholders for column values:
+            Simple bulk update using placeholders for column values::
 
-            >>> # Increase salary by a variable amount for each department
-            >>> employees = Table(driver, "employees")
-            >>> employees.bulk_update(
-            ...     {employees.salary: employees.salary + employees.PLACE_HOLDER},
-            ...     employees.department == employees.PLACE_HOLDER,
-            ...     data_list=[[5000, "Engineering"], [3000, "Marketing"], [4000, "Sales"]]
-            ... )
-            >>> # This generates: UPDATE "employees" SET "salary" = ("salary" + %s)
-            >>> # WHERE "department" = %s; and executes with the given data.
+                >>> employees = driver.employees
+                >>> employees.bulk_update(
+                ...     {employees.salary: employees.salary + employees.PLACE_HOLDER},
+                ...     employees.department == employees.PLACE_HOLDER,
+                ...     data_list=[
+                ...         [5000, "Engineering"],
+                ...         [3000, "Marketing"],
+                ...         [4000, "Sales"],
+                ...     ]
+                ... )
+                >>> # Generates: UPDATE "employees" SET "salary" = ("salary" + %s)
+                >>> #             WHERE "department" = %s;
+                >>> # Executes with the given data_list.
 
-        Example:
-            Complex bulk update with computed expressions and multiple placeholders:
+            Complex bulk update with multiple placeholders and a compound
+            condition::
 
-            >>> # Set bonus as a percentage of salary and update title for managers
-            >>> employees.bulk_update(
-            ...     {
-            ...         employees.bonus: employees.salary * employees.PLACE_HOLDER / 100,
-            ...         employees.title: employees.title + " (Senior)"
-            ...     },
-            ...     (employees.title == "Manager") & (employees.years > employees.PLACE_HOLDER),
-            ...     data_list=[[10, 5], [15, 8], [12, 6]]
-            ... )
-            >>> # The PLACE_HOLDER in the update (for percentage) and in the where condition
-            >>> # (for years threshold) are replaced from data_list rows.
-            >>> # Each row provides [percentage, years_threshold].
+                >>> employees.bulk_update(
+                ...     {
+                ...         employees.bonus: employees.salary * employees.PLACE_HOLDER / 100,
+                ...         employees.title: employees.title + " (Senior)"
+                ...     },
+                ...     (employees.title == "Manager") &
+                ...     (employees.years > employees.PLACE_HOLDER),
+                ...     data_list=[[10, 5], [15, 8], [12, 6]]
+                ... )
+                >>> # First PLACE_HOLDER (percentage) comes from update,
+                >>> # second PLACE_HOLDER (years threshold) comes from where.
+                >>> # Each row provides [percentage, years_threshold].
+
+        Note:
+            The placeholder string is reserved by the ORM. If your data
+            legitimately contains the same literal string, you can change
+            the placeholder per table::
+
+                employees.PLACE_HOLDER = "my_own_marker_%s"
         """
         temp_list = []
         [None if isinstance(value , Column) else temp_list.append(value) if not isinstance(value, ColumnsOperation) else temp_list.extend(value._output[1]) for key, value in update.items()]

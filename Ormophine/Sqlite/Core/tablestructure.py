@@ -1239,9 +1239,6 @@ class TableStructure:
                 # The structure can then be used to create a table:
                 # db.create_table(structure)
         """
-        for item in self.table_query.split(','):
-            if column_name in item:
-                raise Exception('You have added this column befor\nif you wanna modify this column , delete this column and then add a new one with desired options') if item.split(' ')[0] == column_name else None
         if type(default_value) == bytes:
             raise Exception('Cant set bytes object as default value')
         if default_value is not None:
@@ -1257,54 +1254,6 @@ class TableStructure:
         self.primary_keys.append(column_name) if primary_key else None
         self.items[column_name] = [datatype, default_value, unique, unique_on_conflict, not_null, not_null_on_conflict, primary_key]
         self.table_query = self.table_query + f' {datatype.replace('my_saulted_x' , f'[{column_name.strip()}]')}{f' UNIQUE ON CONFLICT {unique_on_conflict}' if unique else ''}{f' NOT NULL ON CONFLICT {not_null_on_conflict}' if not_null else ''}{default_clause},'
-        return self
-
-    def delete_column(self, column_name: str):
-        """Remove a column from the table structure definition.
-
-        This method deletes a column that was previously added via
-        :meth:`add_column`. It updates the internal SQL query fragment and
-        the column metadata dictionary. If the column does not exist, an
-        exception is raised.
-
-        The method is typically used when building a table structure
-        dynamically before creation. After deletion, the column will not
-        appear in the generated ``CREATE TABLE`` statement.
-
-        Args:
-            column_name (str): The name of the column to remove.
-
-        Returns:
-            TableStructure: The current instance, allowing method chaining.
-
-        Raises:
-            Exception: If no column with the given name exists in the
-                structure.
-
-        Example:
-            Building a table structure and removing a column::
-
-                from ormophine.Sqlite import DataTypes, TableStructure
-
-                structure = TableStructure('users')
-                structure.add_column('id', DataTypes.INTEGER())
-                structure.add_column('name', DataTypes.VARCHAR(50))
-                structure.add_column('age', DataTypes.TINYINT())
-
-                # Remove the 'age' column
-                structure.delete_column('age')
-                # The 'age' column will not appear in the final CREATE TABLE.
-
-                # Create the table without the 'age' column
-                db.create_table(structure)
-        """
-        if column_name not in self.items:
-            raise Exception(f"No column found with name ({column_name})")
-        pattern = r'\s*\[{}\]\s+[^,]+(?:,|$)'.format(re.escape(column_name.strip()))
-        self.table_query = re.sub(pattern, '', self.table_query).rstrip(',')
-        if not self.table_query.strip():
-            self.table_query = ''
-        self.items.pop(column_name, None)
         return self
 
     def get_columns(self):
@@ -1444,7 +1393,7 @@ class TableStructure:
                 db.create_table(orders_structure)
                 # This ensures referential integrity between orders and customers.
         """
-        fk = f'FOREIGN KEY({column}) REFERENCES {refrences_table.name_}({refrences_column.first_name})'
+        fk = f'FOREIGN KEY([{column}]) REFERENCES {refrences_table.name_}({refrences_column.first_name})'
         if on_delete:
             fk += f' ON DELETE {on_delete}'
         if on_update:

@@ -900,6 +900,8 @@ class ColumnsOperation:
                 - :class:`ColumnsOperation`
                 - :class:`Column`
                 - Any literal (``int``, ``str``, ``float``, etc.)
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             :class:`ColumnsOperation`: The current instance with its ``_output``
@@ -952,6 +954,8 @@ class ColumnsOperation:
                 - :class:`ColumnsOperation`
                 - :class:`Column`
                 - Any literal (``int``, ``str``, ``float``, etc.)
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             :class:`ColumnsOperation`: The current instance with its ``_output``
@@ -1008,6 +1012,8 @@ class ColumnsOperation:
                 - :class:`ColumnsOperation`
                 - :class:`Column`
                 - Any literal (``int``, ``str``, ``float``, etc.)
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             :class:`ColumnsOperation`: The current instance with its ``_output``
@@ -1059,6 +1065,8 @@ class ColumnsOperation:
                 - :class:`ColumnsOperation`
                 - :class:`Column`
                 - Any literal (``int``, ``str``, ``float``, etc.)
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             :class:`ColumnsOperation`: The current instance with its ``_output``
@@ -3065,7 +3073,8 @@ class Column:
 
         Args:
             value (Any): The right-hand side of the equality.
-                Can be a `Column`, a `ColumnsOperation`, or a literal value.
+                Can be a `Column`, a `ColumnsOperation`, or a literal value or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: A new operation object representing the equality
@@ -3102,6 +3111,8 @@ class Column:
                 - A :class:`Column` – compares the column to another column.
                 - A :class:`ColumnsOperation` – compares the column to a
                 computed expression.
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             :class:`ColumnsOperation`: A condition object whose ``_output``
@@ -3152,6 +3163,8 @@ class Column:
                 - A `Column` object: compares column to column using the column's name.
                 - A `ColumnsOperation` object: uses the operation's SQL fragment and
                 combines its parameters.
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: A new operation object representing the `!=` condition.
@@ -3193,7 +3206,8 @@ class Column:
         Args:
             value: The right-hand side of the comparison. Can be another
                 :class:`Column`, a :class:`ColumnsOperation`, a literal value
-                (``int``, ``str``, ``float``, etc.), or ``None``.
+                (``int``, ``str``, ``float``, etc.), or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             :class:`ColumnsOperation`: A :class:`ColumnsOperation` instance

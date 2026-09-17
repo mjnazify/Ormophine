@@ -124,7 +124,6 @@ class Driver:
     """
 
     ISOLATION_LEVEL= Literal['DEFERRED', 'IMMEDIATE', 'EXCLUSIVE']
-    PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_?_'
     def __init__(self, db_path: str, isolation_level: ISOLATION_LEVEL = 'DEFERRED',cache_size: int = 128, none_block_reader_pool_size: int = 1,setup_time: float = 0.5):
         """Initialises the database connection and the worker threads.
 
@@ -170,7 +169,6 @@ class Driver:
             connector.close()
         except Exception as e:
             raise Exception(e)
-        self.PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_?_'
         self.db_path= db_path
         self.main_queue= SimpleQueue()
         self.wal_stop= Event()
@@ -181,9 +179,9 @@ class Driver:
         self._connected = True
         for i in range(self.reader_pool_size):
             connection_queue = SimpleQueue()
-            Thread(target=Driver.reader_driver, args=(connection_queue, self.db_path, isolation_level, cache_size)).start()
+            Thread(target=Driver.reader_driver, args=(connection_queue, self.db_path, isolation_level, cache_size), daemon=True).start()
             self.pool_holder.put(connection_queue)
-        Thread(target=Driver.simple_driver, args=(self.main_queue, self.db_path, isolation_level, cache_size)).start()
+        Thread(target=Driver.simple_driver, args=(self.main_queue, self.db_path, isolation_level, cache_size), daemon=True).start()
         QueueCallBack=SimpleQueue()
         self.main_queue.put(['qf', ('SELECT * FROM SQLITE_MASTER;',), QueueCallBack])
         if (callback:= QueueCallBack.get(block=True))[0]:
@@ -306,6 +304,7 @@ class Driver:
                 cursor = connector.cursor()
                 break
             except:
+                sleep(0.1)
                 pass
         while True:
             try:

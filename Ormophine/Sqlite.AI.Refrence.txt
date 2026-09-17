@@ -539,6 +539,26 @@ from typing import Any, Literal
 from threading import Thread, Event
 from queue import SimpleQueue
 
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
 class Driver:
     """
     Comprehensive SQLite Driver for Ormophine.
@@ -657,7 +677,6 @@ class Driver:
     """
 
     ISOLATION_LEVEL= Literal['DEFERRED', 'IMMEDIATE', 'EXCLUSIVE']
-    PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_?_'
     def __init__(self, db_path: str, isolation_level: ISOLATION_LEVEL = 'DEFERRED',cache_size: int = 128, none_block_reader_pool_size: int = 1,setup_time: float = 0.5):
         """Initialises the database connection and the worker threads.
 
@@ -703,7 +722,6 @@ class Driver:
             connector.close()
         except Exception as e:
             raise Exception(e)
-        self.PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_?_'
         self.db_path= db_path
         self.main_queue= SimpleQueue()
         self.wal_stop= Event()
@@ -714,9 +732,9 @@ class Driver:
         self._connected = True
         for i in range(self.reader_pool_size):
             connection_queue = SimpleQueue()
-            Thread(target=Driver.reader_driver, args=(connection_queue, self.db_path, isolation_level, cache_size)).start()
+            Thread(target=Driver.reader_driver, args=(connection_queue, self.db_path, isolation_level, cache_size), daemon=True).start()
             self.pool_holder.put(connection_queue)
-        Thread(target=Driver.simple_driver, args=(self.main_queue, self.db_path, isolation_level, cache_size)).start()
+        Thread(target=Driver.simple_driver, args=(self.main_queue, self.db_path, isolation_level, cache_size), daemon=True).start()
         QueueCallBack=SimpleQueue()
         self.main_queue.put(['qf', ('SELECT * FROM SQLITE_MASTER;',), QueueCallBack])
         if (callback:= QueueCallBack.get(block=True))[0]:
@@ -839,6 +857,7 @@ class Driver:
                 cursor = connector.cursor()
                 break
             except:
+                sleep(0.1)
                 pass
         while True:
             try:
@@ -2281,6 +2300,8 @@ class ColumnsOperation:
                 - :class:`ColumnsOperation`
                 - :class:`Column`
                 - Any literal (``int``, ``str``, ``float``, etc.)
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             :class:`ColumnsOperation`: The current instance with its ``_output``
@@ -2333,6 +2354,8 @@ class ColumnsOperation:
                 - :class:`ColumnsOperation`
                 - :class:`Column`
                 - Any literal (``int``, ``str``, ``float``, etc.)
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             :class:`ColumnsOperation`: The current instance with its ``_output``
@@ -2389,6 +2412,8 @@ class ColumnsOperation:
                 - :class:`ColumnsOperation`
                 - :class:`Column`
                 - Any literal (``int``, ``str``, ``float``, etc.)
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             :class:`ColumnsOperation`: The current instance with its ``_output``
@@ -2440,6 +2465,8 @@ class ColumnsOperation:
                 - :class:`ColumnsOperation`
                 - :class:`Column`
                 - Any literal (``int``, ``str``, ``float``, etc.)
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             :class:`ColumnsOperation`: The current instance with its ``_output``
@@ -4446,7 +4473,8 @@ class Column:
 
         Args:
             value (Any): The right-hand side of the equality.
-                Can be a `Column`, a `ColumnsOperation`, or a literal value.
+                Can be a `Column`, a `ColumnsOperation`, or a literal value or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: A new operation object representing the equality
@@ -4483,6 +4511,8 @@ class Column:
                 - A :class:`Column` – compares the column to another column.
                 - A :class:`ColumnsOperation` – compares the column to a
                 computed expression.
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             :class:`ColumnsOperation`: A condition object whose ``_output``
@@ -4533,6 +4563,8 @@ class Column:
                 - A `Column` object: compares column to column using the column's name.
                 - A `ColumnsOperation` object: uses the operation's SQL fragment and
                 combines its parameters.
+                - or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: A new operation object representing the `!=` condition.
@@ -4574,7 +4606,8 @@ class Column:
         Args:
             value: The right-hand side of the comparison. Can be another
                 :class:`Column`, a :class:`ColumnsOperation`, a literal value
-                (``int``, ``str``, ``float``, etc.), or ``None``.
+                (``int``, ``str``, ``float``, etc.), or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             :class:`ColumnsOperation`: A :class:`ColumnsOperation` instance
@@ -7663,7 +7696,17 @@ class Table:
     """
 
     class _PlaceHolder:
-        """So when we use placeholders in bulkupdate, it wont confuse to use '+' or '||' when using <users.age + users.PLACE_HOLDER>"""
+        """Marker object used in :meth:`Table.bulk_update` to inject row values.
+
+        When building a bulk update such as ``employees.salary + employees.PLACE_HOLDER``,
+        the placeholder tells :class:`ColumnsOperation` to treat the operand as numeric
+        (not string), avoiding ambiguity between ``+`` and ``||``. During
+        :meth:`Table.bulk_update`, each placeholder is replaced by a fresh ``%s`` and
+        bound to the matching value from ``data_list``. Users normally interact with
+        ``table.PLACE_HOLDER``; the literal string can be changed per-table if it
+        collides with application data:
+        ``my_table.PLACE_HOLDER = "your_own_marker"``.
+        """
         def __init__(self, placeholder):
             self.placeholder = placeholder
         
@@ -8213,7 +8256,7 @@ class Table:
                 print(result)  # ['Gadget']
         """
         if not insert:
-            self._exc(f'INSERT INTO {self.name_} DEFAULT VALUES;')
+            self._exc('qcb', f'INSERT INTO {self.name_} DEFAULT VALUES;')
             return
         query = (f'INSERT INTO {self.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'?' for k in insert)})', [v for v in list(insert.values())])
         self._exc('qcb', query)
@@ -8574,6 +8617,7 @@ class Table:
         self.db_obj.__delattr__(self.name_[1:-1])
         self.db_obj.__setattr__(new_name, Table(self.db_obj, new_name))
         self.name_ = f'[{new_name}]'
+        
 
     def rename_column(self, column: 'Column', new_name: str) -> None:
         """Renames an existing column in the table.
@@ -8901,6 +8945,7 @@ class Table:
         ``data_list``" from "leave as a literal placeholder in the SQL".
 
         .. important::
+            Do not use ``"`` and ``?`` characters in your string inputs!
             You must explicitly mark the positions that should be bound per
             row with :attr:`Table.PLACE_HOLDER`.  Everything else in the
             ``update`` and ``where`` arguments is treated as follows:
@@ -10372,9 +10417,6 @@ class TableStructure:
                 # The structure can then be used to create a table:
                 # db.create_table(structure)
         """
-        for item in self.table_query.split(','):
-            if column_name in item:
-                raise Exception('You have added this column befor\nif you wanna modify this column , delete this column and then add a new one with desired options') if item.split(' ')[0] == column_name else None
         if type(default_value) == bytes:
             raise Exception('Cant set bytes object as default value')
         if default_value is not None:
@@ -10390,54 +10432,6 @@ class TableStructure:
         self.primary_keys.append(column_name) if primary_key else None
         self.items[column_name] = [datatype, default_value, unique, unique_on_conflict, not_null, not_null_on_conflict, primary_key]
         self.table_query = self.table_query + f' {datatype.replace('my_saulted_x' , f'[{column_name.strip()}]')}{f' UNIQUE ON CONFLICT {unique_on_conflict}' if unique else ''}{f' NOT NULL ON CONFLICT {not_null_on_conflict}' if not_null else ''}{default_clause},'
-        return self
-
-    def delete_column(self, column_name: str):
-        """Remove a column from the table structure definition.
-
-        This method deletes a column that was previously added via
-        :meth:`add_column`. It updates the internal SQL query fragment and
-        the column metadata dictionary. If the column does not exist, an
-        exception is raised.
-
-        The method is typically used when building a table structure
-        dynamically before creation. After deletion, the column will not
-        appear in the generated ``CREATE TABLE`` statement.
-
-        Args:
-            column_name (str): The name of the column to remove.
-
-        Returns:
-            TableStructure: The current instance, allowing method chaining.
-
-        Raises:
-            Exception: If no column with the given name exists in the
-                structure.
-
-        Example:
-            Building a table structure and removing a column::
-
-                from ormophine.Sqlite import DataTypes, TableStructure
-
-                structure = TableStructure('users')
-                structure.add_column('id', DataTypes.INTEGER())
-                structure.add_column('name', DataTypes.VARCHAR(50))
-                structure.add_column('age', DataTypes.TINYINT())
-
-                # Remove the 'age' column
-                structure.delete_column('age')
-                # The 'age' column will not appear in the final CREATE TABLE.
-
-                # Create the table without the 'age' column
-                db.create_table(structure)
-        """
-        if column_name not in self.items:
-            raise Exception(f"No column found with name ({column_name})")
-        pattern = r'\s*\[{}\]\s+[^,]+(?:,|$)'.format(re.escape(column_name.strip()))
-        self.table_query = re.sub(pattern, '', self.table_query).rstrip(',')
-        if not self.table_query.strip():
-            self.table_query = ''
-        self.items.pop(column_name, None)
         return self
 
     def get_columns(self):
@@ -10577,7 +10571,7 @@ class TableStructure:
                 db.create_table(orders_structure)
                 # This ensures referential integrity between orders and customers.
         """
-        fk = f'FOREIGN KEY({column}) REFERENCES {refrences_table.name_}({refrences_column.first_name})'
+        fk = f'FOREIGN KEY([{column}]) REFERENCES {refrences_table.name_}({refrences_column.first_name})'
         if on_delete:
             fk += f' ON DELETE {on_delete}'
         if on_update:

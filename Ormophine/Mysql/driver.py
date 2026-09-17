@@ -83,7 +83,6 @@ class Driver():
             # Disconnect when done
             db.disconnect()
     """
-    PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_%s_'
     CHARSET = Literal[
     "armscii8",
     "ascii",
@@ -244,8 +243,6 @@ class Driver():
                 Must be one of ``'READ UNCOMMITTED'``, ``'READ COMMITTED'``,
                 ``'REPEATABLE READ'``, or ``'SERIALIZABLE'``.
                 Defaults to ``'REPEATABLE READ'``.
-            innodb_flush_log_at_trx_commit (INNODB_FLUSH_LOG, optional): InnoDB
-                flush log setting (0, 1, or 2). Defaults to 1.
 
         Raises:
             RuntimeError: If the connection pool cannot be created or the database
@@ -290,7 +287,6 @@ class Driver():
             recreates it and puts it back into the pool.
         """
         self.CONNECTION_ERRORS = (2002, 2003, 2005, 2006, 2012, 2013, 2026, 2049, 2055, 2000)
-        self.PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_%s_'
         self.host = host
         self.port = port
         self._connected = True

@@ -84,9 +84,10 @@ class ColumnsOperation:
         internal `_output` tuple, allowing method chaining.
 
         Args:
-            other (Union[ColumnsOperation, Column, int, float, str]): The right-hand
-                operand. Can be another :class:`ColumnsOperation`, a :class:`Column`,
-                or a literal value (int, float, or str).
+            other (Union[ColumnsOperation, Column, int, float, str, _PlaceHolder]):
+                The right-hand operand. Can be another :class:`ColumnsOperation`,
+                a :class:`Column`, a literal value (int, float, or str), or a
+                ``_PlaceHolder`` instance (used in :meth:`Table.bulk_update`).
 
         Returns:
             ColumnsOperation: The current instance, with `_output` updated to
@@ -97,22 +98,20 @@ class ColumnsOperation:
             Simple numeric addition:
 
             >>> employees = driver.employees
-            >>> # Add 10% bonus to salary
             >>> expr = employees.salary * 1.1 + 1000
-            >>> # This generates: (("salary" * 1.1) + %s) with params [1000]
+            >>> # This generates: (("employees"."salary" * 1.1) + %s) with params [1000]
 
         Example:
             String concatenation with a column and a literal:
 
-            >>> # Assuming 'first_name' and 'last_name' are string columns
             >>> full_name = employees.first_name + " " + employees.last_name
-            >>> # Generates: (("first_name" || %s) || "last_name") with params [' ']
+            >>> # Generates: (("employees"."first_name" || %s) || "employees"."last_name")
+            >>> # with params [' ']
 
         Note:
-            The operation uses `+` for numeric types and `||` for strings,
-            determined by the `col_obj.datatype` attribute. For literals, the
-            method automatically chooses the appropriate operator based on
-            the column's datatype.
+            The operator is chosen as ``||`` if either side has a string datatype;
+            otherwise ``+`` is used. For ``_PlaceHolder`` operands, the value is
+            treated as a numeric placeholder.
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.current_datatype == str) else '+'} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {'||' if (self.current_datatype == str) or (other.datatype == str) else '+'} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} {'||' if (self.current_datatype == str) else '+'} %s)', self._output[1]+[other]) if isinstance(other, int) or isinstance(other , float) or isinstance(other, self.col_obj.table_obj._PlaceHolder) else (f'({self._output[0]} || %s)', self._output[1]+[other if isinstance(other, str) else str(other)])
@@ -594,30 +593,27 @@ class ColumnsOperation:
             >>> # Extract first 3 characters of the "name" column
             >>> op = employees.name[:3]
             >>> print(op._output[0])
-            'SUBSTRING("employees"."name" , 1 , %s)'
-            >>> print(op._output[1])  # parameters
+            '(SUBSTRING("employees"."name" , 1 , %s))'
+            >>> print(op._output[1])
             [3]
 
-            >>> # Extract from index 2 to the end (Python 0-based, SQL 1-based)
             >>> op = employees.name[2:]
             >>> print(op._output[0])
-            'SUBSTRING("employees"."name" , %s , LENGTH("employees"."name"))'
+            '(SUBSTRING("employees"."name" , %s , LENGTH("employees"."name")))'
             >>> print(op._output[1])
             [3]  # because 2+1
 
-            >>> # Negative slicing: last 5 characters
             >>> op = employees.name[-5:]
             >>> print(op._output[0])
-            'SUBSTRING("employees"."name" , LENGTH("employees"."name") - %s , LENGTH("employees"."name"))'
+            '(SUBSTRING("employees"."name" , LENGTH("employees"."name") - %s , LENGTH("employees"."name")))'
             >>> print(op._output[1])
             [4]  # abs(-5) - 1 = 4
 
-            >>> # Combined with other operations
             >>> op = employees.name[1:5].upper()
             >>> print(op._output[0])
-            'UPPER(SUBSTRING("employees"."name" , %s , %s))'
+            '(UPPER((SUBSTRING("employees"."name" , %s , %s))))'
             >>> print(op._output[1])
-            [2, 4]  # start=1 -> 2, stop=5 -> length=4
+            [2, 4]
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op.current_datatype = str
@@ -673,7 +669,8 @@ class ColumnsOperation:
         Args:
             value (Any): The right-hand side of the equality comparison. Can be a
                 :class:`Column` object, a :class:`ColumnsOperation` (for comparing
-                two expressions), or a literal value (str, int, float, etc.).
+                two expressions), or a literal value (str, int, float, etc.) or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: The current instance with updated internal `_output`
@@ -716,7 +713,8 @@ class ColumnsOperation:
 
         Args:
             value (Any): The right-hand operand. Can be a :class:`Column`,
-                :class:`ColumnsOperation`, or a literal value.
+                :class:`ColumnsOperation`, or a literal value or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: The current instance with updated internal `_output`
@@ -762,7 +760,8 @@ class ColumnsOperation:
         Args:
             value (Any): The right-hand side of the inequality. Can be a
                 :class:`ColumnsOperation`, :class:`Column`, or a literal
-                (int, float, str, etc.).
+                (int, float, str, etc.) or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: The current instance with updated internal `_output`
@@ -802,7 +801,8 @@ class ColumnsOperation:
         Args:
             value (Any): The right-hand side of the inequality. Can be a
                 :class:`ColumnsOperation`, :class:`Column`, or a literal
-                (int, float, str, etc.).
+                (int, float, str, etc.) or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: The current instance with updated internal `_output`
@@ -1290,7 +1290,7 @@ class ColumnsOperation:
             >>> cond = employees.name.startswith(prefix_col)
             >>> # Combine with other conditions
             >>> final = cond & (employees.salary > 50000)
-            >>> # The generated SQL will be like: "employees"."name" LIKE 'A%'
+            >>> # The generated SQL will be like: ("employees"."name" LIKE 'A%')
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f"({self._output[0]} like {prefix._output[0]} || '%%')", (self._output[1] + prefix._output[1]) if self._output[0] else prefix._output[1]) if isinstance(prefix, ColumnsOperation) else (f"({self._output[0]} like {prefix.name} || '%%')", self._output[1]) if isinstance(prefix , Column) else (f"({self._output[0]} like %s || '%%')", self._output[1] + [f'{prefix}'])
@@ -1483,7 +1483,7 @@ class ColumnsOperation:
             >>> # Replace 'old' with 'new' in the name column
             >>> op = employees.name.replace('old', 'new')
             >>> print(op._output[0])
-            'REPLACE("employees"."name" , %s , %s)'
+            '(REPLACE("employees"."name" , %s , %s))'
             >>> print(op._output[1])
             ['old', 'new']
             >>> # Chain with other operations
@@ -1547,7 +1547,7 @@ class ColumnsOperation:
             >>> # Convert name to lowercase
             >>> op = employees.name.lower()
             >>> print(op._output[0])
-            'LOWER("employees"."name")'
+            '(LOWER("employees"."name"))'
             >>> # Chain with other operations
             >>> op2 = employees.name.upper().lower()  # upper then lower
             >>> print(op2._output[0])
@@ -1581,11 +1581,11 @@ class ColumnsOperation:
             >>> # Remove leading/trailing spaces from the name column
             >>> op = employees.name.strip()
             >>> print(op._output[0])
-            "TRIM(BOTH ' ' FROM \"employees\".\"name\")"
+            "(TRIM(BOTH ' ' FROM \"employees\".\"name\"))"
             >>> # Remove specific characters after an upper() operation
             >>> op = employees.name.upper().strip('_')
             >>> print(op._output[0])
-            "TRIM(BOTH '_' FROM UPPER(\"employees\".\"name\"))"
+            "(TRIM(BOTH '_' FROM UPPER(\"employees\".\"name\")))"
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f"(TRIM(BOTH '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output[0] else (f"(TRIM(BOTH '{chars}' FROM {self.col_obj.name}))", [])
@@ -1618,11 +1618,11 @@ class ColumnsOperation:
             >>> # Remove leading spaces from the name column
             >>> op = employees.name.lstrip()
             >>> print(op._output[0])
-            "TRIM(LEADING ' ' FROM \"employees\".\"name\")"
+            "(TRIM(LEADING ' ' FROM \"employees\".\"name\"))"
             >>> # Remove leading '#' characters from a computed expression
             >>> op = (employees.code + employees.suffix).lstrip('#')
             >>> print(op._output[0])
-            "TRIM(LEADING '#' FROM (\"employees\".\"code\" || \"employees\".\"suffix\"))"
+            "(TRIM(LEADING '#' FROM (\"employees\".\"code\" || \"employees\".\"suffix\")))"
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op._output = (f"(TRIM(LEADING '{chars}' FROM {self._output[0]}))", self._output[1]) if self._output[0] else (f"(TRIM(LEADING '{chars}' FROM {self.col_obj.name}))", [])
@@ -1656,13 +1656,13 @@ class ColumnsOperation:
             >>> # Remove trailing spaces from the name column
             >>> op = employees.name.rstrip()
             >>> print(op._output[0])
-            "TRIM(TRAILING ' ' FROM \"employees\".\"name\")"
+            "(TRIM(TRAILING ' ' FROM \"employees\".\"name\"))"
             >>> print(op._output[1])
             []
             >>> # Remove trailing underscores and chain with upper()
             >>> op2 = employees.name.rstrip('_').upper()
             >>> print(op2._output[0])
-            "UPPER(TRIM(TRAILING '_' FROM \"employees\".\"name\"))"
+            "(UPPER(TRIM(TRAILING '_' FROM \"employees\".\"name\")))"
             >>> print(op2._output[1])
             []
         """
@@ -1677,35 +1677,36 @@ class ColumnsOperation:
         This method supports two distinct modes for generating an ``IN`` clause:
 
         * **Literal list mode**: When ``data_list`` is provided, generates a
-          parameterised ``IN (%s, %s, ...)`` clause using the literal values.
-          For backward compatibility, if a list of plain values is passed as
-          the first positional argument (``column``), it is automatically
-          treated as ``data_list``.
+        parameterised ``IN (%s, %s, ...)`` clause using the literal values.
+        For backward compatibility, if a list of plain values is passed as
+        the first positional argument (``column``), it is automatically
+        treated as ``data_list``.
         * **Subquery mode**: When ``column`` is provided as a single
-          :class:`Column` or :class:`Ormophine.Postgresql.ColumnsOperation`, builds an
-          ``IN (SELECT ...)`` subquery. The table name is extracted from the
-          provided column object, and an optional ``where`` condition can be
-          applied inside the subquery — handled identically to
-          :meth:`Table.get_row`.
+        :class:`Column` or :class:`ColumnsOperation`, builds an
+        ``IN (SELECT ...)`` subquery. The table name is extracted from the
+        provided column object, and an optional ``where`` condition can be
+        applied inside the subquery — handled identically to
+        :meth:`Table.get_row`.
 
         The result is stored in the instance's ``_output`` attribute as a tuple
         ``(sql_string, parameters)``, and the instance is returned to allow
         chaining.
 
         Args:
-            column: A single :class:`Column` or :class:`Ormophine.Postgresql.ColumnsOperation`
-                to use in the ``SELECT`` clause of the subquery. The table name
+            column: A single :class:`Column` or :class:`ColumnsOperation` to
+                use in the ``SELECT`` clause of the subquery. The table name
                 is determined from this object. Do not pass a list of columns;
-                if you need multiple conditions, chain them using ``&`` or ``|``.
-                If a list of literals is passed, it is treated as ``data_list``.
-            where: An optional :class:`Ormophine.Postgresql.ColumnsOperation` (or :class:`Column` for
-                boolean columns) representing the ``WHERE`` condition for the
-                subquery. Defaults to ``None``.
+                if you need multiple conditions, chain them using ``&`` or
+                ``|``. If a list of literals is passed, it is treated as
+                ``data_list``.
+            where: An optional :class:`ColumnsOperation` (or :class:`Column`
+                for boolean columns) representing the ``WHERE`` condition for
+                the subquery. Defaults to ``None``.
             data_list: A list of literal values for a direct ``IN`` clause.
                 When provided, ``column`` and ``where`` are ignored.
 
         Returns:
-            :class:`Ormophine.Postgresql.ColumnsOperation`: The current instance with its ``_output``
+            ColumnsOperation: The current instance with its ``_output``
             updated to represent the ``IN`` clause. This allows method chaining.
 
         Raises:
@@ -1723,7 +1724,7 @@ class ColumnsOperation:
 
                 # Literal list mode (backward compatible)
                 expr1 = users.name.In(['Alice', 'Bob'])
-                # expr1._output[0] -> "(users.name IN (%s, %s))"
+                # expr1._output[0] -> '("users"."name" IN (%s, %s))'
                 # expr1._output[1] -> ['Alice', 'Bob']
 
                 # Literal list mode (using keyword)
@@ -1734,12 +1735,17 @@ class ColumnsOperation:
                     column=admins.username,
                     where=admins.active == True
                 )
-                # expr3._output[0] -> "(users.name IN (SELECT admins.username FROM admins WHERE (admins.active = %s)))"
+                # expr3._output[0] ->
+                #   '("users"."name" IN (SELECT "admins"."username" FROM "admins" WHERE ("admins"."active" = %s)))'
                 # expr3._output[1] -> [True]
 
                 # Subquery mode without WHERE
                 expr4 = users.name.In(column=admins.username)
-                # expr4._output[0] -> "(users.name IN (SELECT admins.username FROM admins))"
+                # expr4._output[0] ->
+                #   '("users"."name" IN (SELECT "admins"."username" FROM "admins"))'
+
+                # Using the result in a query
+                rows = users.get_row([users.name], where=expr1)
         """
         if isinstance(column, list):
             data_list, column = column, None #So user can simply In(['Alice', 'Bob']) with out passing arguments
@@ -1782,15 +1788,16 @@ class ColumnsOperation:
                 is determined from this object. Do not pass a list of columns;
                 if you need multiple conditions, chain them using ``&`` or ``|``.
                 If a list of literals is passed, it is treated as ``data_list``.
-            where: An optional :class:`ColumnsOperation` (or :class:`Column` for
-                boolean columns) representing the ``WHERE`` condition for the
-                subquery. Defaults to ``None``.
+            where: An optional :class:`ColumnsOperation` (or :class:`Column`
+                for boolean columns) representing the ``WHERE`` condition for
+                the subquery. Defaults to ``None``.
             data_list: A list of literal values for a direct ``NOT IN`` clause.
                 When provided, ``column`` and ``where`` are ignored.
 
         Returns:
-            :class:`ColumnsOperation`: The current instance with its ``_output``
-            updated to represent the ``NOT IN`` clause. This allows method chaining.
+            ColumnsOperation: The current instance with its ``_output``
+            updated to represent the ``NOT IN`` clause. This allows method
+            chaining.
 
         Raises:
             Exception: If neither ``data_list`` nor a valid ``column``
@@ -1807,7 +1814,7 @@ class ColumnsOperation:
 
                 # Literal list mode (backward compatible)
                 expr1 = users.name.not_In(['Alice', 'Bob'])
-                # expr1._output[0] -> "(users.name NOT IN (%s, %s))"
+                # expr1._output[0] -> '("users"."name" NOT IN (%s, %s))'
                 # expr1._output[1] -> ['Alice', 'Bob']
 
                 # Literal list mode (using keyword)
@@ -1818,12 +1825,13 @@ class ColumnsOperation:
                     column=admins.username,
                     where=admins.active == True
                 )
-                # expr3._output[0] -> "(users.name NOT IN (SELECT admins.username FROM admins WHERE (admins.active = %s)))"
-                # expr3._output[1] -> [True]
+                # expr3._output[0] ->
+                #   '("users"."name" NOT IN (SELECT "admins"."username" FROM "admins" WHERE ("admins"."active" = %s)))'
 
                 # Subquery mode without WHERE
                 expr4 = users.name.not_In(column=admins.username)
-                # expr4._output[0] -> "(users.name NOT IN (SELECT admins.username FROM admins))"
+                # expr4._output[0] ->
+                #   '("users"."name" NOT IN (SELECT "admins"."username" FROM "admins"))'
         """
         if isinstance(column, list):
             data_list, column = column, None #So user can simply In(['Alice', 'Bob']) with out passing arguments
@@ -2435,7 +2443,8 @@ class Column:
         Args:
             value (Any): The right‑hand side of the equality. Can be a
                 :class:`ColumnsOperation`, :class:`Column`, or any literal
-                value (str, int, float, etc.).
+                value (str, int, float, etc.) or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: A :class:`ColumnsOperation` instance representing
@@ -2483,7 +2492,8 @@ class Column:
         Args:
             value (Any): The right-hand side of the equality comparison. Can be a
                 literal (int, float, str, etc.), a :class:`Column`, or a
-                :class:`ColumnsOperation`.
+                :class:`ColumnsOperation` or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: A :class:`ColumnsOperation` instance representing the
@@ -2530,7 +2540,8 @@ class Column:
         Args:
             value (Any): The right‑hand side of the inequality. Can be a
                 :class:`ColumnsOperation`, :class:`Column`, or a literal
-                (int, float, str, etc.).
+                (int, float, str, etc.) or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: A :class:`ColumnsOperation` instance representing the
@@ -2572,7 +2583,8 @@ class Column:
         Args:
             value (Any): The right‑hand side of the inequality. Can be a literal
                 (int, float, str, etc.), a :class:`Column`, or a
-                :class:`ColumnsOperation`.
+                :class:`ColumnsOperation` or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: A :class:`ColumnsOperation` instance representing the
@@ -2978,21 +2990,21 @@ class Column:
             >>> # Extract first three characters of the name
             >>> op = employees.name[0:3]
             >>> print(op._output[0])
-            'SUBSTRING("employees"."name" , %s , %s)'
+            '(SUBSTRING("employees"."name" , %s , %s))'
             >>> print(op._output[1])
             [1, 3]  # note SQL uses 1-based indexing
             >>>
             >>> # Extract from position 2 to the end
             >>> op2 = employees.name[1:]
             >>> print(op2._output[0])
-            'SUBSTRING("employees"."name" , %s , LENGTH("employees"."name"))'
+            '(SUBSTRING("employees"."name" , %s , LENGTH("employees"."name")))'
             >>> print(op2._output[1])
             [2]
             >>>
             >>> # Negative indices (last 3 characters)
             >>> op3 = employees.name[-3:]
             >>> print(op3._output[0])
-            'SUBSTRING("employees"."name" , LENGTH("employees"."name") - %s , LENGTH("employees"."name"))'
+            '(SUBSTRING("employees"."name" , LENGTH("employees"."name") - %s , LENGTH("employees"."name")))'
             >>> print(op3._output[1])
             [2]  # LENGTH - 2 gives the start position for last 3 chars
         """
@@ -3041,7 +3053,7 @@ class Column:
             >>> # Trim spaces from the 'name' column
             >>> op = employees.name.strip()
             >>> print(op._output[0])
-            "TRIM(BOTH ' ' FROM \"employees\".\"name\")"
+            "(TRIM(BOTH ' ' FROM \"employees\".\"name\"))"
             >>> # Trim underscores from both ends
             >>> op2 = employees.code.strip('_')
         """
@@ -3073,7 +3085,7 @@ class Column:
             >>> employees = driver.employees
             >>> # Remove leading spaces from the 'name' column
             >>> trimmed = employees.name.lstrip()
-            >>> # Generate SQL: TRIM(LEADING ' ' FROM "employees"."name")
+            >>> # Generate SQL: (TRIM(LEADING ' ' FROM "employees"."name"))
             >>> # Remove leading dashes from the 'code' column
             >>> trimmed2 = employees.code.lstrip('-')
             >>> # Chain with other operations
@@ -3106,11 +3118,11 @@ class Column:
             >>> # Strip trailing spaces from the name column
             >>> op = employees.name.rstrip()
             >>> print(op._output[0])
-            "TRIM(TRAILING ' ' FROM \"employees\".\"name\")"
+            "(TRIM(TRAILING ' ' FROM \"employees\".\"name\"))"
             >>> # Strip trailing 'x' characters
             >>> op2 = employees.name.rstrip('x')
             >>> print(op2._output[0])
-            "TRIM(TRAILING 'x' FROM \"employees\".\"name\")"
+            "(TRIM(TRAILING 'x' FROM \"employees\".\"name\"))"
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f"(TRIM(TRAILING '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output[0] else (f"(TRIM(TRAILING '{chars}' FROM {temp_ob.col_obj.name}))", [])
@@ -3155,7 +3167,7 @@ class Column:
             '("employees"."first_name" || "employees"."last_name")'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} || {content._output[0]})', [content._output[1]]) if isinstance(content, ColumnsOperation) else (f'({self.name} || {content.name})', []) if isinstance(content, Column) else (f'({self.name} || %s)', [content])
+        temp_ob._output = (f'({self.name} || {content._output[0]})', content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self.name} || {content.name})', []) if isinstance(content, Column) else (f'({self.name} || %s)', [content])
         return temp_ob
 
     def add_first(self, content):
@@ -3195,7 +3207,7 @@ class Column:
             '("employees"."department_code" || "employees"."code")'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({content._output[0]} || {self.name})', [content._output[1]]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self.name})', []) if isinstance(content, Column) else (f'(%s || {self.name})', [content])
+        temp_ob._output = (f'({content._output[0]} || {self.name})', content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self.name})', []) if isinstance(content, Column) else (f'(%s || {self.name})', [content])
         return temp_ob
     
     def lower(self):
@@ -3217,7 +3229,7 @@ class Column:
             >>> # Compare names case-insensitively
             >>> cond = employees.name.lower() == 'john'
             >>> print(cond._output[0])
-            '(LOWER("employees"."name") = %s)'
+            '((LOWER("employees"."name")) = %s)'
             >>> print(cond._output[1])
             ['john']
             >>> # Use in a query
@@ -3245,7 +3257,7 @@ class Column:
             >>> # Convert names to uppercase for case‑insensitive comparison
             >>> op = employees.name.upper()
             >>> print(op._output[0])
-            'UPPER("employees"."name")'
+            '(UPPER("employees"."name"))'
             >>> # Use in a WHERE clause
             >>> cond = employees.name.upper() == 'JOHN DOE'
         """
@@ -3277,7 +3289,7 @@ class Column:
             >>> # Replace 'old' with 'new' in the name column
             >>> op = employees.name.replace('old', 'new')
             >>> print(op._output[0])
-            'REPLACE("employees"."name" , %s , %s)'
+            '(REPLACE("employees"."name" , %s , %s))'
             >>> print(op._output[1])
             ['old', 'new']
             >>> # Chain with other string functions
@@ -3360,7 +3372,7 @@ class Column:
             >>> # Find employees whose names start with 'A'
             >>> cond = employees.name.startswith('A')
             >>> print(cond._output[0])
-            '"employees"."name" like %s || \'%%\''
+            '("employees"."name" like %s || \'%%\')'
             >>> print(cond._output[1])
             ['A']
             >>> # Using another column as prefix
@@ -3456,7 +3468,7 @@ class Column:
             >>> # Using a ColumnsOperation (e.g., concatenated columns)
             >>> full_name = employees.first_name + ' ' + employees.last_name
             >>> cond2 = full_name.contains('John')
-            >>> # Generated SQL: (("first_name" || ' ') || "last_name") LIKE '%' || %s || '%'
+            >>> # Generated SQL: ((("first_name" || ' ') || "last_name") LIKE '%' || %s || '%')
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f"({self.name} like '%%' || {value._output[0]} || '%%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like '%%' || {value.name} || '%%')", temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f"({self.name} like '%%' || %s || '%%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
@@ -3548,23 +3560,22 @@ class Column:
 
         Supports two modes:
         * Passing a list of literal values to ``data_list`` (or as the first
-          positional argument for backward compatibility).
+        positional argument for backward compatibility).
         * Passing a single :class:`Column`/:class:`ColumnsOperation` to
-          ``column`` to build a ``SELECT`` subquery, with an optional
-          ``where`` condition.
+        ``column`` to build a ``SELECT`` subquery, with an optional
+        ``where`` condition.
 
         Args:
-            column: A single :class:`Column` or
-                :class:`Ormophine.Postgresql.ColumnsOperation` to use in the ``SELECT`` clause of
-                the subquery. If a list of literals is passed, it is treated
-                as ``data_list``.
-            where: An optional :class:`Ormophine.Postgresql.ColumnsOperation` (or :class:`Column`)
+            column: A single :class:`Column` or :class:`ColumnsOperation` to
+                use in the ``SELECT`` clause of the subquery. If a list of
+                literals is passed, it is treated as ``data_list``.
+            where: An optional :class:`ColumnsOperation` (or :class:`Column`)
                 representing the ``WHERE`` condition for the subquery.
             data_list: A list of literal values for a direct ``IN`` clause.
 
         Returns:
-            :class:`Ormophine.Postgresql.ColumnsOperation`: A :class:`ColumnsOperation` instance
-            representing the ``IN`` clause, allowing further chaining.
+            ColumnsOperation: A :class:`ColumnsOperation` instance representing
+            the ``IN`` clause, allowing further chaining.
 
         Raises:
             Exception: If neither ``data_list`` nor a valid ``column``
@@ -3611,17 +3622,16 @@ class Column:
         ``where`` condition.
 
         Args:
-            column: A single :class:`Column` or
-                :class:`ColumnsOperation` to use in the ``SELECT`` clause of
-                the subquery. If a list of literals is passed, it is treated
-                as ``data_list``.
+            column: A single :class:`Column` or :class:`ColumnsOperation` to
+                use in the ``SELECT`` clause of the subquery. If a list of
+                literals is passed, it is treated as ``data_list``.
             where: An optional :class:`ColumnsOperation` (or :class:`Column`)
                 representing the ``WHERE`` condition for the subquery.
             data_list: A list of literal values for a direct ``NOT IN`` clause.
 
         Returns:
-            :class:`ColumnsOperation`: A :class:`ColumnsOperation` instance
-            representing the ``NOT IN`` clause, allowing further chaining.
+            ColumnsOperation: A :class:`ColumnsOperation` instance representing
+            the ``NOT IN`` clause, allowing further chaining.
 
         Raises:
             Exception: If neither ``data_list`` nor a valid ``column``

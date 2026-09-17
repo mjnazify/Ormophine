@@ -691,19 +691,19 @@ class ColumnsOperation:
 
                 # Get first 5 characters
                 op = users.name[:5]
-                # SQL: SUBSTRING(users.name, 1, 5)
+                # SQL: (SUBSTRING(users.name, 1, 5))
 
                 # Get from position 3 to the end
                 op = users.name[2:]
-                # SQL: SUBSTRING(users.name, 3, LENGTH(users.name))
+                # SQL: (SUBSTRING(users.name, 3, LENGTH(users.name)))
 
                 # Get last 3 characters (negative indexing)
                 op = users.name[-3:]
-                # SQL: SUBSTRING(users.name, LENGTH(users.name) - 2, LENGTH(users.name))
+                # SQL: (SUBSTRING(users.name, LENGTH(users.name) - 2, LENGTH(users.name)))
 
                 # Get substring from 3rd character to 2 before the end
                 op = users.name[2:-2]
-                # SQL: SUBSTRING(users.name, 3, LENGTH(users.name) - 4)
+                # SQL: (SUBSTRING(users.name, 3, LENGTH(users.name) - 4))
         """
         new_op = ColumnsOperation(self.col_obj)
         new_op.current_datatype = str
@@ -766,7 +766,8 @@ class ColumnsOperation:
         Args:
             value (ColumnsOperation, Column, Any): The right-hand side of the
                 equality comparison. Its type determines how the SQL expression
-                and parameters are constructed.
+                and parameters are constructed or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: The same instance, with its ``_output`` attribute
@@ -808,7 +809,8 @@ class ColumnsOperation:
         Args:
             value (ColumnsOperation, Column, Any): The right-hand side of the
                 equality comparison. Its type determines how the SQL expression
-                and parameters are constructed.
+                and parameters are constructed or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: The same instance, with its ``_output`` attribute
@@ -849,7 +851,8 @@ class ColumnsOperation:
         Args:
             value (ColumnsOperation, Column, Any): The right-hand side of the
                 inequality comparison. Its type determines how the SQL expression
-                and parameters are constructed.
+                and parameters are constructed or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: The same instance, with its ``_output`` attribute
@@ -893,7 +896,8 @@ class ColumnsOperation:
         Args:
             value (ColumnsOperation, Column, Any): The right-hand side of the
                 inequality comparison. Its type determines how the SQL expression
-                and parameters are constructed.
+                and parameters are constructed or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: The same instance, with its ``_output`` attribute
@@ -1888,16 +1892,16 @@ class ColumnsOperation:
         This method supports two distinct modes for generating an ``IN`` clause:
 
         * **Literal list mode**: When ``data_list`` is provided, generates a
-          parameterised ``IN (%s, %s, ...)`` clause using the literal values.
-          For backward compatibility, if a list of plain values is passed as
-          the first positional argument (``column``), it is automatically
-          treated as ``data_list``.
+        parameterised ``IN (%s, %s, ...)`` clause using the literal values.
+        For backward compatibility, if a list of plain values is passed as
+        the first positional argument (``column``), it is automatically
+        treated as ``data_list``.
         * **Subquery mode**: When ``column`` is provided as a single
-          :class:`Column` or :class:`Ormophine.Mysql.ColumnsOperation`, builds an
-          ``IN (SELECT ...)`` subquery. The table name is extracted from the
-          provided column object, and an optional ``where`` condition can be
-          applied inside the subquery — handled identically to
-          :meth:`Table.get_row`.
+        :class:`Column` or :class:`Ormophine.Mysql.ColumnsOperation`, builds an
+        ``IN (SELECT ...)`` subquery. The table name is extracted from the
+        provided column object, and an optional ``where`` condition can be
+        applied inside the subquery — handled identically to
+        :meth:`Table.get_row`.
 
         The result is stored in the instance's ``_output`` attribute as a tuple
         ``(sql_string, parameters)``, and the instance is returned to allow
@@ -1909,14 +1913,14 @@ class ColumnsOperation:
                 is determined from this object. Do not pass a list of columns;
                 if you need multiple conditions, chain them using ``&`` or ``|``.
                 If a list of literals is passed, it is treated as ``data_list``.
-            where: An optional :class:`Ormophine.Mysql.ColumnsOperation` (or :class:`Column` for
-                boolean columns) representing the ``WHERE`` condition for the
-                subquery. Defaults to ``None``.
+            where: An optional :class:`Ormophine.Mysql.ColumnsOperation` (or
+                :class:`Column` for boolean columns) representing the ``WHERE``
+                condition for the subquery. Defaults to ``None``.
             data_list: A list of literal values for a direct ``IN`` clause.
                 When provided, ``column`` and ``where`` are ignored.
 
         Returns:
-            :class:`Ormophine.Mysql.ColumnsOperation`: The current instance with its ``_output``
+            ColumnsOperation: The current instance with its ``_output``
             updated to represent the ``IN`` clause. This allows method chaining.
 
         Raises:
@@ -1928,13 +1932,14 @@ class ColumnsOperation:
 
                 from ormophine.Mysql import Driver
 
-                db = Driver(host='localhost', port=3306, username='root', password='secret', db_name='my_app')
-                users = db.users
+                db = Driver(host='localhost', port=3306, username='root',
+                            password='secret', db_name='my_app')
+                users  = db.users
                 admins = db.admins
 
                 # Literal list mode (backward compatible)
                 expr1 = users.name.In(['Alice', 'Bob'])
-                # expr1._output[0] -> "(users.name IN (%s, %s))"
+                # expr1._output[0] -> '(`users`.`name` IN (%s, %s))'
                 # expr1._output[1] -> ['Alice', 'Bob']
 
                 # Literal list mode (using keyword)
@@ -1945,12 +1950,17 @@ class ColumnsOperation:
                     column=admins.username,
                     where=admins.active == True
                 )
-                # expr3._output[0] -> "(users.name IN (SELECT admins.username FROM admins WHERE (admins.active = %s)))"
+                # expr3._output[0] ->
+                #   '(`users`.`name` IN (SELECT `admins`.`username` FROM `admins` WHERE (`admins`.`active` = %s)))'
                 # expr3._output[1] -> [True]
 
                 # Subquery mode without WHERE
                 expr4 = users.name.In(column=admins.username)
-                # expr4._output[0] -> "(users.name IN (SELECT admins.username FROM admins))"
+                # expr4._output[0] ->
+                #   '(`users`.`name` IN (SELECT `admins`.`username` FROM `admins`))'
+
+                # Using the result in a query
+                rows = users.get_row([users.name], where=expr1)
         """
         if isinstance(column, list):
             data_list, column = column, None #So user can simply In(['Alice', 'Bob']) with out passing arguments
@@ -1973,9 +1983,9 @@ class ColumnsOperation:
 
         * **Literal list mode**: When ``data_list`` is provided, generates a
         parameterised ``NOT IN (%s, %s, ...)`` clause using the literal values.
-        For backward compatibility, if a list of plain values is passed as
-        the first positional argument (``column``), it is automatically
-        treated as ``data_list``.
+        For backward compatibility, if a list of plain values is passed as the
+        first positional argument (``column``), it is automatically treated as
+        ``data_list``.
         * **Subquery mode**: When ``column`` is provided as a single
         :class:`Column` or :class:`ColumnsOperation`, builds a
         ``NOT IN (SELECT ...)`` subquery. The table name is extracted from the
@@ -1993,15 +2003,16 @@ class ColumnsOperation:
                 is determined from this object. Do not pass a list of columns;
                 if you need multiple conditions, chain them using ``&`` or ``|``.
                 If a list of literals is passed, it is treated as ``data_list``.
-            where: An optional :class:`ColumnsOperation` (or :class:`Column` for
-                boolean columns) representing the ``WHERE`` condition for the
-                subquery. Defaults to ``None``.
+            where: An optional :class:`ColumnsOperation` (or :class:`Column`
+                for boolean columns) representing the ``WHERE`` condition for
+                the subquery. Defaults to ``None``.
             data_list: A list of literal values for a direct ``NOT IN`` clause.
                 When provided, ``column`` and ``where`` are ignored.
 
         Returns:
-            :class:`ColumnsOperation`: The current instance with its ``_output``
-            updated to represent the ``NOT IN`` clause. This allows method chaining.
+            ColumnsOperation: The current instance with its ``_output``
+            updated to represent the ``NOT IN`` clause. This allows method
+            chaining.
 
         Raises:
             Exception: If neither ``data_list`` nor a valid ``column``
@@ -2012,13 +2023,14 @@ class ColumnsOperation:
 
                 from ormophine.Mysql import Driver
 
-                db = Driver(host='localhost', port=3306, username='root', password='secret', db_name='my_app')
-                users = db.users
+                db = Driver(host='localhost', port=3306, username='root',
+                            password='secret', db_name='my_app')
+                users  = db.users
                 admins = db.admins
 
                 # Literal list mode (backward compatible)
                 expr1 = users.name.not_In(['Alice', 'Bob'])
-                # expr1._output[0] -> "(users.name NOT IN (%s, %s))"
+                # expr1._output[0] -> '(`users`.`name` NOT IN (%s, %s))'
                 # expr1._output[1] -> ['Alice', 'Bob']
 
                 # Literal list mode (using keyword)
@@ -2029,12 +2041,13 @@ class ColumnsOperation:
                     column=admins.username,
                     where=admins.active == True
                 )
-                # expr3._output[0] -> "(users.name NOT IN (SELECT admins.username FROM admins WHERE (admins.active = %s)))"
-                # expr3._output[1] -> [True]
+                # expr3._output[0] ->
+                #   '(`users`.`name` NOT IN (SELECT `admins`.`username` FROM `admins` WHERE (`admins`.`active` = %s)))'
 
                 # Subquery mode without WHERE
                 expr4 = users.name.not_In(column=admins.username)
-                # expr4._output[0] -> "(users.name NOT IN (SELECT admins.username FROM admins))"
+                # expr4._output[0] ->
+                #   '(`users`.`name` NOT IN (SELECT `admins`.`username` FROM `admins`))'
         """
         if isinstance(column, list):
             data_list, column = column, None #So user can simply In(['Alice', 'Bob']) with out passing arguments
@@ -2683,7 +2696,8 @@ class Column:
         Args:
             value (ColumnsOperation, Column, Any): The right-hand side of the
                 equality comparison. Its type determines how the SQL expression
-                and parameters are constructed.
+                and parameters are constructed or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: A new :class:`ColumnsOperation` instance representing
@@ -2734,7 +2748,8 @@ class Column:
         Args:
             value (ColumnsOperation, Column, Any): The right-hand side of the
                 equality comparison. Its type determines how the SQL expression
-                and parameters are constructed.
+                and parameters are constructed or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NULL``.
 
         Returns:
             ColumnsOperation: A new :class:`ColumnsOperation` instance representing
@@ -2777,7 +2792,8 @@ class Column:
         Args:
             value (ColumnsOperation, Column, Any): The right-hand side of the
                 not-equal comparison. Its type determines how the SQL expression
-                and parameters are constructed.
+                and parameters are constructed or ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: A new :class:`ColumnsOperation` instance representing
@@ -2826,7 +2842,9 @@ class Column:
                 - If it is a :class:`Column`, the column name is used directly,
                 with no additional parameters.
                 - For any other type (e.g., int, float, str), a placeholder
-                ``%s`` is used, and the value is added to the parameter list.
+                ``%s`` is used, and the value is added to the parameter list or 
+                ``None``. When ``None`` is passed, the generated SQL
+                becomes ``<expression> IS NOT NULL``.
 
         Returns:
             ColumnsOperation: A new :class:`ColumnsOperation` instance representing
@@ -3259,17 +3277,17 @@ class Column:
 
                 # Assume `users` is a Table instance with a `name` column
                 op = users.name[:3]
-                # op._output[0] -> 'SUBSTRING(users.name , 1 , %s)'
+                # op._output[0] -> '(SUBSTRING(users.name , 1 , %s))'
                 # op._output[1] -> [3]
 
                 # Slicing from the 2nd character to the 5th
                 op = users.name[1:5]
-                # op._output[0] -> 'SUBSTRING(users.name , %s , %s)'
+                # op._output[0] -> '(SUBSTRING(users.name , %s , %s))'
                 # op._output[1] -> [2, 4]  # start=2 (1-based), length=4
 
                 # Negative stop: exclude last 2 characters
                 op = users.name[:-2]
-                # op._output[0] -> 'SUBSTRING(users.name , 1 , LENGTH(users.name) - %s)'
+                # op._output[0] -> '(SUBSTRING(users.name , 1 , LENGTH(users.name) - %s))'
                 # op._output[1] -> [2]  # abs(stop)
         """
         temp_ob = ColumnsOperation(self)
@@ -3321,7 +3339,7 @@ class Column:
 
                 # Assume `users` is a Table instance with a `username` column
                 trimmed = users.username.strip()
-                # trimmed._output[0] -> "TRIM(BOTH ' ' FROM users.username)"
+                # trimmed._output[0] -> "(TRIM(BOTH ' ' FROM users.username))"
                 # trimmed._output[1] -> []
 
                 # Using with a condition
@@ -3329,11 +3347,11 @@ class Column:
                     which_columns=[users.id, users.username],
                     where=users.username.strip() == 'admin'
                 )
-                # This generates SQL: ... WHERE TRIM(BOTH ' ' FROM users.username) = %s
+                # This generates SQL: ... WHERE ((TRIM(BOTH ' ' FROM users.username)) = %s)
 
                 # Strip other characters, e.g., underscores
                 trimmed_underscore = users.username.strip('_')
-                # trimmed_underscore._output[0] -> "TRIM(BOTH '_' FROM users.username)"
+                # trimmed_underscore._output[0] -> "(TRIM(BOTH '_' FROM users.username))"
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f"(TRIM(BOTH '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output[0] else (f"(TRIM(BOTH '{chars}' FROM {temp_ob.col_obj.name}))", [])
@@ -3373,16 +3391,16 @@ class Column:
 
                 # Assume `users` is a Table instance with a `name` column
                 op = users.name.lstrip()
-                # op._output[0] -> "TRIM(LEADING ' ' FROM users.name)"
+                # op._output[0] -> "(TRIM(LEADING ' ' FROM users.name))"
                 # op._output[1] -> []
 
                 # Remove leading '@' characters
                 op = users.username.lstrip('@')
-                # op._output[0] -> "TRIM(LEADING '@' FROM users.username)"
+                # op._output[0] -> "(TRIM(LEADING '@' FROM users.username))"
 
                 # Combine with other operations
                 op = users.name.upper().lstrip()
-                # op._output[0] -> "TRIM(LEADING ' ' FROM UPPER(users.name))"
+                # op._output[0] -> "(TRIM(LEADING ' ' FROM UPPER(users.name)))"
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f"(TRIM(LEADING '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output[0] else (f"(TRIM(LEADING '{chars}' FROM {temp_ob.col_obj.name}))", [])
@@ -3415,11 +3433,11 @@ class Column:
 
                 # Assume `users` is a Table instance with a `name` column
                 op = users.name.rstrip()
-                # op._output[0] -> "TRIM(TRAILING ' ' FROM users.name)"
+                # op._output[0] -> "(TRIM(TRAILING ' ' FROM users.name))"
 
                 # Removing trailing '@' characters
                 op = users.username.rstrip('@')
-                # op._output[0] -> "TRIM(TRAILING '@' FROM users.username)"
+                # op._output[0] -> "(TRIM(TRAILING '@' FROM users.username))"
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f"(TRIM(TRAILING '{chars}' FROM {temp_ob._output[0]}))", temp_ob._output[1]) if temp_ob._output[0] else (f"(TRIM(TRAILING '{chars}' FROM {temp_ob.col_obj.name}))", [])
@@ -3461,7 +3479,7 @@ class Column:
                 # full_name._output[1] -> [' ']
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({self.name} || {content._output[0]})', [content._output[1]]) if isinstance(content, ColumnsOperation) else (f'({self.name} || {content.name})', []) if isinstance(content, Column) else (f'({self.name} || %s)', [content])
+        temp_ob._output = (f'({self.name} || {content._output[0]})', content._output[1]) if isinstance(content, ColumnsOperation) else (f'({self.name} || {content.name})', []) if isinstance(content, Column) else (f'({self.name} || %s)', [content])
         return temp_ob
 
     def add_first(self, content):
@@ -3510,7 +3528,7 @@ class Column:
                 # op._output[0] -> '(users.title || users.first_name)'
         """
         temp_ob = ColumnsOperation(self)
-        temp_ob._output = (f'({content._output[0]} || {self.name})', [content._output[1]]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self.name})', []) if isinstance(content, Column) else (f'(%s || {self.name})', [content])
+        temp_ob._output = (f'({content._output[0]} || {self.name})', content._output[1]) if isinstance(content, ColumnsOperation) else (f'({content.name} || {self.name})', []) if isinstance(content, Column) else (f'(%s || {self.name})', [content])
         return temp_ob
     
     def lower(self):
@@ -3572,11 +3590,11 @@ class Column:
 
                 # Assume `users` is a Table instance with a `name` column
                 op = users.name.upper()
-                # op._output[0] -> 'UPPER(users.name)'
+                # op._output[0] -> '(UPPER(users.name))'
 
                 # Using in a WHERE clause
                 condition = users.name.upper() == 'ALICE'
-                # condition._output[0] -> '(UPPER(users.name) = %s)'
+                # condition._output[0] -> '((UPPER(users.name)) = %s)'
                 # condition._output[1] -> ['ALICE']
         """
         temp_ob = ColumnsOperation(self)
@@ -3609,7 +3627,7 @@ class Column:
 
                 # Assume `users` is a Table instance with a `bio` column
                 op = users.bio.replace('old_text', 'new_text')
-                # op._output[0] -> 'REPLACE(users.bio, %s, %s)'
+                # op._output[0] -> '(REPLACE(users.bio, %s, %s))'
                 # op._output[1] -> ['old_text', 'new_text']
         """
         temp_ob = ColumnsOperation(self)
@@ -3699,12 +3717,12 @@ class Column:
 
                 # Assume `users` is a Table instance with a `name` column
                 condition = users.name.startswith('A')
-                # condition._output[0] -> 'users.name like %s || '%%''
+                # condition._output[0] -> '(users.name like %s || '%%')'
                 # condition._output[1] -> ['A']
 
                 # Using another column as the prefix
                 condition = users.name.startswith(users.prefix_column)
-                # condition._output[0] -> 'users.name like users.prefix_column || '%%''
+                # condition._output[0] -> '(users.name like users.prefix_column || '%%'')
         """
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (f"({self.name} like {value._output[0]} || '%%')", (temp_ob._output[1] + value._output[1]) if temp_ob._output[0] else value._output[1]) if isinstance(value, ColumnsOperation) else (f"({self.name} like {value.name} || '%%')", temp_ob._output[1] if temp_ob._output[0] else []) if isinstance(value , Column) else (f"({self.name} like %s || '%%')", (temp_ob._output[1] + [f'{value}']) if temp_ob._output[0] else [f'{value}'])
@@ -3906,23 +3924,23 @@ class Column:
 
         Supports two modes:
         * Passing a list of literal values to ``data_list`` (or as the first
-          positional argument for backward compatibility).
+        positional argument for backward compatibility).
         * Passing a single :class:`Column`/:class:`ColumnsOperation` to
-          ``column`` to build a ``SELECT`` subquery, with an optional
-          ``where`` condition.
+        ``column`` to build a ``SELECT`` subquery, with an optional
+        ``where`` condition.
 
         Args:
-            column: A single :class:`Column` or
-                :class:`Ormophine.Mysql.ColumnsOperation` to use in the ``SELECT`` clause of
-                the subquery. If a list of literals is passed, it is treated
-                as ``data_list``.
-            where: An optional :class:`Ormophine.Mysql.ColumnsOperation` (or :class:`Column`)
-                representing the ``WHERE`` condition for the subquery.
+            column: A single :class:`Column` or :class:`Ormophine.Mysql.ColumnsOperation`
+                to use in the ``SELECT`` clause of the subquery. If a list of
+                literals is passed, it is treated as ``data_list``.
+            where: An optional :class:`Ormophine.Mysql.ColumnsOperation` (or
+                :class:`Column`) representing the ``WHERE`` condition for the
+                subquery.
             data_list: A list of literal values for a direct ``IN`` clause.
 
         Returns:
-            :class:`Ormophine.Mysql.ColumnsOperation`: A :class:`ColumnsOperation` instance
-            representing the ``IN`` clause, allowing further chaining.
+            ColumnsOperation: A :class:`ColumnsOperation` instance representing
+            the ``IN`` clause, allowing further chaining.
 
         Raises:
             Exception: If neither ``data_list`` nor a valid ``column``
@@ -3933,12 +3951,15 @@ class Column:
 
                 from ormophine.Mysql import Driver
 
-                db = Driver(host='localhost', port=3306, username='root', password='secret', db_name='my_app')
-                users = db.users
+                db = Driver(host='localhost', port=3306, username='root',
+                            password='secret', db_name='my_app')
+                users  = db.users
                 admins = db.admins
 
                 # Literal list
                 cond1 = users.age.In([25, 30, 35])
+                # cond1._output[0] -> '(`users`.`age` IN (%s, %s, %s))'
+                # cond1._output[1] -> [25, 30, 35]
 
                 # Subquery
                 cond2 = users.name.In(
@@ -3969,17 +3990,16 @@ class Column:
         ``where`` condition.
 
         Args:
-            column: A single :class:`Column` or
-                :class:`ColumnsOperation` to use in the ``SELECT`` clause of
-                the subquery. If a list of literals is passed, it is treated
-                as ``data_list``.
+            column: A single :class:`Column` or :class:`ColumnsOperation` to
+                use in the ``SELECT`` clause of the subquery. If a list of
+                literals is passed, it is treated as ``data_list``.
             where: An optional :class:`ColumnsOperation` (or :class:`Column`)
                 representing the ``WHERE`` condition for the subquery.
             data_list: A list of literal values for a direct ``NOT IN`` clause.
 
         Returns:
-            :class:`ColumnsOperation`: A :class:`ColumnsOperation` instance
-            representing the ``NOT IN`` clause, allowing further chaining.
+            ColumnsOperation: A :class:`ColumnsOperation` instance representing
+            the ``NOT IN`` clause, allowing further chaining.
 
         Raises:
             Exception: If neither ``data_list`` nor a valid ``column``
@@ -3990,12 +4010,14 @@ class Column:
 
                 from ormophine.Mysql import Driver
 
-                db = Driver(host='localhost', port=3306, username='root', password='secret', db_name='my_app')
-                users = db.users
+                db = Driver(host='localhost', port=3306, username='root',
+                            password='secret', db_name='my_app')
+                users  = db.users
                 admins = db.admins
 
                 # Literal list
                 cond1 = users.age.not_In([25, 30, 35])
+                # cond1._output[0] -> '(`users`.`age` NOT IN (%s, %s, %s))'
 
                 # Subquery
                 cond2 = users.name.not_In(

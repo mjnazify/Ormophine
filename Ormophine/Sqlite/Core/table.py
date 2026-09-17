@@ -69,7 +69,17 @@ class Table:
     """
 
     class _PlaceHolder:
-        """So when we use placeholders in bulkupdate, it wont confuse to use '+' or '||' when using <users.age + users.PLACE_HOLDER>"""
+        """Marker object used in :meth:`Table.bulk_update` to inject row values.
+
+        When building a bulk update such as ``employees.salary + employees.PLACE_HOLDER``,
+        the placeholder tells :class:`ColumnsOperation` to treat the operand as numeric
+        (not string), avoiding ambiguity between ``+`` and ``||``. During
+        :meth:`Table.bulk_update`, each placeholder is replaced by a fresh ``%s`` and
+        bound to the matching value from ``data_list``. Users normally interact with
+        ``table.PLACE_HOLDER``; the literal string can be changed per-table if it
+        collides with application data:
+        ``my_table.PLACE_HOLDER = "your_own_marker"``.
+        """
         def __init__(self, placeholder):
             self.placeholder = placeholder
         
@@ -619,7 +629,7 @@ class Table:
                 print(result)  # ['Gadget']
         """
         if not insert:
-            self._exc(f'INSERT INTO {self.name_} DEFAULT VALUES;')
+            self._exc('qcb', f'INSERT INTO {self.name_} DEFAULT VALUES;')
             return
         query = (f'INSERT INTO {self.name_} ({', '.join(i.first_name for i in list(insert.keys()))}) VALUES ({', '.join(f'?' for k in insert)})', [v for v in list(insert.values())])
         self._exc('qcb', query)
@@ -980,6 +990,7 @@ class Table:
         self.db_obj.__delattr__(self.name_[1:-1])
         self.db_obj.__setattr__(new_name, Table(self.db_obj, new_name))
         self.name_ = f'[{new_name}]'
+        
 
     def rename_column(self, column: 'Column', new_name: str) -> None:
         """Renames an existing column in the table.
@@ -1307,6 +1318,7 @@ class Table:
         ``data_list``" from "leave as a literal placeholder in the SQL".
 
         .. important::
+            Do not use ``"`` and ``?`` characters in your string inputs!
             You must explicitly mark the positions that should be bound per
             row with :attr:`Table.PLACE_HOLDER`.  Everything else in the
             ``update`` and ``where`` arguments is treated as follows:

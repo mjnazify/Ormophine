@@ -10,12 +10,12 @@ class Driver():
     The driver is the main entry point for working with PostgreSQL databases.
     It manages connection pooling, auto-discovers existing tables, and exposes
     table objects directly as attributes on the driver instance. It also provides
-    a Pythonic API for CRUD operations, joins, batch transactions, and schema
-    management.
+    a Pythonic API for CRUD operations, joins, batch transactions, schema
+    management, user/role administration, and privilege control.
 
-    The PostgreSQL implementation follows the same public approach as the other
-    backends: applications import the public symbols from the package root and
-    work with the returned table objects and schema helpers.
+    Tables are reflected automatically at construction time and can be accessed
+    as attributes (``driver.users``, ``driver.orders``, ...). Each attribute is
+    a :class:`Table` instance exposing column objects and high-level methods.
 
     Parameters
     ----------
@@ -30,33 +30,80 @@ class Driver():
     db_name : str
         Database name.
     create_new_db : bool, optional
-        If ``True``, attempt to create the database before connecting.
+        If ``True``, connect to the ``postgres`` maintenance database and
+        issue ``CREATE DATABASE`` (with the given encoding and optional
+        collation) before opening the pool. Defaults to ``False``.
     pool_size : int, optional
         Number of pooled connections. Defaults to ``5``.
     connect_timeout : int, optional
         Connection timeout in seconds. Defaults to ``10``.
-    client_encoding : str, optional
-        Connection encoding. Defaults to ``"UTF8"``.
-    collate : str or None, optional
-        Collation used when creating a new database.
-    isolation_level : str, optional
-        Transaction isolation level. One of ``'READ UNCOMMITTED'``,
-        ``'READ COMMITTED'``, ``'REPEATABLE READ'``, or
-        ``'SERIALIZABLE'``.
+    client_encoding : CHARSET, optional
+        Connection encoding (e.g. ``"UTF8"``, ``"LATIN1"``). Defaults to
+        ``"UTF8"``.
+    collate : COLLATE or None, optional
+        Collation used only when creating a new database
+        (e.g. ``"en_US.UTF-8"``). Defaults to ``None``.
+    isolation_level : ISOLATION_LEVEL, optional
+        Transaction isolation level applied to every pooled session. One of
+        ``'READ UNCOMMITTED'``, ``'READ COMMITTED'``, ``'REPEATABLE READ'``,
+        or ``'SERIALIZABLE'``. Defaults to ``'READ COMMITTED'``.
+
+    Attributes
+    ----------
+    CHARSET : Literal
+        Allowed values for ``client_encoding``.
+    COLLATE : Literal
+        Allowed collations for ``collate``.
+    ISOLATION_LEVEL : Literal
+        Allowed transaction isolation levels.
+    PRIVILEGES : Literal
+        Allowed privilege names used by :meth:`grant_privileges` and
+        :meth:`revoke_privileges`.
+
+    Notes
+    -----
+    * The driver maintains a thread-safe connection pool (``SimpleQueue``) and
+      transparently retries once when a transient connection error
+      (SQLSTATE in ``CONNECTION_ERRORS``) is detected.
+    * ``delete_table``, ``delete_database``, ``delete_column``,
+      ``delete_index`` and similar destructive operations are guarded by
+      three boolean confirmation flags (``are_you_sure``,
+      ``are_you_really_sure``, ``for_sure``) that must all be ``True``.
 
     Example
     -------
-    >>> from Ormophine.Postgresql import Driver, DataTypes, TableStructure
-    >>> driver = Driver("localhost", 5432, "user", "pass", "mydb")
-    >>> users = driver.users
-    >>> structure = TableStructure("products")
-    >>> structure.add_column("id", DataTypes.SERIAL(), primary_key=True)
-    >>> structure.add_column("name", DataTypes.VARCHAR(100))
-    >>> driver.create_table(structure)
-    >>> driver.products.insert({driver.products.name: "Widget"})
-    >>> driver.disconnect()
+    Connect and use CRUD::
+
+        >>> from Ormophine.Postgresql import Driver, DataTypes, TableStructure
+        >>> driver = Driver("localhost", 5432, "user", "pass", "mydb")
+        >>> users = driver.users
+        >>> structure = TableStructure("products")
+        >>> structure.add_column("id", DataTypes.SERIAL(), primary_key=True)
+        >>> structure.add_column("name", DataTypes.VARCHAR(100))
+        >>> driver.create_table(structure)
+        >>> driver.products.insert({driver.products.name: "Widget"})
+        >>> driver.disconnect()
+
+    Create a database and administer users::
+
+        >>> driver = Driver(
+        ...     "localhost", 5432, "postgres", "secret", "shop",
+        ...     create_new_db=True, client_encoding="UTF8",
+        ...     collate="en_US.UTF-8", isolation_level="SERIALIZABLE"
+        ... )
+        >>> driver.create_user("app_user", "s3cr3t")
+        >>> driver.grant_privileges("app_user", "SELECT, INSERT", "shop")
+        >>> driver.get_databases()
+
+    Execute raw SQL and run maintenance::
+
+        >>> driver.custom_execute("CREATE INDEX idx_users_name ON users (name);")
+        >>> rows = driver.custom_execute_with_fetch(
+        ...     "SELECT id FROM users WHERE age > %s", (18,)
+        ... )
+        >>> driver.optimize()   # VACUUM (ANALYZE) on all user tables
+        >>> driver.disconnect()
     """
-    PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_%s_'
     CHARSET = Literal[
     "UTF8",
     "LATIN1",
@@ -162,7 +209,6 @@ class Driver():
             ... )
         """
         self.CONNECTION_ERRORS = ('08003', '08006', '08001', '57P01', '57P02', '57P03', '53300', '53000')
-        self.PLACE_HOLDER = '_MY_S4ULT3D_PL4C3_H0LD3R_%s_'
         self.host = host
         self.port = port
         self._connected = True
@@ -507,7 +553,7 @@ class Driver():
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
-        except Exception as e:   # <--- اضافه کنید
+        except Exception as e:   
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
@@ -707,10 +753,11 @@ class Driver():
                 con.rollback()
                 self.connection_pool.put((con, cur))
                 raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
-        except ProgrammingError as e:
+        except Exception as e:
             con.rollback()
             self.connection_pool.put((con, cur))
             raise Exception(f'{e}\nQuery:\n\t{query}\nParams:\n\t{params}')
+
 
     def _handle_broken_connection(self, con):
         """Closes a broken connection, removes it from the pool, and creates a fresh one.

@@ -1547,25 +1547,22 @@ class DataTypes:
     def BOOLEAN() -> str:
         """Returns the SQL BOOLEAN type string for true/false values.
 
-        ``BOOLEAN`` represents a logical truth value, storing ``TRUE``,
-        ``FALSE``, or ``NULL``. In PostgreSQL, it is equivalent to the
-        ``bool`` type. This method simply returns the literal ``'BOOLEAN'``,
-        which can be used directly in ``CREATE TABLE`` definitions or passed
-        to methods such as :meth:`TableStructure.add_column` and
-        :meth:`Table.add_column`.
+        ``BOOLEAN`` stores a logical truth value (``TRUE``, ``FALSE``, or
+        ``NULL``). In MySQL/MariaDB, ``BOOLEAN`` is a synonym for
+        ``TINYINT(1)``: values ``0`` and ``1`` are stored internally, while
+        the literal keywords ``TRUE``/``FALSE`` are accepted in SQL.
 
         Returns:
             str: The string ``"BOOLEAN"``, ready for use in a column
             definition.
 
         Example:
-            >>> from ormophine.Postgresql import DataTypes, TableStructure
+            >>> from ormophine.Mysql import DataTypes, TableStructure
             >>> structure = TableStructure("users")
             >>> structure.add_column("is_active", DataTypes.BOOLEAN(),
             ...                      default=True, not_null=True)
         """
-        return "BOOLEAN"
-        
+        return "BOOLEAN"        
 
 class TableStructure:
     """
@@ -1835,7 +1832,6 @@ class TableStructure:
         Raises:
             TypeError: If ``datatype`` is not a string.
             Exception: For various validation errors, including:
-                - PRIMARY KEY columns must be NOT NULL.
                 - PRIMARY KEY columns cannot also be UNIQUE.
                 - Column name already exists in the table definition.
                 - Bytes objects cannot be used as default values.
@@ -1989,53 +1985,6 @@ class TableStructure:
         self.items[column_name] = [datatype, default_value, unique, not_null, primary_key, auto_increment]
         self.table_query = self.table_query + f' {column_name.strip()} {datatype}{" AUTO_INCREMENT" if auto_increment else ""}{" UNIQUE" if unique else ""}{" NOT NULL" if not_null else ""}{f" DEFAULT {('TRUE' if default_value else 'FALSE') if isinstance(default_value,bool) else f"'{default_value}'" if type(default_value) == str else str(default_value)}" if default_value is not None else ""},'
         return self
-
-    def delete_column(self, column_name: str):
-        """
-        Remove a column from the table structure definition.
-
-        This method deletes the specified column from the internal column registry,
-        updates the accumulated SQL CREATE TABLE query fragment, and returns the
-        :class:`TableStructure` instance for method chaining. If the column does
-        not exist, an exception is raised.
-
-        Args:
-            column_name (str): The name of the column to delete. Leading/trailing
-                whitespace is stripped, and the column name is automatically
-                quoted with backticks.
-
-        Returns:
-            TableStructure: The current instance, allowing further method chaining
-            (e.g., adding more columns or generating the final SQL).
-
-        Raises:
-            Exception: If no column with the given name exists in the table structure.
-
-        Example:
-            Building a table structure and then removing a column::
-
-                from ormophine.Mysql import TableStructure, DataTypes
-
-                table = (TableStructure('users')
-                        .add_column('id', DataTypes.INT(), primary_key=True)
-                        .add_column('name', DataTypes.VARCHAR(50))
-                        .add_column('email', DataTypes.VARCHAR(255)))
-
-                # Remove the 'email' column
-                table.delete_column('email')
-
-                # The final CREATE TABLE statement will only include 'id' and 'name'
-                print(table.get_structure())
-        """
-        column_name = f'`{column_name.strip()}`'
-        query_list = self.table_query.split(',')
-        self.items.pop(column_name)
-        for item in query_list:
-            if item.strip().startswith(column_name):
-                query_list.remove(item)
-                self.table_query = ','.join(query_list)
-                return self
-        raise Exception(f'No column found with name ({column_name})')
 
     def get_columns(self):
         """
