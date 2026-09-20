@@ -6,6 +6,421 @@ MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 MYSQL_DB_NAME = os.getenv("MYSQL_DB_NAME", "test_orm_db_fixed")
+import uuid
+
+
+@pytest.fixture(scope="module")
+def in_driver():
+    """One driver for the whole module; creates the DB if it doesn't exist."""
+    try:
+        drv = Mysql.Driver(
+            host=MYSQL_HOST, port=MYSQL_PORT, username=MYSQL_USER,
+            password=MYSQL_PASSWORD, db_name=MYSQL_DB_NAME, create_new_db=True,
+            charset="utf8mb4", collate="utf8mb4_bin"
+        )
+    except Exception:
+        drv = Mysql.Driver(
+            host=MYSQL_HOST, port=MYSQL_PORT, username=MYSQL_USER,
+            password=MYSQL_PASSWORD, db_name=MYSQL_DB_NAME,
+            charset="utf8mb4", collate="utf8mb4_bin"
+        )
+    yield drv
+    try:
+        drv.disconnect()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def tbl(in_driver):
+    """Fresh table (name, age, score) for each test."""
+    name = f"in_tbl_{uuid.uuid4().hex[:8]}"
+    s = Mysql.TableStructure(name)
+    s.add_column("name", Mysql.DataTypes.VARCHAR(100))
+    s.add_column("age", Mysql.DataTypes.INT())
+    s.add_column("score", Mysql.DataTypes.FLOAT())
+    in_driver.create_table(s)                         # returns None in MySQL
+    t = getattr(in_driver, name)
+    yield t
+    try:
+        in_driver.delete_table(t, True, True, True)
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def admins(in_driver):
+    """Fresh admins table for subquery tests."""
+    name = f"in_adm_{uuid.uuid4().hex[:8]}"
+    s = Mysql.TableStructure(name)
+    s.add_column("username", Mysql.DataTypes.VARCHAR(50))
+    s.add_column("active", Mysql.DataTypes.BOOLEAN())
+    in_driver.create_table(s)
+    t = getattr(in_driver, name)
+    yield t
+    try:
+        in_driver.delete_table(t, True, True, True)
+    except Exception:
+        pass
+
+
+# ===========================================================================
+# 1) SQL-generation tests – In (literal list)
+# ===========================================================================
+def test_in_list_positional(tbl):
+    res = tbl.name.In(["Alice", "Bob"])
+    assert res._output[0] == f'({tbl.name.name} IN (%s, %s))'
+    assert res._output[1] == ["Alice", "Bob"]
+
+
+def test_in_list_keyword(tbl):
+    res = tbl.name.In(data_list=["Alice", "Bob"])
+    assert res._output[0] == f'({tbl.name.name} IN (%s, %s))'
+    assert res._output[1] == ["Alice", "Bob"]
+
+
+def test_in_list_single(tbl):
+    res = tbl.age.In([42])
+    assert res._output[0] == f'({tbl.age.name} IN (%s))'
+    assert res._output[1] == [42]
+
+
+def test_in_list_many(tbl):
+    res = tbl.age.In([1, 2, 3, 4, 5])
+    assert res._output[0] == f'({tbl.age.name} IN (%s, %s, %s, %s, %s))'
+    assert res._output[1] == [1, 2, 3, 4, 5]
+
+
+def test_in_list_on_float(tbl):
+    res = tbl.score.In([1.5, 2.5])
+    assert res._output[0] == f'({tbl.score.name} IN (%s, %s))'
+    assert res._output[1] == [1.5, 2.5]
+
+
+def test_in_returns_columns_operation(tbl):
+    res = tbl.name.In(["a"])
+    assert isinstance(res, Mysql.ColumnsOperation)
+
+
+def test_in_on_columns_operation(tbl):
+    op = tbl.name + "!"
+    res = op.In(["a", "b"])
+    # op._output -> (`tbl`.`name` || %s), ['!']
+    assert res._output[0] == f'(({tbl.name.name} || %s) IN (%s, %s))'
+    assert res._output[1] == ["!", "a", "b"]
+
+
+def test_in_no_args_error(tbl):
+    with pytest.raises(Exception):
+        tbl.name.In()
+
+
+# ===========================================================================
+# 2) SQL-generation tests – In (subquery)
+# ===========================================================================
+def test_in_subquery_no_where(tbl, admins):
+    res = tbl.name.In(column=admins.username)
+    assert res._output[0] == (
+        f'({tbl.name.name} IN (SELECT {admins.username.name} '
+        f'FROM {admins.name_}))'
+    )
+    assert res._output[1] == []
+
+
+def test_in_subquery_with_where(tbl, admins):
+    res = tbl.name.In(column=admins.username, where=admins.active == True)
+    assert res._output[0] == (
+        f'({tbl.name.name} IN (SELECT {admins.username.name} '
+        f'FROM {admins.name_} WHERE ({admins.active.name} = %s)))'
+    )
+    assert res._output[1] == [True]
+
+
+def test_in_subquery_with_columns_operation(tbl, admins):
+    res = tbl.name.In(column=admins.username.upper())
+    assert res._output[0] == (
+        f'({tbl.name.name} IN (SELECT (UPPER({admins.username.name})) '
+        f'FROM {admins.name_}))'
+    )
+    assert res._output[1] == []
+
+
+# ===========================================================================
+# 3) SQL-generation tests – not_In (literal list)
+# ===========================================================================
+def test_not_in_list_positional(tbl):
+    res = tbl.name.not_In(["Alice", "Bob"])
+    assert res._output[0] == f'({tbl.name.name} NOT IN (%s, %s))'
+    assert res._output[1] == ["Alice", "Bob"]
+
+
+def test_not_in_list_keyword(tbl):
+    res = tbl.name.not_In(data_list=["Alice", "Bob"])
+    assert res._output[0] == f'({tbl.name.name} NOT IN (%s, %s))'
+    assert res._output[1] == ["Alice", "Bob"]
+
+
+def test_not_in_list_single(tbl):
+    res = tbl.age.not_In([42])
+    assert res._output[0] == f'({tbl.age.name} NOT IN (%s))'
+    assert res._output[1] == [42]
+
+
+def test_not_in_on_columns_operation(tbl):
+    op = tbl.name + "!"
+    res = op.not_In(["a", "b"])
+    assert res._output[0] == f'(({tbl.name.name} || %s) NOT IN (%s, %s))'
+    assert res._output[1] == ["!", "a", "b"]
+
+
+# ===========================================================================
+# 4) SQL-generation tests – not_In (subquery)     ← مهم‌ترین بخش
+# ===========================================================================
+def test_not_in_subquery_no_where(tbl, admins):
+    res = tbl.name.not_In(column=admins.username)
+    assert res._output[0] == (
+        f'({tbl.name.name} NOT IN (SELECT {admins.username.name} '
+        f'FROM {admins.name_}))'
+    )
+    assert res._output[1] == []
+
+
+def test_not_in_subquery_with_where(tbl, admins):
+    res = tbl.name.not_In(column=admins.username, where=admins.active == True)
+    assert res._output[0] == (
+        f'({tbl.name.name} NOT IN (SELECT {admins.username.name} '
+        f'FROM {admins.name_} WHERE ({admins.active.name} = %s)))'
+    )
+    assert res._output[1] == [True]
+
+
+def test_not_in_subquery_contains_not_in_keyword(tbl, admins):
+    """Guard against a regression where NOT IN was emitted as IN."""
+    res = tbl.name.not_In(column=admins.username, where=admins.active == True)
+    assert " NOT IN " in res._output[0]
+    assert " IN (SELECT" in res._output[0]
+    assert res._output[0].count("NOT IN") == 1
+
+
+# ===========================================================================
+# 5) In / not_In combined with other conditions
+# ===========================================================================
+def test_in_combined_with_and(tbl):
+    res = tbl.name.In(["Alice"]) & (tbl.age > 18)
+    assert res._output[0] == (
+        f'(({tbl.name.name} IN (%s)) AND ({tbl.age.name} > %s))'
+    )
+    assert res._output[1] == ["Alice", 18]
+
+
+def test_not_in_combined_with_or(tbl):
+    res = tbl.age.not_In([1, 2]) | (tbl.age > 100)
+    assert res._output[0] == (
+        f'(({tbl.age.name} NOT IN (%s, %s)) OR ({tbl.age.name} > %s))'
+    )
+    assert res._output[1] == [1, 2, 100]
+
+
+# ===========================================================================
+# 6) eq / ne with None  →  IS NULL / IS NOT NULL
+# ===========================================================================
+def test_eq_none_method(tbl):
+    res = tbl.name.eq(None)
+    assert res._output[0] == f'({tbl.name.name} IS NULL)'
+    assert res._output[1] == []
+
+
+def test_eq_none_operator(tbl):
+    res = tbl.name == None
+    assert res._output[0] == f'({tbl.name.name} IS NULL)'
+    assert res._output[1] == []
+
+
+def test_ne_none_method(tbl):
+    res = tbl.name.ne(None)
+    assert res._output[0] == f'({tbl.name.name} IS NOT NULL)'
+    assert res._output[1] == []
+
+
+def test_ne_none_operator(tbl):
+    res = tbl.name != None
+    assert res._output[0] == f'({tbl.name.name} IS NOT NULL)'
+    assert res._output[1] == []
+
+
+def test_eq_none_on_int(tbl):
+    res = tbl.age.eq(None)
+    assert res._output[0] == f'({tbl.age.name} IS NULL)'
+    assert res._output[1] == []
+
+
+def test_ne_none_on_int(tbl):
+    res = tbl.age != None
+    assert res._output[0] == f'({tbl.age.name} IS NOT NULL)'
+    assert res._output[1] == []
+
+
+def test_eq_none_on_float(tbl):
+    res = tbl.score == None
+    assert res._output[0] == f'({tbl.score.name} IS NULL)'
+    assert res._output[1] == []
+
+
+def test_ne_none_on_float(tbl):
+    res = tbl.score != None
+    assert res._output[0] == f'({tbl.score.name} IS NOT NULL)'
+    assert res._output[1] == []
+
+
+def test_eq_none_on_columns_operation(tbl):
+    op = tbl.name + "!"
+    res = op.eq(None)
+    assert res._output[0] == f'(({tbl.name.name} || %s) IS NULL)'
+    assert res._output[1] == ["!"]
+
+
+def test_ne_none_on_columns_operation(tbl):
+    op = tbl.name + "!"
+    res = op != None
+    assert res._output[0] == f'(({tbl.name.name} || %s) IS NOT NULL)'
+    assert res._output[1] == ["!"]
+
+
+def test_eq_none_combined_with_and(tbl):
+    res = (tbl.name == None) & (tbl.age > 18)
+    assert res._output[0] == (
+        f'(({tbl.name.name} IS NULL) AND ({tbl.age.name} > %s))'
+    )
+    assert res._output[1] == [18]
+
+
+def test_ne_none_combined_with_in(tbl):
+    res = (tbl.name != None) & tbl.age.In([1, 2, 3])
+    assert res._output[0] == (
+        f'(({tbl.name.name} IS NOT NULL) AND '
+        f'({tbl.age.name} IN (%s, %s, %s)))'
+    )
+    assert res._output[1] == [1, 2, 3]
+
+
+# ===========================================================================
+# 7) Functional tests – In / not_In
+# ===========================================================================
+def test_in_functional(tbl):
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("Alice", 30), ("Bob", 25), ("Carol", 28), ("Dave", 22)],
+    )
+    res = tbl.get_row([tbl.name], tbl.name.In(["Alice", "Carol"]))
+    assert set(res) == {"Alice", "Carol"}
+
+
+def test_not_in_functional(tbl):
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("X1", 1), ("X2", 2), ("X3", 3), ("X4", 4)],
+    )
+    res = tbl.get_row(
+        [tbl.name],
+        tbl.name.not_In(["X1", "X3"]),
+        order_by=tbl.name,
+    )
+    assert res == ["X2", "X4"]
+
+
+def test_in_subquery_functional(tbl, admins):
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("admin1", 30), ("user1", 25), ("admin2", 28), ("user2", 22)],
+    )
+    admins.bulk_insert(
+        [admins.username, admins.active],
+        [("admin1", True), ("admin2", True), ("admin3", False)],
+    )
+    res = tbl.get_row(
+        [tbl.name],
+        tbl.name.In(column=admins.username, where=admins.active == True),
+        order_by=tbl.name,
+    )
+    assert res == ["admin1", "admin2"]
+
+
+def test_not_in_subquery_functional(tbl, admins):
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("a1", 1), ("b1", 2), ("c1", 3), ("d1", 4)],
+    )
+    admins.bulk_insert(
+        [admins.username, admins.active],
+        [("a1", True), ("c1", True)],
+    )
+    res = tbl.get_row(
+        [tbl.name],
+        tbl.name.not_In(column=admins.username, where=admins.active == True),
+        order_by=tbl.name,
+    )
+    assert res == ["b1", "d1"], (
+        f"not_In returned {res!r}; if this is ['a1', 'c1'], the source's "
+        f"not_In subquery branch is emitting IN instead of NOT IN."
+    )
+
+
+# ===========================================================================
+# 8) Functional tests – IS NULL / IS NOT NULL
+# ===========================================================================
+def test_eq_none_functional(tbl):
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("has_name", 1), (None, 2), (None, 3)],
+    )
+    assert tbl.get_row([tbl.age], tbl.name == None, order_by=tbl.age) == [2, 3]
+
+
+def test_ne_none_functional(tbl):
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("has_name", 1), (None, 2), ("also_has_name", 3)],
+    )
+    assert tbl.get_row([tbl.age], tbl.name != None, order_by=tbl.age) == [1, 3]
+
+
+def test_eq_none_on_int_functional(tbl):
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("a", 10), ("b", None), ("c", 30)],
+    )
+    assert tbl.get_row([tbl.name], tbl.age == None) == ["b"]
+    assert tbl.get_row([tbl.name], tbl.age != None, order_by=tbl.name) == ["a", "c"]
+
+
+def test_eq_none_on_columns_operation_functional(tbl):
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("a", 1), (None, 2)],
+    )
+    # In MySQL, NULL || '!' yields NULL → op == None matches the NULL row.
+    op = tbl.name + "!"
+    assert tbl.get_row([tbl.age], op == None, order_by=tbl.age) == [2]
+
+
+def test_ne_none_on_columns_operation_functional(tbl):
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("a", 1), (None, 2), ("c", 3)],
+    )
+    op = tbl.name + "!"
+    assert tbl.get_row([tbl.age], op != None, order_by=tbl.age) == [1, 3]
+
+
+def test_in_with_null_is_null_functional(tbl):
+    """Combining In with IS NULL via &."""
+    tbl.bulk_insert(
+        [tbl.name, tbl.age],
+        [("A", None), ("B", 20), ("A", 30)],
+    )
+    cond = (tbl.name.In(["A"])) & (tbl.age == None)
+    assert tbl.get_row([tbl.age], cond) == [None]
+
 @pytest.fixture(scope="function")
 def order_driver():
     
