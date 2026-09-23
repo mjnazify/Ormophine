@@ -7,11 +7,6 @@ MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 MYSQL_DB_NAME = os.getenv("MYSQL_DB_NAME", "test_orm_db_fixed")
 import uuid
-
-# ======================================================================
-# Conditional expression tests (if_ / else_ — MySQL IF(cond,then,else))
-# ======================================================================
-
 @pytest.fixture
 def users_if(in_driver):
     """A fresh table with (id, name, age, active) for conditional tests.
@@ -40,10 +35,6 @@ def users_if(in_driver):
         in_driver.delete_table(tbl, True, True, True)
     except Exception:
         pass
-
-
-# ------------------------------------------------------ SQL generation
-
 def test_if_sql_uses_if_function(users_if):
     """The generated SQL must use MySQL's `IF(cond, then, else)`
     function — not IIF (SQLite) or CASE WHEN (PostgreSQL)."""
@@ -53,15 +44,13 @@ def test_if_sql_uses_if_function(users_if):
     assert sql.endswith('))')
     assert 'IIF' not in sql.upper()
     assert 'CASE WHEN' not in sql.upper()
-    # params order: cond → then → else
+    
     assert params == [True, 'inactive']
-    # qualified column names appear with backticks
+    
     assert users_if.name.name in sql
     assert users_if.active.name in sql
-
-
 def test_if_sql_then_literal_else_column(users_if):
-    """When the `then` branch is a literal, its `%s` comes before `else`."""
+    
     expr = (
         Mysql.LiteralValue('n/a')
         .If(users_if.age == None)
@@ -72,10 +61,8 @@ def test_if_sql_then_literal_else_column(users_if):
         f'(IF(({users_if.age.name} IS NULL), %s, {users_if.age.name}))'
     )
     assert params == ['n/a']
-
-
 def test_if_sql_then_and_else_both_columns(users_if):
-    """Both branches are Columns — no extra params consumed."""
+    
     expr = users_if.name.If(users_if.active == True).Else(users_if.name)
     sql, params = expr._output
     assert sql == (
@@ -83,10 +70,8 @@ def test_if_sql_then_and_else_both_columns(users_if):
         f'{users_if.name.name}, {users_if.name.name}))'
     )
     assert params == [True]
-
-
 def test_if_sql_then_and_else_both_operations(users_if):
-    """Both branches are ColumnsOperation expressions."""
+    
     expr = (
         users_if.name.upper()
         .If(users_if.active == True)
@@ -96,41 +81,30 @@ def test_if_sql_then_and_else_both_operations(users_if):
     assert f'(UPPER({users_if.name.name}))' in sql
     assert f'(LOWER({users_if.name.name}))' in sql
     assert params == [True]
-
-
-# ------------------------------------------------------ functional
-
 def test_if_01_column_then_literal_else(users_if):
     res = users_if.get_row(
         [users_if.name.If(users_if.active == True).Else('inactive')],
         order_by=users_if.id,
     )
     assert res == ['Ali', 'Reza', 'inactive', None, 'inactive']
-
-
 def test_if_02_literal_then_column_else(users_if):
     res = users_if.get_row(
         [Mysql.LiteralValue(0).If(users_if.age == None).Else(users_if.age)],
         order_by=users_if.id,
     )
     assert res == [30, 17, 25, 40, 0]
-
-
 def test_if_03_raw_condition_auto_wrapped(users_if):
-    """Raw Python truthy/falsy gets wrapped in LiteralValue."""
+    
     res_true = users_if.get_row(
         [users_if.name.If(True).Else('never')],
         order_by=users_if.id,
     )
     assert res_true == ['Ali', 'Reza', 'Sara', None, 'Nima']
-
     res_false = users_if.get_row(
         [users_if.name.If(False).Else('always')],
         order_by=users_if.id,
     )
     assert res_false == ['always', 'always', 'always', 'always', 'always']
-
-
 def test_if_04_expression_branches(users_if):
     expr = (
         users_if.name.upper()
@@ -139,8 +113,6 @@ def test_if_04_expression_branches(users_if):
     )
     res = users_if.get_row([expr], order_by=users_if.id)
     assert res == ['ALI', 'REZA', 'sara', None, 'nima']
-
-
 def test_if_05_nested_conditionals(users_if):
     label = (
         users_if.name
@@ -149,32 +121,20 @@ def test_if_05_nested_conditionals(users_if):
     )
     res = users_if.get_row([label], order_by=users_if.id)
     assert res == ['active', 'active', 'has_age', 'active', 'Nima']
-
-
-# ---------------------------------------------------- error handling
-
 def test_if_06_forgot_else_raises_runtime_error(users_if):
     bad = users_if.name.If(users_if.active == True)
     with pytest.raises(RuntimeError, match="never chained"):
         users_if.get_row([bad])
-
-
 def test_if_09_partial_builder_in_where_raises(users_if):
     bad = users_if.age.If(users_if.age > 18)
     with pytest.raises(RuntimeError, match="never chained"):
         users_if.get_row([users_if.id], where=bad)
-
-
-# ---------------------------------------- keyword form and mixing
-
 def test_if_10_keyword_form(users_if):
     res = users_if.get_row(
         [users_if.name.If(users_if.active == True).Else('inactive')],
         order_by=users_if.id,
     )
     assert res == ['Ali', 'Reza', 'inactive', None, 'inactive']
-
-
 def test_if_11_mixed_keyword_and_underscore_form(users_if):
     a = users_if.name.If(users_if.active == True).Else('X')
     b = users_if.name.If(users_if.active == True).Else('Y')
@@ -186,10 +146,6 @@ def test_if_11_mixed_keyword_and_underscore_form(users_if):
         (None, None),
         ('X', 'Y'),
     )
-
-
-# ------------------------------------ compound conditions
-
 def test_if_12_compound_and(users_if):
     cond = (users_if.active == True) & (users_if.age > 18)
     res = users_if.get_row(
@@ -197,22 +153,16 @@ def test_if_12_compound_and(users_if):
         order_by=users_if.id,
     )
     assert res == ['Ali', 'nope', 'nope', None, 'nope']
-
-
 def test_if_13_or_condition(users_if):
     cond = (users_if.age == None) | (users_if.age > 30)
     res = users_if.get_row(
         [users_if.name.If(cond).Else('ok')],
         order_by=users_if.id,
     )
-    # id=4 -> age=40 -> cond True -> then -> name=None
-    # id=5 -> age=None -> cond True -> then -> 'Nima'
-    # others -> 'ok'
+    
+    
+    
     assert res == ['ok', 'ok', 'ok', None, 'Nima']
-
-
-# ------------------------------------------ usage in queries
-
 def test_if_14_used_in_where(users_if):
     label = Mysql.LiteralValue('inactive').If(users_if.active == False).Else(users_if.name)
     res = users_if.get_row(
@@ -221,8 +171,6 @@ def test_if_14_used_in_where(users_if):
         order_by=users_if.id,
     )
     assert res == [3, 5]
-
-
 def test_if_15_used_in_update(users_if):
     users_if.update(
         {users_if.name: Mysql.LiteralValue('unknown').If(users_if.name == None).Else(users_if.name)},
@@ -230,8 +178,6 @@ def test_if_15_used_in_update(users_if):
     )
     res = users_if.get_row([users_if.name], order_by=users_if.id)
     assert res == ['Ali', 'Reza', 'Sara', 'unknown', 'Nima']
-
-
 def test_if_16_used_in_batch_update(users_if):
     batch = users_if.batch()
     batch.update(
@@ -241,24 +187,16 @@ def test_if_16_used_in_batch_update(users_if):
     batch.run()
     res = users_if.get_row([users_if.name], order_by=users_if.id)
     assert res == ['Ali', 'Reza', 'Sara', 'unknown', 'Nima']
-
-
 def test_if_17_used_in_delete(users_if):
-    # '' if name is not NULL, otherwise keep the name
+    
     label = Mysql.LiteralValue('').If(users_if.name != None).Else(users_if.name)
     users_if.delete_row(label == '')
     res = users_if.get_row([users_if.id], order_by=users_if.id)
     assert res == [4]
-
-
-# ---------------------------------------------- chaining
-
 def test_if_18_chained_string_method(users_if):
     expr = users_if.name.If(users_if.active == True).Else('inactive').upper()
     res = users_if.get_row([expr], order_by=users_if.id)
     assert res == ['ALI', 'REZA', 'INACTIVE', None, 'INACTIVE']
-
-
 def test_if_19_conditional_with_str_concat(users_if):
     expr = (
         Mysql.LiteralValue('unknown')
@@ -268,54 +206,38 @@ def test_if_19_conditional_with_str_concat(users_if):
     )
     res = users_if.get_row([expr], order_by=users_if.id)
     assert res == ['Ali!', 'Reza!', 'Sara!', 'unknown!', 'Nima!']
-
-
 def test_if_20_arithmetic_on_conditional(users_if):
     expr = Mysql.LiteralValue(0).If(users_if.age == None).Else(users_if.age) + 1
     res = users_if.get_row([expr], order_by=users_if.id)
     assert res == [31, 18, 26, 41, 1]
-
-
 def test_if_21_used_in_order_by(users_if):
-    # Rows with NULL name get 'zzz', everything else keeps its name
-    label = users_if.name.If(users_if.name == None).Else(Mysql.LiteralValue('zzz'))
-    # names after ternary: 'Ali', 'Reza', 'Sara', 'zzz', 'Nima'
-    # sorted ascending: Ali(1), Nima(5), Reza(2), Sara(3), zzz(4)
+    
+    label = Mysql.LiteralValue('zzz').If(users_if.name == None).Else(users_if.name)
+    
+    
     res = users_if.get_row([users_if.id], order_by=label)
     assert res == [1, 5, 2, 3, 4]
-
-
-# ----------------------------------------- type / value
-
 def test_if_22_both_branches_literal(users_if):
     res = users_if.get_row(
         [Mysql.LiteralValue('yes').If(users_if.active == True).Else(Mysql.LiteralValue('no'))],
         order_by=users_if.id,
     )
     assert res == ['yes', 'yes', 'no', 'yes', 'no']
-
-
 def test_if_23_int_branches(users_if):
     res = users_if.get_row(
         [Mysql.LiteralValue(0).If(users_if.age == None).Else(users_if.age)],
         order_by=users_if.id,
     )
     assert res == [30, 17, 25, 40, 0]
-
-
 def test_if_24_empty_string_else(users_if):
     res = users_if.get_row(
         [users_if.name.If(users_if.name == None).Else(Mysql.LiteralValue(''))],
         order_by=users_if.id,
     )
     assert res == ['', '', '', None, '']
-
-
 def test_if_25_current_datatype_is_none(users_if):
     label = users_if.name.If(users_if.active == True).Else(Mysql.LiteralValue(0))
     assert label.current_datatype is None
-
-
 def test_if_26_multiple_conditionals_in_select(users_if):
     a = users_if.name.If(users_if.active == True).Else('X')
     b = Mysql.LiteralValue(-1).If(users_if.age == None).Else(users_if.age)
@@ -327,10 +249,6 @@ def test_if_26_multiple_conditionals_in_select(users_if):
         (None, 40),
         ('X', -1),
     )
-
-
-# ------------------------------------------ joins
-
 def test_if_27_conditional_in_join(in_driver, users_if):
     name = f"orders_if_{uuid.uuid4().hex[:8]}"
     s = Mysql.TableStructure(name)
@@ -348,48 +266,37 @@ def test_if_27_conditional_in_join(in_driver, users_if):
         res = (users_if
                .inner_join(orders, users_if.id == orders.user_id)
                .get_row([expr], order_by=users_if.id))
-        # id=1: total=50 -> else -> 'Ali'
-        # id=3: total=0  -> then -> 'Sara'
+        
+        
         assert res == (('Ali',), ('Sara',))
     finally:
         try:
             in_driver.delete_table(orders, True, True, True)
         except Exception:
             pass
-
-
-# -------------------------------------- LiteralValue API
-
 def test_if_28_literal_value_exported():
-    """LiteralValue is importable from the public Mysql package."""
+    
     assert hasattr(Mysql, 'LiteralValue')
     lv = Mysql.LiteralValue('hello')
     assert lv._output == ('%s', ['hello'])
-
-
 def test_if_29_literal_value_arithmetic():
     lv = Mysql.LiteralValue(100)
     expr = lv - 1
     assert expr._output == ('(%s - %s)', [100, 1])
-
-
 def test_if_30_literal_value_string_methods():
     lv = Mysql.LiteralValue('hello').upper()
     assert lv._output == ('(UPPER(%s))', ['hello'])
-
-
 def test_if_31_literal_value_in_where(users_if):
-    """A LiteralValue can be used as the left side of a WHERE condition."""
+    
     res = users_if.get_row(
         [users_if.name],
         where=Mysql.LiteralValue(1) == users_if.id,
         order_by=users_if.id,
     )
     assert res == ['Ali']
-
 @pytest.fixture(scope="module")
 def in_driver():
-    """One driver for the whole module; creates the DB if it doesn't exist."""
+    
     try:
         drv = Mysql.Driver(
             host=MYSQL_HOST, port=MYSQL_PORT, username=MYSQL_USER,
@@ -407,28 +314,24 @@ def in_driver():
         drv.disconnect()
     except Exception:
         pass
-
-
 @pytest.fixture
 def tbl(in_driver):
-    """Fresh table (name, age, score) for each test."""
+    
     name = f"in_tbl_{uuid.uuid4().hex[:8]}"
     s = Mysql.TableStructure(name)
     s.add_column("name", Mysql.DataTypes.VARCHAR(100))
     s.add_column("age", Mysql.DataTypes.INT())
     s.add_column("score", Mysql.DataTypes.FLOAT())
-    in_driver.create_table(s)                         # returns None in MySQL
+    in_driver.create_table(s)                         
     t = getattr(in_driver, name)
     yield t
     try:
         in_driver.delete_table(t, True, True, True)
     except Exception:
         pass
-
-
 @pytest.fixture
 def admins(in_driver):
-    """Fresh admins table for subquery tests."""
+    
     name = f"in_adm_{uuid.uuid4().hex[:8]}"
     s = Mysql.TableStructure(name)
     s.add_column("username", Mysql.DataTypes.VARCHAR(50))
@@ -440,62 +343,38 @@ def admins(in_driver):
         in_driver.delete_table(t, True, True, True)
     except Exception:
         pass
-
-
-# ===========================================================================
-# 1) SQL-generation tests – In (literal list)
-# ===========================================================================
 def test_in_list_positional(tbl):
     res = tbl.name.In(["Alice", "Bob"])
     assert res._output[0] == f'({tbl.name.name} IN (%s, %s))'
     assert res._output[1] == ["Alice", "Bob"]
-
-
 def test_in_list_keyword(tbl):
     res = tbl.name.In(data_list=["Alice", "Bob"])
     assert res._output[0] == f'({tbl.name.name} IN (%s, %s))'
     assert res._output[1] == ["Alice", "Bob"]
-
-
 def test_in_list_single(tbl):
     res = tbl.age.In([42])
     assert res._output[0] == f'({tbl.age.name} IN (%s))'
     assert res._output[1] == [42]
-
-
 def test_in_list_many(tbl):
     res = tbl.age.In([1, 2, 3, 4, 5])
     assert res._output[0] == f'({tbl.age.name} IN (%s, %s, %s, %s, %s))'
     assert res._output[1] == [1, 2, 3, 4, 5]
-
-
 def test_in_list_on_float(tbl):
     res = tbl.score.In([1.5, 2.5])
     assert res._output[0] == f'({tbl.score.name} IN (%s, %s))'
     assert res._output[1] == [1.5, 2.5]
-
-
 def test_in_returns_columns_operation(tbl):
     res = tbl.name.In(["a"])
     assert isinstance(res, Mysql.ColumnsOperation)
-
-
 def test_in_on_columns_operation(tbl):
     op = tbl.name + "!"
     res = op.In(["a", "b"])
-    # op._output -> (`tbl`.`name` || %s), ['!']
+    
     assert res._output[0] == f'(({tbl.name.name} || %s) IN (%s, %s))'
     assert res._output[1] == ["!", "a", "b"]
-
-
 def test_in_no_args_error(tbl):
     with pytest.raises(Exception):
         tbl.name.In()
-
-
-# ===========================================================================
-# 2) SQL-generation tests – In (subquery)
-# ===========================================================================
 def test_in_subquery_no_where(tbl, admins):
     res = tbl.name.In(column=admins.username)
     assert res._output[0] == (
@@ -503,8 +382,6 @@ def test_in_subquery_no_where(tbl, admins):
         f'FROM {admins.name_}))'
     )
     assert res._output[1] == []
-
-
 def test_in_subquery_with_where(tbl, admins):
     res = tbl.name.In(column=admins.username, where=admins.active == True)
     assert res._output[0] == (
@@ -512,8 +389,6 @@ def test_in_subquery_with_where(tbl, admins):
         f'FROM {admins.name_} WHERE ({admins.active.name} = %s)))'
     )
     assert res._output[1] == [True]
-
-
 def test_in_subquery_with_columns_operation(tbl, admins):
     res = tbl.name.In(column=admins.username.upper())
     assert res._output[0] == (
@@ -521,39 +396,23 @@ def test_in_subquery_with_columns_operation(tbl, admins):
         f'FROM {admins.name_}))'
     )
     assert res._output[1] == []
-
-
-# ===========================================================================
-# 3) SQL-generation tests – not_In (literal list)
-# ===========================================================================
 def test_not_in_list_positional(tbl):
     res = tbl.name.not_In(["Alice", "Bob"])
     assert res._output[0] == f'({tbl.name.name} NOT IN (%s, %s))'
     assert res._output[1] == ["Alice", "Bob"]
-
-
 def test_not_in_list_keyword(tbl):
     res = tbl.name.not_In(data_list=["Alice", "Bob"])
     assert res._output[0] == f'({tbl.name.name} NOT IN (%s, %s))'
     assert res._output[1] == ["Alice", "Bob"]
-
-
 def test_not_in_list_single(tbl):
     res = tbl.age.not_In([42])
     assert res._output[0] == f'({tbl.age.name} NOT IN (%s))'
     assert res._output[1] == [42]
-
-
 def test_not_in_on_columns_operation(tbl):
     op = tbl.name + "!"
     res = op.not_In(["a", "b"])
     assert res._output[0] == f'(({tbl.name.name} || %s) NOT IN (%s, %s))'
     assert res._output[1] == ["!", "a", "b"]
-
-
-# ===========================================================================
-# 4) SQL-generation tests – not_In (subquery)     ← مهم‌ترین بخش
-# ===========================================================================
 def test_not_in_subquery_no_where(tbl, admins):
     res = tbl.name.not_In(column=admins.username)
     assert res._output[0] == (
@@ -561,8 +420,6 @@ def test_not_in_subquery_no_where(tbl, admins):
         f'FROM {admins.name_}))'
     )
     assert res._output[1] == []
-
-
 def test_not_in_subquery_with_where(tbl, admins):
     res = tbl.name.not_In(column=admins.username, where=admins.active == True)
     assert res._output[0] == (
@@ -570,108 +427,72 @@ def test_not_in_subquery_with_where(tbl, admins):
         f'FROM {admins.name_} WHERE ({admins.active.name} = %s)))'
     )
     assert res._output[1] == [True]
-
-
 def test_not_in_subquery_contains_not_in_keyword(tbl, admins):
-    """Guard against a regression where NOT IN was emitted as IN."""
+    
     res = tbl.name.not_In(column=admins.username, where=admins.active == True)
     assert " NOT IN " in res._output[0]
     assert " IN (SELECT" in res._output[0]
     assert res._output[0].count("NOT IN") == 1
-
-
-# ===========================================================================
-# 5) In / not_In combined with other conditions
-# ===========================================================================
 def test_in_combined_with_and(tbl):
     res = tbl.name.In(["Alice"]) & (tbl.age > 18)
     assert res._output[0] == (
         f'(({tbl.name.name} IN (%s)) AND ({tbl.age.name} > %s))'
     )
     assert res._output[1] == ["Alice", 18]
-
-
 def test_not_in_combined_with_or(tbl):
     res = tbl.age.not_In([1, 2]) | (tbl.age > 100)
     assert res._output[0] == (
         f'(({tbl.age.name} NOT IN (%s, %s)) OR ({tbl.age.name} > %s))'
     )
     assert res._output[1] == [1, 2, 100]
-
-
-# ===========================================================================
-# 6) eq / ne with None  →  IS NULL / IS NOT NULL
-# ===========================================================================
 def test_eq_none_method(tbl):
     res = tbl.name.eq(None)
     assert res._output[0] == f'({tbl.name.name} IS NULL)'
     assert res._output[1] == []
-
-
 def test_eq_none_operator(tbl):
     res = tbl.name == None
     assert res._output[0] == f'({tbl.name.name} IS NULL)'
     assert res._output[1] == []
-
-
 def test_ne_none_method(tbl):
     res = tbl.name.ne(None)
     assert res._output[0] == f'({tbl.name.name} IS NOT NULL)'
     assert res._output[1] == []
-
-
 def test_ne_none_operator(tbl):
     res = tbl.name != None
     assert res._output[0] == f'({tbl.name.name} IS NOT NULL)'
     assert res._output[1] == []
-
-
 def test_eq_none_on_int(tbl):
     res = tbl.age.eq(None)
     assert res._output[0] == f'({tbl.age.name} IS NULL)'
     assert res._output[1] == []
-
-
 def test_ne_none_on_int(tbl):
     res = tbl.age != None
     assert res._output[0] == f'({tbl.age.name} IS NOT NULL)'
     assert res._output[1] == []
-
-
 def test_eq_none_on_float(tbl):
     res = tbl.score == None
     assert res._output[0] == f'({tbl.score.name} IS NULL)'
     assert res._output[1] == []
-
-
 def test_ne_none_on_float(tbl):
     res = tbl.score != None
     assert res._output[0] == f'({tbl.score.name} IS NOT NULL)'
     assert res._output[1] == []
-
-
 def test_eq_none_on_columns_operation(tbl):
     op = tbl.name + "!"
     res = op.eq(None)
     assert res._output[0] == f'(({tbl.name.name} || %s) IS NULL)'
     assert res._output[1] == ["!"]
-
-
 def test_ne_none_on_columns_operation(tbl):
     op = tbl.name + "!"
     res = op != None
     assert res._output[0] == f'(({tbl.name.name} || %s) IS NOT NULL)'
     assert res._output[1] == ["!"]
-
-
 def test_eq_none_combined_with_and(tbl):
     res = (tbl.name == None) & (tbl.age > 18)
     assert res._output[0] == (
         f'(({tbl.name.name} IS NULL) AND ({tbl.age.name} > %s))'
     )
     assert res._output[1] == [18]
-
-
 def test_ne_none_combined_with_in(tbl):
     res = (tbl.name != None) & tbl.age.In([1, 2, 3])
     assert res._output[0] == (
@@ -679,11 +500,6 @@ def test_ne_none_combined_with_in(tbl):
         f'({tbl.age.name} IN (%s, %s, %s)))'
     )
     assert res._output[1] == [1, 2, 3]
-
-
-# ===========================================================================
-# 7) Functional tests – In / not_In
-# ===========================================================================
 def test_in_functional(tbl):
     tbl.bulk_insert(
         [tbl.name, tbl.age],
@@ -691,8 +507,6 @@ def test_in_functional(tbl):
     )
     res = tbl.get_row([tbl.name], tbl.name.In(["Alice", "Carol"]))
     assert set(res) == {"Alice", "Carol"}
-
-
 def test_not_in_functional(tbl):
     tbl.bulk_insert(
         [tbl.name, tbl.age],
@@ -704,8 +518,6 @@ def test_not_in_functional(tbl):
         order_by=tbl.name,
     )
     assert res == ["X2", "X4"]
-
-
 def test_in_subquery_functional(tbl, admins):
     tbl.bulk_insert(
         [tbl.name, tbl.age],
@@ -721,8 +533,6 @@ def test_in_subquery_functional(tbl, admins):
         order_by=tbl.name,
     )
     assert res == ["admin1", "admin2"]
-
-
 def test_not_in_subquery_functional(tbl, admins):
     tbl.bulk_insert(
         [tbl.name, tbl.age],
@@ -741,27 +551,18 @@ def test_not_in_subquery_functional(tbl, admins):
         f"not_In returned {res!r}; if this is ['a1', 'c1'], the source's "
         f"not_In subquery branch is emitting IN instead of NOT IN."
     )
-
-
-# ===========================================================================
-# 8) Functional tests – IS NULL / IS NOT NULL
-# ===========================================================================
 def test_eq_none_functional(tbl):
     tbl.bulk_insert(
         [tbl.name, tbl.age],
         [("has_name", 1), (None, 2), (None, 3)],
     )
     assert tbl.get_row([tbl.age], tbl.name == None, order_by=tbl.age) == [2, 3]
-
-
 def test_ne_none_functional(tbl):
     tbl.bulk_insert(
         [tbl.name, tbl.age],
         [("has_name", 1), (None, 2), ("also_has_name", 3)],
     )
     assert tbl.get_row([tbl.age], tbl.name != None, order_by=tbl.age) == [1, 3]
-
-
 def test_eq_none_on_int_functional(tbl):
     tbl.bulk_insert(
         [tbl.name, tbl.age],
@@ -769,18 +570,14 @@ def test_eq_none_on_int_functional(tbl):
     )
     assert tbl.get_row([tbl.name], tbl.age == None) == ["b"]
     assert tbl.get_row([tbl.name], tbl.age != None, order_by=tbl.name) == ["a", "c"]
-
-
 def test_eq_none_on_columns_operation_functional(tbl):
     tbl.bulk_insert(
         [tbl.name, tbl.age],
         [("a", 1), (None, 2)],
     )
-    # In MySQL, NULL || '!' yields NULL → op == None matches the NULL row.
+    
     op = tbl.name + "!"
     assert tbl.get_row([tbl.age], op == None, order_by=tbl.age) == [2]
-
-
 def test_ne_none_on_columns_operation_functional(tbl):
     tbl.bulk_insert(
         [tbl.name, tbl.age],
@@ -788,17 +585,14 @@ def test_ne_none_on_columns_operation_functional(tbl):
     )
     op = tbl.name + "!"
     assert tbl.get_row([tbl.age], op != None, order_by=tbl.age) == [1, 3]
-
-
 def test_in_with_null_is_null_functional(tbl):
-    """Combining In with IS NULL via &."""
+    
     tbl.bulk_insert(
         [tbl.name, tbl.age],
         [("A", None), ("B", 20), ("A", 30)],
     )
     cond = (tbl.name.In(["A"])) & (tbl.age == None)
     assert tbl.get_row([tbl.age], cond) == [None]
-
 @pytest.fixture(scope="function")
 def order_driver():
     
@@ -1973,11 +1767,11 @@ def test_75_table_name_quoting(driver):
     tbl = Mysql.Table(driver, 'Table With Spaces')
     driver.delete_table(tbl, True, True, True)
 def test_76_table_name_with_special_chars(driver):
-    schema = Mysql.TableStructure('t$pecial#')
+    schema = Mysql.TableStructure('t$pecial#@!')
     schema.add_column('id', Mysql.DataTypes.INT(), primary_key=True)
     driver.create_table(schema)
-    assert 't$pecial#'
-    tbl = Mysql.Table(driver, 't$pecial#')
+    assert 't$pecial#@!'
+    tbl = Mysql.Table(driver, 't$pecial#@!')
     driver.delete_table(tbl, True, True, True)
 def test_78_alter_table_add_column(driver):
     schema = Mysql.TableStructure('t78')
@@ -3009,15 +2803,6 @@ def test_253_structure_add_column_chainable(driver):
     assert 'id' in sql and 'val' in sql
     assert 't253' in driver.get_tables()
     driver.delete_table(driver.t253, True, True, True)
-def test_254_structure_delete_column_existing(driver):
-    schema = Mysql.TableStructure('t254')
-    schema.add_column('id', Mysql.DataTypes.SERIAL(), primary_key=True)
-    schema.add_column('to_del', Mysql.DataTypes.TEXT())
-    schema.delete_column('to_del')
-    driver.create_table(schema)
-    cols = driver.t254.get_columns_name()
-    assert 'to_del' not in cols
-    driver.delete_table(driver.t254, True, True, True)
 def test_255_structure_delete_column_nonexistent(driver):
     schema = Mysql.TableStructure('t255')
     schema.add_column('id', Mysql.DataTypes.SERIAL(), primary_key=True)

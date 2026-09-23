@@ -3,11 +3,6 @@ import threading
 import time
 from Ormophine import Sqlite
 import datetime 
-
-# ======================================================================
-# Conditional expression tests (if_ / else_ — Python-style ternary)
-# ======================================================================
-
 @pytest.fixture
 def if_driver(tmp_path):
     drv = Sqlite.Driver(str(tmp_path / "test_if_else.db"), setup_time=0.1)
@@ -16,8 +11,6 @@ def if_driver(tmp_path):
         drv.disconnect()
     except Exception:
         pass
-
-
 @pytest.fixture
 def users_if(if_driver):
     schema = Sqlite.TableStructure('users_if', strict=True)
@@ -37,54 +30,41 @@ def users_if(if_driver):
         ]
     )
     return tbl
-
-
-# ---------------------------------------------------------------- basics
-
 def test_if_01_column_then_literal_else(users_if):
-    """Standard `col.If(cond).Else(literal)` pattern."""
+    
     res = users_if.get_row(
         [users_if.name.If(users_if.active == 1).Else('inactive')],
         order_by=users_if.id,
     )
     assert res == ['Ali', 'Reza', 'inactive', None, 'inactive']
-
-
 def test_if_02_literal_then_column_else(users_if):
-    """`LiteralValue(...).If(cond).Else(col)` — literal on the left."""
+    
     res = users_if.get_row(
         [Sqlite.LiteralValue('n/a').If(users_if.age == None).Else(users_if.age)],
         order_by=users_if.id,
     )
     assert res == [30, 17, 25, 40, 'n/a']
-
-
 def test_if_03_raw_condition_auto_wrapped(users_if):
-    """Raw Python truthy/falsy conditions get wrapped in LiteralValue."""
+    
     res = users_if.get_row(
         [users_if.name.If(True).Else('never')],
         order_by=users_if.id,
     )
     assert res == ['Ali', 'Reza', 'Sara', None, 'Nima']
-
     res2 = users_if.get_row(
         [users_if.name.If(False).Else('always')],
         order_by=users_if.id,
     )
     assert res2 == ['always', 'always', 'always', 'always', 'always']
-
-
 def test_if_04_column_as_both_branches(users_if):
-    """Then and else are both Columns (identity conditional)."""
+    
     res = users_if.get_row(
         [users_if.name.If(users_if.active == 1).Else(users_if.name)],
         order_by=users_if.id,
     )
     assert res == ['Ali', 'Reza', 'Sara', None, 'Nima']
-
-
 def test_if_05_expression_branches(users_if):
-    """Then and else are both ColumnsOperation expressions."""
+    
     expr = (
         users_if.name.upper()
         .If(users_if.active == 1)
@@ -92,10 +72,8 @@ def test_if_05_expression_branches(users_if):
     )
     res = users_if.get_row([expr], order_by=users_if.id)
     assert res == ['ALI', 'REZA', 'sara', None, 'nima']
-
-
 def test_if_06_nested_conditionals(users_if):
-    """Chaining a second `.If().Else()` on the result of a first one."""
+    
     label = (
         users_if.name
         .If(users_if.age == None).Else('has_age')
@@ -103,37 +81,25 @@ def test_if_06_nested_conditionals(users_if):
     )
     res = users_if.get_row([label], order_by=users_if.id)
     assert res == ['active', 'active', 'has_age', 'active', 'Nima']
-
-
-# ------------------------------------------------------- error handling
-
 def test_if_07_forgot_else_raises_runtime_error(users_if):
-    """Reading `_output` on a builder without `.Else()` raises RuntimeError."""
+    
     bad = users_if.name.If(users_if.active == 1)
     with pytest.raises(RuntimeError, match="never chained"):
         users_if.get_row([bad])
-
-
 def test_if_10_partial_builder_in_where_raises(users_if):
-    """Forgotten `.Else()` is caught even when used as a WHERE operand."""
+    
     bad = users_if.age.If(users_if.age > 18)
     with pytest.raises(RuntimeError, match="never chained"):
         users_if.get_row([users_if.id], where=bad)
-
-
-# ------------------------------------------------- keyword / mixed forms
-
 def test_if_11_keyword_form(users_if):
-    """Both `.If(...)` / `.Else(...)` and `.If(...)` / `.Else(...)` work."""
+    
     res = users_if.get_row(
         [users_if.name.If(users_if.active == 1).Else('inactive')],
         order_by=users_if.id,
     )
     assert res == ['Ali', 'Reza', 'inactive', None, 'inactive']
-
-
 def test_if_12_mixed_keyword_and_underscore_form(users_if):
-    """Mixing `.If().Else()` and `.If().Else()` in the same call."""
+    
     a = users_if.name.If(users_if.active == 1).Else('X')
     b = users_if.name.If(users_if.active == 1).Else('Y')
     res = users_if.get_row([a, b], order_by=users_if.id)
@@ -144,39 +110,29 @@ def test_if_12_mixed_keyword_and_underscore_form(users_if):
         (None, None),
         ('X', 'Y'),
     ]
-
-
-# ------------------------------------------------ conditions & parameters
-
 def test_if_13_compound_condition(users_if):
-    """AND condition inside the ternary."""
+    
     cond = (users_if.active == 1) & (users_if.age > 18)
     res = users_if.get_row(
         [users_if.name.If(cond).Else('nope')],
         order_by=users_if.id,
     )
     assert res == ['Ali', 'nope', 'nope', None, 'nope']
-
-
 def test_if_14_or_condition(users_if):
-    """OR condition inside the ternary."""
+    
     cond = (users_if.age == None) | (users_if.age > 30)
     res = users_if.get_row(
         [users_if.name.If(cond).Else('ok')],
         order_by=users_if.id,
     )
-    # id=1: 30, not >30, not None -> 'ok'
-    # id=2: 17 -> 'ok'
-    # id=3: 25 -> 'ok'
-    # id=4: 40 -> 'Ali'? no: name is None -> None
-    # id=5: None -> cond True -> 'Nima'
+    
+    
+    
+    
+    
     assert res == ['ok', 'ok', 'ok', None, 'Nima']
-
-
-# --------------------------------------------------- use in WHERE / UPDATE
-
 def test_if_15_conditional_used_in_where(users_if):
-    """Use the ternary expression as a WHERE operand."""
+    
     label = Sqlite.LiteralValue('inactive').If(users_if.active == 0).Else(users_if.name)
     res = users_if.get_row(
         [users_if.id],
@@ -184,20 +140,16 @@ def test_if_15_conditional_used_in_where(users_if):
         order_by=users_if.id,
     )
     assert res == [3, 5]
-
-
 def test_if_16_conditional_used_in_update(users_if):
-    """Replace NULL names with 'unknown' via an UPDATE."""
+    
     users_if.update(
         {users_if.name: Sqlite.LiteralValue('unknown').If(users_if.name == None).Else(users_if.name)},
         where=users_if.id > 0,
     )
     res = users_if.get_row([users_if.name], order_by=users_if.id)
     assert res == ['Ali', 'Reza', 'Sara', 'unknown', 'Nima']
-
-
 def test_if_17_conditional_in_batch_update(users_if):
-    """Ternary expression inside a batch UPDATE."""
+    
     batch = users_if.batch()
     batch.update(
         {users_if.name: Sqlite.LiteralValue('unknown').If(users_if.name == None).Else(users_if.name)},
@@ -206,92 +158,68 @@ def test_if_17_conditional_in_batch_update(users_if):
     batch.run()
     res = users_if.get_row([users_if.name], order_by=users_if.id)
     assert res == ['Ali', 'Reza', 'Sara', 'unknown', 'Nima']
-
-
 def test_if_18_conditional_in_delete(users_if):
-    """Ternary-based condition in a DELETE."""
-    # label = '' if name is not NULL else name
+    
+    
     label = Sqlite.LiteralValue('').If(users_if.name != None).Else(users_if.name)
     users_if.delete_row(label == '')
     res = users_if.get_row([users_if.id], order_by=users_if.id)
-    # Only NULL-name row survives
+    
     assert res == [4]
-
-
-# ----------------------------------------- chaining / composition
-
 def test_if_19_chained_string_method(users_if):
-    """`.If().Else()` result can be chained with `.upper()`."""
+    
     expr = users_if.name.If(users_if.active == 1).Else('inactive').upper()
     res = users_if.get_row([expr], order_by=users_if.id)
     assert res == ['ALI', 'REZA', 'INACTIVE', None, 'INACTIVE']
-
-
 def test_if_20_conditional_with_str_concat(users_if):
-    """Ternary result used as part of a string concatenation."""
+    
     expr = (Sqlite.LiteralValue('unknown')
             .If(users_if.name == None)
             .Else(users_if.name)
             .add_end('!'))
     res = users_if.get_row([expr], order_by=users_if.id)
     assert res == ['Ali!', 'Reza!', 'Sara!', 'unknown!', 'Nima!']
-
-
 def test_if_21_arithmetic_on_conditional(users_if):
-    """Wrap the ternary result in arithmetic."""
+    
     expr = Sqlite.LiteralValue(0).If(users_if.age == None).Else(users_if.age) + 1
     res = users_if.get_row([expr], order_by=users_if.id)
-    # id=1: 30+1, id=2: 17+1, id=3: 25+1, id=4: 40+1, id=5: 0+1
+    
     assert res == [31, 18, 26, 41, 1]
-
-
 def test_if_22_conditional_in_order_by(users_if):
-    """Order rows by the ternary expression."""
+    
     label = Sqlite.LiteralValue('zzz').If(users_if.name == None).Else(users_if.name)
     res = users_if.get_row([users_if.id], order_by=label)
-    # Names after ternary: 'Ali', 'Reza', 'Sara', 'zzz'(for None), 'Nima'
-    # Sorted: 'Ali'(1), 'Nima'(5), 'Reza'(2), 'Sara'(3), 'zzz'(4)
+    
+    
     assert res == [1, 5, 2, 3, 4]
-
-
-# ---------------------------------------------------------- type / value
-
 def test_if_23_both_branches_literal(users_if):
-    """Both the `then` and `else` branches are plain LiteralValues."""
+    
     res = users_if.get_row(
         [Sqlite.LiteralValue('yes').If(users_if.active == 1).Else(Sqlite.LiteralValue('no'))],
         order_by=users_if.id,
     )
     assert res == ['yes', 'yes', 'no', 'yes', 'no']
-
-
 def test_if_24_int_branches(users_if):
-    """Numeric branches with a NULL-substitution."""
+    
     res = users_if.get_row(
         [Sqlite.LiteralValue(0).If(users_if.age == None).Else(users_if.age)],
         order_by=users_if.id,
     )
     assert res == [30, 17, 25, 40, 0]
-
-
 def test_if_25_empty_string_else(users_if):
-    """Empty string as an else branch."""
+    
     res = users_if.get_row(
         [users_if.name.If(users_if.name == None).Else(Sqlite.LiteralValue(''))],
         order_by=users_if.id,
     )
-    # only id=4 keeps None in the then branch
+    
     assert res == ['', '', '', None, '']
-
-
 def test_if_26_current_datatype_is_none(users_if):
-    """current_datatype is None because branches may disagree in type."""
+    
     label = users_if.name.If(users_if.active == 1).Else(Sqlite.LiteralValue(0))
     assert label.current_datatype is None
-
-
 def test_if_27_multiple_conditionals_in_select(users_if):
-    """Two independent conditionals in one SELECT list."""
+    
     a = users_if.name.If(users_if.active == 1).Else('X')
     b = Sqlite.LiteralValue(-1).If(users_if.age == None).Else(users_if.age)
     res = users_if.get_row([a, b], order_by=users_if.id)
@@ -302,22 +230,16 @@ def test_if_27_multiple_conditionals_in_select(users_if):
         (None, 40),
         ('X', -1),
     ]
-
-
-# ------------------------------------------------- reader pool and joins
-
 def test_if_28_reader_pool(users_if):
-    """Ternary works via the non-blocking reader pool as well."""
+    
     res = users_if.get_row(
         [users_if.name.If(users_if.active == 1).Else('inactive')],
         order_by=users_if.id,
         from_readers_pool=True,
     )
     assert res == ['Ali', 'Reza', 'inactive', None, 'inactive']
-
-
 def test_if_29_conditional_in_join(if_driver, users_if):
-    """Ternary used inside a JOIN's SELECT list."""
+    
     schema = Sqlite.TableStructure('orders_if', strict=True)
     schema.add_column('id',      Sqlite.DataTypes.INTEGER(), primary_key=True)
     schema.add_column('user_id', Sqlite.DataTypes.INTEGER())
@@ -331,32 +253,23 @@ def test_if_29_conditional_in_join(if_driver, users_if):
     res = (users_if
            .inner_join(orders, users_if.id == orders.user_id)
            .get_row([expr], order_by=users_if.id))
-    # id=1: total=50 -> else -> 'Ali'
-    # id=3: total=0  -> then -> 'Sara'
+    
+    
     assert res == [('Ali',), ('Sara',)]
-
-
-# ------------------------------------------------------- LiteralValue API
-
 def test_if_30_literal_value_exported(if_driver):
-    """LiteralValue should be importable from the public Sqlite package."""
+    
     assert hasattr(Sqlite, 'LiteralValue')
     lv = Sqlite.LiteralValue('hello')
     assert lv._output == ('?', ['hello'])
-
-
 def test_if_31_literal_value_arithmetic(if_driver):
-    """LiteralValue supports the ColumnsOperation API."""
+    
     lv = Sqlite.LiteralValue(100)
     expr = lv - 1
     assert expr._output == ('(? - ?)', [100, 1])
-
-
 def test_if_32_literal_value_string_methods(if_driver):
-    """LiteralValue supports string helpers like `.upper()`."""
+    
     lv = Sqlite.LiteralValue('hello').upper()
     assert lv._output == ('(upper(?))', ['hello'])
-
     
 @pytest.fixture
 def fresh_table(driver):
