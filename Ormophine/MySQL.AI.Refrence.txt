@@ -50,6 +50,13 @@ from MySQLdb import connect, OperationalError, ProgrammingError
 from queue import SimpleQueue, Empty
 from typing import Literal
 
+
+
+from . import TableStructure, Table
+from MySQLdb import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
 class Driver():
     """
     MySQL connection manager with thread-safe connection pooling and ORM capabilities.
@@ -257,7 +264,7 @@ class Driver():
         collate: COLLATE = "utf8mb4_bin",
         sql_modes: list = None,
         isolation_level: ISOLATION_LEVEL = 'REPEATABLE READ',
-        timezone: str = None
+        timezone: str = '+00:00'
     ):
         """
         Initialize a new MySQL database driver with connection pooling and table ORM.
@@ -353,11 +360,8 @@ class Driver():
         self.connect_timeout = connect_timeout
         self.sql_modes = [] if sql_modes is None else sql_modes
         self.timezone = timezone                     
-
-        # ساخت init_command پایه
         init_cmd = f'SET SESSION TRANSACTION ISOLATION LEVEL {isolation_level};'
         if timezone is not None:
-            # اعتبارسنجی مشابه set_timezone
             for ch in (';', "'"):
                 if ch in timezone:
                     raise ValueError(
@@ -375,6 +379,16 @@ class Driver():
             "charset": self.charset,
             "connect_timeout": self.connect_timeout,
             "init_command": init_cmd                                  
+        }
+        self.connection_pool = SimpleQueue()
+        self.connection_pool_storage = []
+        conf = {
+            "host": self.host,
+            "port": self.port,
+            "user": self.username,
+            "password": self.password,
+            "charset": self.charset,
+            "connect_timeout": self.connect_timeout
         }
         connection = connect(**conf)
         if not create_new_db:
