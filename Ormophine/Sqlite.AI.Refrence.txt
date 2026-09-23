@@ -649,6 +649,16 @@ from typing import Any, Literal
 from threading import Thread, Event
 from queue import SimpleQueue
 
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
 class Driver:
     """
     Comprehensive SQLite Driver for Ormophine.
@@ -1493,19 +1503,287 @@ from .. import Column, ColumnsOperation
 
 
 class Builtins:
-    """
-    SQL function helpers that always return a ColumnsOperation.
+    """SQLite SQL function helpers that always return a :class:`ColumnsOperation`.
 
-    current_datatype rule (matches how ColumnsOperation.__add__ picks
-    between '||' and '+'):
-        - SQL function returns TEXT   -> current_datatype = str
-        - SQL function returns NUMBER -> current_datatype = int / float
-        - SQL function result depends on input (MIN, MAX, SUM, ABS, Func)
-          -> propagate the input's datatype, with a numeric fallback when
-             the input is not numeric.
+    ``Builtins`` is a stateless namespace of static methods, each of which
+    wraps a SQLite function (or, where SQLite lacks a native function, a
+    short composition of SQLite functions) into a :class:`ColumnsOperation`
+    object. Because every helper returns a ``ColumnsOperation``, the result
+    can be used anywhere a column expression is accepted: in the
+    ``which_columns`` list of :meth:`Table.get_row`, in the ``where``
+    condition, in the ``update`` dict of :meth:`Table.update`, inside
+    :meth:`~Table.bulk_update`, and so on. Helpers can also be nested
+    freely — e.g. ``Builtins.Round(Builtins.Avg(col) * 100) / 100``
+    compiles into a single SQL expression with all parameters collected
+    in order.
+
+    Design
+    ------
+    The class is deliberately a namespace, not an instance-based helper.
+    You never write ``Builtins()``; every entry point is a
+    ``@staticmethod`` you call directly::
+
+        from Ormophine.Sqlite import Driver, Builtins
+
+        rows = users.get_row(
+            [users.id, Builtins.Len(users.username)],
+            where=Builtins.Len(users.username) > 5,
+        )
+
+    All three of the standard operand types are accepted by every helper:
+
+    - :class:`Column` — the fully qualified name (`` [table].[col] ``) is
+      embedded verbatim; no parameters are consumed.
+    - :class:`ColumnsOperation` — the previously-built SQL fragment and
+      its parameter list are reused and extended.
+    - Any raw Python value (``str``, ``int``, ``float``, ``bytes``,
+      ``None``, ``bool``) — bound as a ``?`` placeholder. Binding rather
+      than interpolating means the value never reaches the SQL text, so
+      injection is impossible.
+
+    Datatype propagation
+    --------------------
+    Each helper sets ``current_datatype`` on the returned
+    ``ColumnsOperation`` to a Python type (``int``, ``float``, ``str``,
+    ``bytes``, or ``None`` when the result's type depends on its
+    branches, as in :meth:`IIf`). The downstream operator dispatcher in
+    :class:`ColumnsOperation` uses this attribute to choose between
+    arithmetic (``+``) and concatenation (``||``) when the expression is
+    chained. Helpers therefore document their result type so that call
+    sites can reason about chained expressions without trial and error.
+
+    Conventional result types:
+
+    ===================================  =========
+    Helper family                        datatype
+    ===================================  =========
+    ``Len``, ``Sum``, ``Min``, ``Max``,
+    ``Count``, ``Abs``, ``Sign``,
+    ``Floor``, ``Ceil``, ``Int``, ``Bool``,
+    ``Year``, ``Month``, ``Day``, ``Hour``,
+    ``Minute``, ``Second``, ``DayOfWeek``,
+    ``DayOfYear``, ``WeekOfYear``,
+    ``Weekday``, ``IsoWeekday``,
+    ``UnixEpoch``, ``UnixNow``,
+    ``DateDiffDays``, ``DateDiffSeconds``    ``int``
+    ``Avg``, ``Round``, ``Sqrt``, ``Pow``,
+    ``Float``, ``Total``, ``JulianDay``     ``float``
+    ``Reverse``, ``Capitalize``, ``Str``,
+    ``Format``, ``TypeOf``, ``Date``,
+    ``Time``, ``DateTime``, ``Strftime``,
+    ``StrftimeMod``, ``Timediff``,
+    ``DateAdd``, ``DateTimeAdd``,
+    ``TimeAdd``, ``Now``, ``Today``         ``str``
+    ``Find``                                 ``int``
+    ``IsNull``, ``IsNotNull``, ``Between``   ``int`` (0/1 — SQLite has
+                                             no native bool)
+    ``IIf``                                  ``None`` (branches may
+                                             disagree)
+    ===================================  =========
+
+    SQLite version caveats
+    ----------------------
+    SQLite has been adding SQL functions over time, and this backend
+    surfaces them through dedicated helpers. When the functions are not
+    available in the SQLite library that ships with the interpreter, the
+    generated SQL will fail at execution time. The minimum SQLite
+    versions per helper are:
+
+    - **SQLite >= 3.35** (2021-03-12): :meth:`Sign`, :meth:`Floor`,
+      :meth:`Ceil`, :meth:`Sqrt`, :meth:`Pow`.
+    - **SQLite >= 3.38** (2022-02-22): :meth:`UnixEpoch`, :meth:`UnixNow`.
+    - **SQLite >= 3.43** (2023-08-24): :meth:`Timediff`.
+    - **SQLite >= 3.44** (2023-11-01): :meth:`Reverse`.
+
+    For every one of these helpers the docstring documents a portable
+    fallback (usually a composition of older primitives). If you need to
+    support an older SQLite, either upgrade or wrap the expression
+    manually.
+
+    Helpers that exist only in SQLite
+    ---------------------------------
+    Some helpers are unique to this backend because they wrap functions
+    that other databases either lack or implement differently:
+
+    - :meth:`IIf` — wraps SQLite's ``IIF`` (SQLite >= 3.32). Other
+      backends emit ``IF`` (MySQL) or ``CASE WHEN`` (PostgreSQL).
+    - :meth:`TOTAL` (via :meth:`Total`) — SQLite's ``TOTAL`` aggregate
+      returns ``0.0`` over empty groups, unlike ``SUM`` which returns
+      ``NULL``. This is a SQLite-only function name.
+    - :meth:`TypeOf` — wraps ``TYPEOF``, which returns one of SQLite's
+      five storage classes (``'null'``, ``'integer'``, ``'real'``,
+      ``'text'``, ``'blob'``).
+    - :meth:`Format` — wraps SQLite's ``PRINTF`` (the ``printf`` function
+      exposed to SQL as ``PRINTF``).
+    - :meth:`JulianDay` — wraps ``julianday``, SQLite's built-in
+      Julian-day converter.
+    - :meth:`UnixEpoch` — wraps ``unixepoch`` (SQLite >= 3.38).
+    - :meth:`Timediff` — wraps ``timediff`` (SQLite >= 3.43), which
+      returns an interval-formatted text string.
+    - :meth:`DateAdd`, :meth:`DateTimeAdd`, :meth:`TimeAdd`,
+      :meth:`StrftimeMod` — modifier-aware date functions that accept
+      SQLite's *modifier strings* (``'start of month'``, ``'+1 day'``,
+      ``'-2 hours'``, ``'localtime'``, ``'weekday 1'``, ...). These are
+      not portable to other backends without rewriting the modifiers.
+
+    Date/time conventions
+    ---------------------
+    Date and time helpers return ``str`` in ISO-8601-like formats that
+    SQLite produces natively (``'YYYY-MM-DD'``, ``'HH:MM:SS'``,
+    ``'YYYY-MM-DD HH:MM:SS'``). They accept an ISO literal, a
+    :class:`Column`, a :class:`ColumnsOperation`, or the special string
+    ``'now'``. All dates are UTC unless a ``'localtime'`` modifier is
+    supplied.
+
+    Unlike the MySQL and PostgreSQL backends, SQLite has **no native
+    date type**; every date function accepts and returns text. That means
+    every helper here works transparently with text columns without any
+    casting.
+
+    Notes
+    -----
+    - The helpers do not cache or memoize; every call builds a fresh
+      ``ColumnsOperation``. This is deliberate — the operations are cheap
+      to construct and the alternative (mutating shared state) would break
+      thread-safety.
+    - The class is not instantiable for use; it exists only to group the
+      static methods. Attempting ``Builtins()`` succeeds but produces an
+      object with no useful behaviour.
+    - All parameters collected by the helpers are appended to the
+      ``_output[1]`` list in the order their placeholders appear in the
+      SQL fragment, which is the order sqlite3 expects.
+    - SQLite returns ``0`` and ``1`` for boolean predicates, not the
+      Python ``True`` / ``False``. Predicates exposed here (:meth:`IsNull`,
+      :meth:`IsNotNull`, :meth:`Between`) therefore declare
+      ``current_datatype = int``. If you need a real Python boolean after
+      fetching, compare the value in Python (``if row[0] == 1``).
+
+    Example:
+        A quick tour of the helper categories::
+
+            from Ormophine.Sqlite import Driver, Builtins
+
+            db    = Driver('app.db')
+            users = db.users
+
+            # String
+            Builtins.Len(users.username)
+            Builtins.Reverse(users.username)
+            Builtins.Find(users.email, '@')
+            Builtins.Capitalize(users.name)
+            Builtins.Format('Hello %s', users.name)
+
+            # Aggregate
+            Builtins.Sum(users.balance)
+            Builtins.Avg(users.age)
+            Builtins.Min(users.created_at)
+            Builtins.Max(users.score)
+            Builtins.Count('*')
+            Builtins.Total(users.balance)
+
+            # Math
+            Builtins.Abs(users.delta)
+            Builtins.Round(users.price)
+            Builtins.Floor(users.score)
+            Builtins.Ceil(users.score)
+            Builtins.Sign(users.delta)
+            Builtins.Sqrt(users.x * users.x + users.y * users.y)
+            Builtins.Pow(users.base, users.exp)
+
+            # Type cast
+            Builtins.Int(users.text_id)
+            Builtins.Float(users.text_price)
+            Builtins.Str(users.numeric_code)
+            Builtins.Bool(users.flag)
+            Builtins.TypeOf(users.payload)
+
+            # Condition
+            Builtins.IsNull(users.email)
+            Builtins.IsNotNull(users.phone)
+            Builtins.Between(users.age, 18, 65)
+            Builtins.IIf(users.age >= 18, 'adult', 'minor')
+
+            # Date and time
+            Builtins.Year(users.created_at)
+            Builtins.Month(users.created_at)
+            Builtins.Day(users.created_at)
+            Builtins.Hour(users.created_at)
+            Builtins.Minute(users.created_at)
+            Builtins.Second(users.created_at)
+            Builtins.DayOfWeek(users.created_at)
+            Builtins.DayOfYear(users.created_at)
+            Builtins.WeekOfYear(users.created_at)
+            Builtins.Weekday(users.created_at)
+            Builtins.IsoWeekday(users.created_at)
+            Builtins.Strftime('%Y-%m-%d', users.created_at)
+            Builtins.Now()
+            Builtins.Today()
+            Builtins.UnixNow()
+            Builtins.UnixEpoch(users.created_at)
+            Builtins.JulianDay(users.created_at)
+            Builtins.DateAdd('now', '+1 day')
+            Builtins.DateTimeAdd('now', '-1 hour')
+            Builtins.TimeAdd('now', '+30 minutes')
+            Builtins.StrftimeMod('%Y-%m', 'now', '-1 month')
+            Builtins.DateDiffDays(Builtins.Now(), users.created_at)
+            Builtins.DateDiffSeconds(Builtins.Now(), users.updated_at)
+            Builtins.Timediff(Builtins.Now(), users.created_at)
     """
 
     class _NullCol:
+        """Fallback stand-in used when a :class:`ColumnsOperation` has no originating :class:`Column`.
+
+        Several helpers in :class:`Builtins` (e.g. :meth:`Builtins.Count`
+        with ``'*'``, :meth:`Builtins.Now`, :meth:`Builtins.Today`,
+        :meth:`Builtins.UnixNow`) produce SQL that does not refer to any
+        particular table or column. For example ``COUNT(*)`` has no
+        column operand, and ``datetime('now')`` is a server-side constant.
+        But every :class:`ColumnsOperation` in this ORM is expected to
+        carry a ``col_obj`` attribute pointing at the :class:`Column` that
+        originated the expression — the operator dispatcher reads
+        ``col_obj.datatype``, ``col_obj.name``, and
+        ``col_obj.table_obj._PlaceHolder`` when deciding how to render a
+        chained operation.
+
+        Rather than passing ``None`` and forcing every call site to
+        null-check, helpers with no natural column use this class. It
+        supplies the same attribute surface as a real :class:`Column` so
+        chained operations such as ``Builtins.Now() + 1`` or
+        ``Builtins.Count('*') * 2`` do not raise ``AttributeError``.
+
+        Attributes:
+            datatype (None): Always ``None``. Signals that the originating
+                expression is not tied to a column type, so the operator
+                dispatcher falls back to its safe defaults (arithmetic
+                rather than concatenation when both sides are ambiguous).
+            table_obj (None): Always ``None``. Unlike the MySQL and
+                PostgreSQL backends — which define ``table_obj`` as a
+                tiny inner class exposing a harmless ``_PlaceHolder``
+                stub — the SQLite backend simply sets it to ``None``.
+                The SQLite operator dispatcher only reaches
+                ``self.col_obj.table_obj._PlaceHolder`` when
+                ``col_obj`` is a real :class:`Column`, so a ``None``
+                here is safe for the helpers' use case.
+            name (str): Always the empty string. Substituting it into SQL
+                would produce invalid SQL, but this path is never taken
+                because the helper's own SQL fragment already contains
+                the complete expression.
+            first_name (str): Always the empty string. Same reasoning as
+                ``name``.
+
+        Example:
+            Internal usage within a helper::
+
+                @staticmethod
+                def Now(_=None):
+                    return Builtins._make("(datetime('now'))", [], str,
+                                          Builtins._NullCol)
+
+            The ``Builtins._NullCol`` class itself (not an instance) is
+            passed because the helpers only need the attribute surface,
+            never any per-instance state. Passing the class works because
+            attribute lookup falls through to the class-level definitions.
+        """
         datatype   = None
         table_obj  = None
         name       = ''
@@ -1513,6 +1791,79 @@ class Builtins:
 
     @staticmethod
     def _normalize(value):
+        """Coerce an operand into a uniform ``(sql, params, datatype, col_obj)`` tuple.
+
+        This is the single point through which every :class:`Builtins`
+        helper inspects its arguments. Because the three accepted operand
+        types — :class:`Column`, :class:`ColumnsOperation`, and raw Python
+        values — carry their SQL information in different shapes, the
+        helpers cannot consume them directly; ``_normalize`` flattens each
+        shape into a common four-element tuple so the helper body only
+        ever deals with one representation.
+
+        The returned tuple has the following layout:
+
+        - ``sql`` (str): The SQL fragment representing the operand. For a
+          :class:`Column` this is the fully qualified name
+          (`` [table].[col] ``); for a :class:`ColumnsOperation` it is the
+          previously-built fragment; for a raw value it is the placeholder
+          ``'?'``.
+        - ``params`` (list): The parameters that must be bound to the
+          placeholders in ``sql``. Always a fresh list — mutating it does
+          not affect the source operand.
+        - ``datatype`` (type | None): The Python type that the operand
+          evaluates to on the server side, used by the helper to set
+          ``current_datatype`` on its result. ``None`` for a raw literal
+          whose type is unknown (e.g. when ``value is None``).
+        - ``col_obj`` (Column | type[_NullCol]): The originating column,
+          or the :class:`_NullCol` class when there is none. Never
+          ``None`` — helpers can rely on the attribute surface being
+          present.
+
+        Args:
+            value: The operand to normalize. Accepted types:
+
+                - :class:`ColumnsOperation` — its ``_output`` tuple is
+                  unpacked; the parameter list is copied so the caller
+                  cannot accidentally mutate the source operation.
+                - :class:`Column` — the fully qualified name is used and
+                  no parameters are produced. ``col_obj`` is the column
+                  itself.
+                - Any other Python value — wrapped as ``('?', [value])``
+                  with ``type(value)`` as the datatype and ``_NullCol``
+                  as the column stand-in.
+
+        Returns:
+            tuple[str, list, type | None, Column | type[_NullCol]]: A
+            four-element tuple ``(sql, params, datatype, col_obj)`` as
+            described above. The ``params`` list is always freshly
+            allocated.
+
+        Example:
+            Internal usage inside a helper — :meth:`Len` delegates the
+            inspection to ``_normalize`` and then builds its own SQL::
+
+                sql, p, _, c = Builtins._normalize(value)
+                return Builtins._make(f'(LENGTH({sql}))', p, int, c)
+
+            Behaviour on each operand type::
+
+                >>> Builtins._normalize(users.username)
+                ('[users].[username]', [], str, <Column users.username>)
+
+                >>> op = Builtins.Len(users.username)
+                >>> Builtins._normalize(op)
+                ('(LENGTH([users].[username]))', [], int, <Column users.username>)
+
+                >>> Builtins._normalize('hello')
+                ('?', ['hello'], str, Builtins._NullCol)
+
+                >>> Builtins._normalize(42)
+                ('?', [42], int, Builtins._NullCol)
+
+                >>> Builtins._normalize(None)
+                ('?', [None], NoneType, Builtins._NullCol)
+        """
         if isinstance(value, ColumnsOperation):
             raw    = value._output[1]
             params = list(raw) if isinstance(raw, list) else [raw]
@@ -1528,12 +1879,93 @@ class Builtins:
 
     @staticmethod
     def _make(sql, params, datatype, col_obj):
+        """Assemble a :class:`ColumnsOperation` from a raw SQL fragment and its metadata.
+
+        Helpers build their SQL fragment by string concatenation (or by
+        composing the fragments returned from :meth:`_normalize` of their
+        operands), then hand the result to ``_make`` for packaging. The
+        method creates a fresh ``ColumnsOperation`` **without** calling its
+        ``__init__`` — it uses ``__new__`` instead — because the
+        constructor initialises ``_output`` to ``('', [])`` and would
+        overwrite the fragment we want to store. This is a deliberate
+        optimisation: helpers are called far more often than the
+        constructor, and skipping ``__init__`` avoids four attribute
+        assignments per call.
+
+        The returned object behaves exactly like any other
+        ``ColumnsOperation``: it supports arithmetic, comparison, string
+        methods, ``In``/``not_In``, ``If``, and so on. Its ``_output``
+        tuple is the one passed in, and its ``current_datatype`` reflects
+        the helper's declared result type.
+
+        Args:
+            sql (str): The complete SQL fragment for the expression,
+                including any surrounding parentheses the helper chose to
+                add. Must contain ``?`` placeholders exactly as many times
+                as ``params`` has elements.
+            params (list): The parameter values to bind, in the order
+                their placeholders appear in ``sql``. The list is stored
+                by reference on the returned operation, so the caller
+                should not retain and later mutate it.
+            datatype (type | None): The Python type the expression
+                evaluates to on the server. Used by the operator dispatcher
+                when the operation is chained. Pass ``None`` when the type
+                depends on runtime branches (e.g. :meth:`IIf`).
+            col_obj (Column | type[_NullCol]): The originating column, or
+                the :class:`_NullCol` class when there is none. Passing
+                ``None`` is tolerated and treated as ``_NullCol``, but
+                helpers should pass ``_NullCol`` explicitly for clarity.
+
+        Returns:
+            ColumnsOperation: A new operation whose ``_output`` is
+            ``(sql, params)``, whose ``current_datatype`` is ``datatype``,
+            and whose ``col_obj`` is ``col_obj`` (or ``_NullCol`` when
+            ``col_obj is None``).
+
+        Example:
+            Internal usage inside a helper::
+
+                # Len — SQLite LENGTH()
+                return Builtins._make(f'(LENGTH({sql}))', p, int, c)
+
+                # Now — no operands at all
+                return Builtins._make("(datetime('now'))", [], str,
+                                      Builtins._NullCol)
+
+                # IIf — datatype intentionally None because the branches
+                # may disagree
+                return Builtins._make(
+                    f'(IIF({cs}, {ts}, {es}))',
+                    cp + tp + ep,
+                    None,
+                    c,
+                )
+
+                # DateDiffDays — nested julianday + CAST
+                return Builtins._make(
+                    f'(CAST(julianday({s1}) - julianday({s2}) AS INTEGER))',
+                    p1 + p2, int, c,
+                )
+
+            The result composes with the rest of the expression system::
+
+                >>> op = Builtins._make("(datetime('now'))", [], str,
+                ...                     Builtins._NullCol)
+                >>> op._output
+                ("(datetime('now'))", [])
+                >>> op.current_datatype
+                <class 'str'>
+                >>> # Chain arithmetic — the dispatcher sees str, so it
+                >>> # would pick || unless overridden by a cast builtin.
+                >>> (Builtins.Int(Builtins.UnixNow()) + 60)._output[0]
+                '((CAST((unixepoch(?)) AS INTEGER)) + ?)'
+        """
         op = ColumnsOperation.__new__(ColumnsOperation)
         op._output          = (sql, params)
         op.col_obj          = col_obj if col_obj is not None else Builtins._NullCol
         op.current_datatype = datatype
         return op
-
+    
     @staticmethod
     def Len(value):
         """Compute the length of a value using SQLite's ``LENGTH()`` function.

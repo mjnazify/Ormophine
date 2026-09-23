@@ -522,6 +522,14 @@ from queue import SimpleQueue, Empty
 from typing import Literal
 
             
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
 class Driver():
     """High-level PostgreSQL driver for Ormophine.
 
@@ -1894,19 +1902,393 @@ from .. import Column, ColumnsOperation
 
 
 class Builtins:
-    """PostgreSQL function helpers that always return a ColumnsOperation."""
+    """PostgreSQL SQL function helpers that always return a :class:`ColumnsOperation`.
+
+    ``Builtins`` is a stateless namespace of static methods, each of which
+    wraps a PostgreSQL function (or, where PostgreSQL lacks a native
+    function, a short composition of PostgreSQL functions) into a
+    :class:`ColumnsOperation` object. Because every helper returns a
+    ``ColumnsOperation``, the result can be used anywhere a column
+    expression is accepted: in the ``which_columns`` list of
+    :meth:`Table.get_row`, in the ``where`` condition, in the ``update``
+    dict of :meth:`Table.update`, inside :meth:`~Table.bulk_update`, and
+    so on. Helpers can also be nested freely — e.g.
+    ``Builtins.Round(Builtins.Avg(col) * 100) / 100`` compiles into a
+    single SQL expression with all parameters collected in order.
+
+    Design
+    ------
+    The class is deliberately a namespace, not an instance-based helper.
+    You never write ``Builtins()``; every entry point is a
+    ``@staticmethod`` you call directly::
+
+        from Ormophine.Postgresql import Driver, Builtins
+
+        rows = users.get_row(
+            [users.id, Builtins.Len(users.username)],
+            where=Builtins.Len(users.username) > 5,
+        )
+
+    All three of the standard operand types are accepted by every helper:
+
+    - :class:`Column` — the fully qualified name (`` "table"."col" ``) is
+      embedded verbatim; no parameters are consumed.
+    - :class:`ColumnsOperation` — the previously-built SQL fragment and
+      its parameter list are reused and extended.
+    - Any raw Python value (``str``, ``int``, ``float``, ``bytes``,
+      ``None``, ``bool``) — bound as a ``%s`` placeholder. Binding rather
+      than interpolating means the value never reaches the SQL text, so
+      injection is impossible.
+
+    Datatype propagation
+    --------------------
+    Each helper sets ``current_datatype`` on the returned
+    ``ColumnsOperation`` to a Python type (``int``, ``float``, ``str``,
+    ``bytes``, ``bool``, or ``None`` when the result's type depends on its
+    branches, as in :meth:`IIf`). The downstream operator dispatcher in
+    :class:`ColumnsOperation` uses this attribute to choose between
+    arithmetic (``+``) and concatenation (``||``) when the expression is
+    chained. Helpers therefore document their result type so that call
+    sites can reason about chained expressions without trial and error.
+
+    Conventional result types:
+
+    ===================================  =========
+    Helper family                        datatype
+    ===================================  =========
+    ``Len``, ``Sum``, ``Min``, ``Max``,
+    ``Count``, ``Abs``, ``Sign``, ``Floor``,
+    ``Ceil``, ``Int``, ``Year``, ``Month``,
+    ``Day``, ``Hour``, ``Minute``, ``Second``,
+    ``DayOfWeek``, ``IsoWeekday``, ``Weekday``,
+    ``DayOfYear``, ``WeekOfYear``, ``UnixNow``,
+    ``UnixEpoch``, ``DateDiffDays``,
+    ``DateDiffSeconds``                      ``int``
+    ``Avg``, ``Round``, ``Sqrt``, ``Pow``,
+    ``Float``, ``Total``, ``JulianDay``      ``float``
+    ``Reverse``-equivalents, ``Upper``,
+    ``Lower``, ``Trim``, ``Capitalize``,
+    ``Str``, ``Date``, ``Time``, ``DateTime``,
+    ``Now``, ``Today``, ``Strftime``,
+    ``StrftimeMod``, ``Timediff``,
+    ``DateAdd``, ``DateTimeAdd``,
+    ``TimeAdd``, ``Format``, ``GroupConcat``,
+    ``TypeOf``                               ``str``
+    ``IsNull``, ``IsNotNull``, ``Between``,
+    ``Bool``                                 ``bool``
+    ``IIf``                                  ``None`` (branches may
+                                             disagree)
+    ===================================  =========
+
+    Differences from the MySQL backend
+    ----------------------------------
+    The PostgreSQL helpers are deliberately *not* a mechanical port of the
+    MySQL ones; PostgreSQL has different native functions, different type
+    coercions, and a richer set of built-ins to expose. The important
+    differences:
+
+    **Helpers that exist only in PostgreSQL:**
+
+    - :meth:`Total` — PostgreSQL's ``SUM`` returns ``NULL`` over empty
+      groups, so ``Total`` wraps it in ``COALESCE(SUM(...), 0)`` — the
+      SQL analogue of SQLite's ``TOTAL``.
+    - :meth:`GroupConcat` — wraps ``STRING_AGG`` for
+      ``','.join(...)``-style aggregation.
+    - :meth:`TypeOf` — wraps ``PG_TYPEOF``, which returns the *actual*
+      PostgreSQL type name (``'int4'``, ``'jsonb'``, ``'uuid'``, ...) —
+      far more informative than SQLite's five storage classes.
+    - :meth:`JulianDay` — wraps ``EXTRACT(JULIAN FROM ...)``, matching
+      SQLite's ``julianday()``.
+    - :meth:`Func` — a single-operand escape hatch for any PostgreSQL
+      function not covered by a dedicated helper.
+    - :meth:`Format` — wraps ``FORMAT`` for the ``%s``/``%I``/``%L``
+      template language.
+    - :meth:`Upper`, :meth:`Lower`, :meth:`Trim` — these are exposed as
+      module-level helpers *in addition* to the corresponding ``Column``
+      methods, so they can be applied to arbitrary expressions built from
+      ``ColumnsOperation``.
+    - :meth:`Capitalize` — PostgreSQL has no native ``CAPITALIZE``, so the
+      helper composes ``UPPER(SUBSTRING(x,1,1)) || LOWER(SUBSTRING(x,2))``.
+
+    **Helpers with PostgreSQL-specific semantics:**
+
+    - :meth:`Bool` — PostgreSQL has a real ``BOOLEAN`` type, so the
+      helper casts to ``BOOLEAN`` (not ``SIGNED`` as in MySQL) and sets
+      ``current_datatype = bool``.
+    - :meth:`DayOfWeek` — PostgreSQL's ``DOW`` is Sunday=0 through
+      Saturday=6, not the ODBC 1–7 convention MySQL uses. Use
+      :meth:`Weekday` or :meth:`IsoWeekday` if you want the Python or
+      ISO numbering.
+    - :meth:`Weekday` — composed as
+      ``((EXTRACT(DOW FROM x)::INTEGER + 6) % 7)`` to match Python's
+      ``date.weekday()``.
+    - :meth:`IsoWeekday` — a direct ``EXTRACT(ISODOW ...)`` (no modulo
+      arithmetic needed, unlike the SQLite backend's equivalent).
+    - :meth:`WeekOfYear` — a direct ``EXTRACT(WEEK ...)`` with ISO
+      semantics (weeks start on Monday, week 1 contains the first
+      Thursday).
+    - :meth:`DateAdd` / :meth:`DateTimeAdd` / :meth:`TimeAdd` /
+      :meth:`StrftimeMod` — the ``*intervals`` argument takes PostgreSQL
+      interval strings like ``'1 day'``, ``'-3 hours'``, ``'2 months'``
+      — **not** the SQLite-style ``'start of month'`` tokens. Use
+      ``DATE_TRUNC`` via :meth:`Func` for period truncation.
+    - :meth:`UnixNow` / :meth:`UnixEpoch` — composed as
+      ``EXTRACT(EPOCH FROM ...)::BIGINT``, not ``UNIX_TIMESTAMP()``.
+    - :meth:`Timediff` — returns the interval cast to ``text``, e.g.
+      ``'2 days 05:29:18'``.
+
+    **MySQL helpers deliberately absent here:**
+
+    - ``IfNull`` — use :meth:`Total` for the common ``SUM + 0`` case, or
+      :meth:`Func` with ``'COALESCE'`` for the general two-argument form.
+    - ``Pow`` — present, but the underlying PostgreSQL function is
+      ``POWER`` (not ``POW``); the helper name is kept for API parity.
+    - ``UnixNow``'s MySQL form (``UNIX_TIMESTAMP()``) is not used because
+      PostgreSQL has no such function.
+
+    SQLite-style modifiers
+    ----------------------
+    The ``*intervals`` argument accepted by :meth:`DateAdd`,
+    :meth:`DateTimeAdd`, :meth:`TimeAdd` and :meth:`StrftimeMod` expects
+    PostgreSQL interval strings rather than SQLite modifier tokens. The
+    accepted forms include:
+
+    - ``'1 day'``, ``'7 days'``, ``'-1 day'`` — day arithmetic
+    - ``'1 month'``, ``'3 months'``, ``'-2 months'`` — month arithmetic
+      (PostgreSQL clamps end-of-month correctly)
+    - ``'1 year'``, ``'-1 year'`` — year arithmetic
+    - ``'2 hours'``, ``'30 minutes'``, ``'15 seconds'`` — time arithmetic
+    - ``'1 day 2 hours'`` — compound intervals
+    - ``'1-2'`` — SQL standard year-month form
+    - ``'3 04:05:06'`` — SQL standard day-time form
+
+    Notes
+    -----
+    - The helpers do not cache or memoize; every call builds a fresh
+      ``ColumnsOperation``. This is deliberate — the operations are cheap
+      to construct and the alternative (mutating shared state) would break
+      thread-safety.
+    - The class is not instantiable for use; it exists only to group the
+      static methods. Attempting ``Builtins()`` succeeds but produces an
+      object with no useful behaviour.
+    - All parameters collected by the helpers are appended to the
+      ``_output[1]`` list in the order their placeholders appear in the
+      SQL fragment, which is the order psycopg expects.
+
+    Example:
+        A quick tour of the helper categories::
+
+            from Ormophine.Postgresql import Driver, Builtins
+
+            db    = Driver("localhost", 5432, "user", "pass", "app")
+            users = db.users
+
+            # String
+            Builtins.Len(users.username)
+            Builtins.Upper(users.name)
+            Builtins.Lower(users.email)
+            Builtins.Trim(users.name)
+            Builtins.Capitalize(users.name)
+            Builtins.Find(users.email, '@')
+            Builtins.Format('Hello %s', users.name)
+
+            # Aggregate
+            Builtins.Sum(users.balance)
+            Builtins.Avg(users.age)
+            Builtins.Min(users.created_at)
+            Builtins.Max(users.score)
+            Builtins.Count('*')
+            Builtins.Total(users.balance)
+            Builtins.GroupConcat(users.username)
+
+            # Math
+            Builtins.Abs(users.delta)
+            Builtins.Round(users.price)
+            Builtins.Floor(users.score)
+            Builtins.Ceil(users.score)
+            Builtins.Sign(users.delta)
+            Builtins.Sqrt(users.x * users.x + users.y * users.y)
+            Builtins.Pow(users.base, users.exp)
+
+            # Type cast
+            Builtins.Int(users.text_id)
+            Builtins.Float(users.text_price)
+            Builtins.Str(users.numeric_code)
+            Builtins.Bool(users.flag)
+            Builtins.TypeOf(users.payload)
+
+            # Condition
+            Builtins.IsNull(users.email)
+            Builtins.IsNotNull(users.phone)
+            Builtins.Between(users.age, 18, 65)
+            Builtins.IIf(users.age >= 18, 'adult', 'minor')
+
+            # Date and time
+            Builtins.Year(users.created_at)
+            Builtins.Month(users.created_at)
+            Builtins.Day(users.created_at)
+            Builtins.Hour(users.created_at)
+            Builtins.Minute(users.created_at)
+            Builtins.Second(users.created_at)
+            Builtins.DayOfWeek(users.created_at)
+            Builtins.DayOfYear(users.created_at)
+            Builtins.WeekOfYear(users.created_at)
+            Builtins.Weekday(users.created_at)
+            Builtins.IsoWeekday(users.created_at)
+            Builtins.Strftime('YYYY-MM-DD', users.created_at)
+            Builtins.Now()
+            Builtins.Today()
+            Builtins.UnixNow()
+            Builtins.UnixEpoch(users.created_at)
+            Builtins.JulianDay(users.created_at)
+            Builtins.DateAdd(users.created_at, '1 day', '2 hours')
+            Builtins.DateTimeAdd(users.created_at, '-1 hour')
+            Builtins.TimeAdd(users.created_at, '30 minutes')
+            Builtins.StrftimeMod('YYYY-MM', users.created_at, '1 month')
+            Builtins.DateDiffDays(Builtins.Now(), users.created_at)
+            Builtins.DateDiffSeconds(Builtins.Now(), users.updated_at)
+            Builtins.Timediff(Builtins.Now(), users.created_at)
+
+            # Escape hatch
+            Builtins.Func('MD5', users.email)
+    """
 
     class _NullCol:
-        """Fallback col_obj with the Column attribute surface."""
+        """Fallback stand-in used when a :class:`ColumnsOperation` has no originating :class:`Column`.
+
+        Several helpers in :class:`Builtins` (e.g. :meth:`Builtins.Count`
+        with ``'*'``, :meth:`Builtins.Now`, :meth:`Builtins.Today`,
+        :meth:`Builtins.UnixNow`) produce SQL that does not refer to any
+        particular table or column. For example ``COUNT(*)`` has no
+        column operand, and ``NOW()`` is a server-side constant. But every
+        :class:`ColumnsOperation` in this ORM is expected to carry a
+        ``col_obj`` attribute pointing at the :class:`Column` that
+        originated the expression — the operator dispatcher reads
+        ``col_obj.datatype``, ``col_obj.name``, and
+        ``col_obj.table_obj._PlaceHolder`` when deciding how to render a
+        chained operation.
+
+        Rather than passing ``None`` and forcing every call site to
+        null-check, helpers with no natural column use this class. It
+        supplies the same attribute surface as a real :class:`Column` so
+        chained operations such as ``Builtins.Now() + 1`` or
+        ``Builtins.Count('*') * 2`` do not raise ``AttributeError``.
+
+        Attributes:
+            datatype (None): Always ``None``. Signals that the originating
+                expression is not tied to a column type, so the operator
+                dispatcher falls back to its safe defaults (arithmetic
+                rather than concatenation when both sides are ambiguous).
+            name (str): Always the empty string. Substituting it into SQL
+                would produce invalid SQL, but this path is never taken
+                because the helper's own SQL fragment already contains
+                the complete expression.
+            first_name (str): Always the empty string. Same reasoning as
+                ``name``.
+            table_obj (type): A *class* (not an instance) whose only
+                attribute is ``_PlaceHolder`` set to ``type(None)``. This
+                ensures that ``isinstance(value, self.col_obj.table_obj._PlaceHolder)``
+                is ``False`` for every real Python value — so the operator
+                dispatcher's numeric-vs-string branch in
+                :meth:`ColumnsOperation.__add__` never accidentally treats
+                a raw literal as a placeholder. The real
+                :class:`Table._PlaceHolder` class is used only in the
+                ``bulk_update`` context; helpers never participate in bulk
+                updates, so ``_NullCol`` supplies a benign stub.
+
+        Example:
+            Internal usage within a helper::
+
+                @staticmethod
+                def Now(_=None):
+                    return Builtins._make('(NOW())', [], str, Builtins._NullCol)
+
+            The ``Builtins._NullCol`` class itself (not an instance) is
+            passed because the helpers only need the attribute surface,
+            never any per-instance state. Passing the class works because
+            attribute lookup falls through to the class-level definitions.
+        """
         datatype   = None
         name       = ''
         first_name = ''
         class table_obj:
-            _PlaceHolder = type(None)  
+            _PlaceHolder = type(None)   # Nothing isinstance-matches this
 
     @staticmethod
     def _normalize(value):
-        """Return (sql_fragment, params, datatype, col_obj) for an operand."""
+        """Coerce an operand into a uniform ``(sql, params, datatype, col_obj)`` tuple.
+
+        This is the single point through which every :class:`Builtins`
+        helper inspects its arguments. Because the three accepted operand
+        types — :class:`Column`, :class:`ColumnsOperation`, and raw Python
+        values — carry their SQL information in different shapes, the
+        helpers cannot consume them directly; ``_normalize`` flattens each
+        shape into a common four-element tuple so the helper body only
+        ever deals with one representation.
+
+        The returned tuple has the following layout:
+
+        - ``sql`` (str): The SQL fragment representing the operand. For a
+          :class:`Column` this is the fully qualified name
+          (`` "table"."col" ``); for a :class:`ColumnsOperation` it is the
+          previously-built fragment; for a raw value it is the placeholder
+          ``'%s'``.
+        - ``params`` (list): The parameters that must be bound to the
+          placeholders in ``sql``. Always a fresh list — mutating it does
+          not affect the source operand.
+        - ``datatype`` (type | None): The Python type that the operand
+          evaluates to on the server side, used by the helper to set
+          ``current_datatype`` on its result. ``None`` for a raw literal
+          whose type is unknown (e.g. when ``value is None``).
+        - ``col_obj`` (Column | type[_NullCol]): The originating column,
+          or the :class:`_NullCol` class when there is none. Never
+          ``None`` — helpers can rely on the attribute surface being
+          present.
+
+        Args:
+            value: The operand to normalize. Accepted types:
+
+                - :class:`ColumnsOperation` — its ``_output`` tuple is
+                  unpacked; the parameter list is copied so the caller
+                  cannot accidentally mutate the source operation.
+                - :class:`Column` — the fully qualified name is used and
+                  no parameters are produced. ``col_obj`` is the column
+                  itself.
+                - Any other Python value — wrapped as ``('%s', [value])``
+                  with ``type(value)`` as the datatype and ``_NullCol``
+                  as the column stand-in.
+
+        Returns:
+            tuple[str, list, type | None, Column | type[_NullCol]]: A
+            four-element tuple ``(sql, params, datatype, col_obj)`` as
+            described above. The ``params`` list is always freshly
+            allocated.
+
+        Example:
+            Internal usage inside a helper — :meth:`Len` delegates the
+            inspection to ``_normalize`` and then builds its own SQL::
+
+                sql, p, _, c = Builtins._normalize(value)
+                return Builtins._make(f'(LENGTH({sql}))', p, int, c)
+
+            Behaviour on each operand type::
+
+                >>> Builtins._normalize(users.username)
+                ('"users"."username"', [], str, <Column users.username>)
+
+                >>> op = Builtins.Len(users.username)
+                >>> Builtins._normalize(op)
+                ('(LENGTH("users"."username"))', [], int, <Column users.username>)
+
+                >>> Builtins._normalize('hello')
+                ('%s', ['hello'], str, Builtins._NullCol)
+
+                >>> Builtins._normalize(42)
+                ('%s', [42], int, Builtins._NullCol)
+
+                >>> Builtins._normalize(None)
+                ('%s', [None], NoneType, Builtins._NullCol)
+        """
         if isinstance(value, ColumnsOperation):
             raw    = value._output[1]
             params = list(raw) if isinstance(raw, list) else [raw]
@@ -1922,13 +2304,93 @@ class Builtins:
 
     @staticmethod
     def _make(sql, params, datatype, col_obj):
-        """Build a real ColumnsOperation without running __init__."""
+        """Assemble a :class:`ColumnsOperation` from a raw SQL fragment and its metadata.
+
+        Helpers build their SQL fragment by string concatenation (or by
+        composing the fragments returned from :meth:`_normalize` of their
+        operands), then hand the result to ``_make`` for packaging. The
+        method creates a fresh ``ColumnsOperation`` **without** calling its
+        ``__init__`` — it uses ``__new__`` instead — because the
+        constructor initialises ``_output`` to ``('', [])`` and would
+        overwrite the fragment we want to store. This is a deliberate
+        optimisation: helpers are called far more often than the
+        constructor, and skipping ``__init__`` avoids four attribute
+        assignments per call.
+
+        The returned object behaves exactly like any other
+        ``ColumnsOperation``: it supports arithmetic, comparison, string
+        methods, ``In``/``not_In``, ``If``, and so on. Its ``_output``
+        tuple is the one passed in, and its ``current_datatype`` reflects
+        the helper's declared result type.
+
+        Args:
+            sql (str): The complete SQL fragment for the expression,
+                including any surrounding parentheses the helper chose to
+                add. Must contain ``%s`` placeholders exactly as many times
+                as ``params`` has elements.
+            params (list): The parameter values to bind, in the order
+                their placeholders appear in ``sql``. The list is stored
+                by reference on the returned operation, so the caller
+                should not retain and later mutate it.
+            datatype (type | None): The Python type the expression
+                evaluates to on the server. Used by the operator dispatcher
+                when the operation is chained. Pass ``None`` when the type
+                depends on runtime branches (e.g. :meth:`IIf`).
+            col_obj (Column | type[_NullCol]): The originating column, or
+                the :class:`_NullCol` class when there is none. Passing
+                ``None`` is tolerated and treated as ``_NullCol``, but
+                helpers should pass ``_NullCol`` explicitly for clarity.
+
+        Returns:
+            ColumnsOperation: A new operation whose ``_output`` is
+            ``(sql, params)``, whose ``current_datatype`` is ``datatype``,
+            and whose ``col_obj`` is ``col_obj`` (or ``_NullCol`` when
+            ``col_obj is None``).
+
+        Example:
+            Internal usage inside a helper::
+
+                # Len — PostgreSQL LENGTH()
+                return Builtins._make(f'(LENGTH({sql}))', p, int, c)
+
+                # Now — no operands at all
+                return Builtins._make('(NOW())', [], str, Builtins._NullCol)
+
+                # IIf — datatype intentionally None because the branches
+                # may disagree
+                return Builtins._make(
+                    f'(CASE WHEN {cs} THEN {ts} ELSE {es} END)',
+                    cp + tp + ep,
+                    None,
+                    c,
+                )
+
+                # DateDiffDays — nested CAST/EXTRACT
+                return Builtins._make(
+                    f'(CAST(EXTRACT(EPOCH FROM '
+                    f'(CAST({s1} AS TIMESTAMP) - CAST({s2} AS TIMESTAMP))) '
+                    f'/ 86400 AS INTEGER))',
+                    p1 + p2, int, c,
+                )
+
+            The result composes with the rest of the expression system::
+
+                >>> op = Builtins._make('(NOW())', [], str, Builtins._NullCol)
+                >>> op._output
+                ('(NOW())', [])
+                >>> op.current_datatype
+                <class 'str'>
+                >>> # Chain arithmetic — the dispatcher sees str, so it
+                >>> # would pick || unless overridden by a cast builtin.
+                >>> (Builtins.Int(Builtins.UnixNow()) + 60)._output[0]
+                '((CAST((EXTRACT(EPOCH FROM NOW())::BIGINT)) AS INTEGER) + %s)'
+        """
         op = ColumnsOperation.__new__(ColumnsOperation)
         op._output          = (sql, params)
         op.col_obj          = col_obj if col_obj is not None else Builtins._NullCol
         op.current_datatype = datatype
         return op
-
+    
     @staticmethod
     def Len(value):
         """Compute the length of a value using PostgreSQL's ``LENGTH()`` function.
