@@ -2075,7 +2075,7 @@ class ColumnsOperation:
         
         return new_op
 
-    def if_(self, condition):
+    def If(self, condition):
         """
         Start a one-line conditional expression: ``then if cond else other``.
 
@@ -2168,7 +2168,7 @@ class _IfThenBuilder:
             "Complete the conditional, e.g. `col.If(cond).Else(other)`."
         )
 
-    def else_(self, value):
+    def Else(self, value):
         """
         Complete the conditional with the "else" branch.
 
@@ -4170,7 +4170,7 @@ class Column:
         temp_ob._output = (self.name, [])
         return temp_ob.not_In(column=column, where=where, data_list=data_list)
 
-    def if_(self, condition):
+    def If(self, condition):
         """
         Start a one-line conditional with this column as the "then" branch.
 

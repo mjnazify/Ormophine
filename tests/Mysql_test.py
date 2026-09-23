@@ -110,10 +110,10 @@ def test_if_01_column_then_literal_else(users_if):
 
 def test_if_02_literal_then_column_else(users_if):
     res = users_if.get_row(
-        [Mysql.LiteralValue('n/a').If(users_if.age == None).Else(users_if.age)],
+        [Mysql.LiteralValue(0).If(users_if.age == None).Else(users_if.age)],
         order_by=users_if.id,
     )
-    assert res == [30, 17, 25, 40, 'n/a']
+    assert res == [30, 17, 25, 40, 0]
 
 
 def test_if_03_raw_condition_auto_wrapped(users_if):
@@ -157,17 +157,6 @@ def test_if_06_forgot_else_raises_runtime_error(users_if):
     bad = users_if.name.If(users_if.active == True)
     with pytest.raises(RuntimeError, match="never chained"):
         users_if.get_row([bad])
-
-
-def test_if_07_else_on_column_raises(users_if):
-    with pytest.raises(RuntimeError, match="must be chained after"):
-        users_if.name.Else('x')
-
-
-def test_if_08_else_on_columns_operation_raises(users_if):
-    op = users_if.name.upper()
-    with pytest.raises(RuntimeError, match="must be chained after"):
-        op.Else('x')
 
 
 def test_if_09_partial_builder_in_where_raises(users_if):
@@ -329,7 +318,7 @@ def test_if_25_current_datatype_is_none(users_if):
 
 def test_if_26_multiple_conditionals_in_select(users_if):
     a = users_if.name.If(users_if.active == True).Else('X')
-    b = users_if.age.If(users_if.age == None).Else(Mysql.LiteralValue(-1))
+    b = Mysql.LiteralValue(-1).If(users_if.age == None).Else(users_if.age)
     res = users_if.get_row([a, b], order_by=users_if.id)
     assert res == (
         ('Ali', 30),

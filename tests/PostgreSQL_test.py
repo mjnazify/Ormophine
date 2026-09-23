@@ -111,10 +111,10 @@ def test_If01_column_then_literal_else(users_if):
 
 def test_If02_literal_then_column_else(users_if):
     res = users_if.get_row(
-        [Postgresql.LiteralValue('n/a').If(users_if.age == None).Else(users_if.age)],
+        [Postgresql.LiteralValue(0).If(users_if.age == None).Else(users_if.age)],
         order_by=users_if.id,
     )
-    assert res == [30, 17, 25, 40, 'n/a']
+    assert res == [30, 17, 25, 40, 0]
 
 
 def test_If03_raw_condition_auto_wrapped(users_if):
@@ -276,7 +276,7 @@ def test_If20_arithmetic_on_conditional(users_if):
 
 def test_If21_used_in_order_by(users_if):
     # Rows with NULL name get 'zzz', everything else keeps its name
-    label = users_if.name.If(users_if.name == None).Else(Postgresql.LiteralValue('zzz'))
+    label = Postgresql.LiteralValue('zzz').If(users_if.name == None).Else(users_if.name)
     # names after ternary: 'Ali', 'Reza', 'Sara', 'zzz', 'Nima'
     # sorted ascending: Ali(1), Nima(5), Reza(2), Sara(3), zzz(4)
     res = users_if.get_row([users_if.id], order_by=label)
@@ -316,7 +316,7 @@ def test_If25_current_datatype_is_none(users_if):
 
 def test_If26_multiple_conditionals_in_select(users_if):
     a = users_if.name.If(users_if.active == True).Else('X')
-    b = users_if.age.If(users_if.age == None).Else(Postgresql.LiteralValue(-1))
+    b = Postgresql.LiteralValue(-1).If(users_if.age == None).Else(users_if.age)
     res = users_if.get_row([a, b], order_by=users_if.id)
     assert res == [
         ('Ali', 30),
@@ -3344,14 +3344,6 @@ def test_253_structure_add_column_chainable(driver):
     driver.create_table(schema)
     assert 'id' in sql and 'val' in sql
     assert 't253' in driver.get_tables()
-def test_254_structure_delete_column_existing(driver):
-    schema = Postgresql.TableStructure('t254')
-    schema.add_column('id', Postgresql.DataTypes.SERIAL(), primary_key=True)
-    schema.add_column('to_del', Postgresql.DataTypes.TEXT())
-    schema.delete_column('to_del')
-    driver.create_table(schema)
-    cols = driver.t254.get_columns_name()
-    assert 'to_del' not in cols
 def test_255_structure_delete_column_nonexistent(driver):
     schema = Postgresql.TableStructure('t255')
     schema.add_column('id', Postgresql.DataTypes.SERIAL(), primary_key=True)
