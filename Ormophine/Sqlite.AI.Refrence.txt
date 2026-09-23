@@ -599,6 +599,16 @@ from typing import Any, Literal
 from threading import Thread, Event
 from queue import SimpleQueue
 
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
 class Driver:
     """
     Comprehensive SQLite Driver for Ormophine.
@@ -4113,7 +4123,7 @@ class ColumnsOperation:
             
         return new_op
 
-    def if_(self, condition):
+    def If(self, condition):
         """
         Start a one-line conditional expression: ``then if cond else other``.
 
@@ -4122,9 +4132,9 @@ class ColumnsOperation:
         It returns an intermediate :class:`_IfThenBuilder` object whose
         ``_output`` attribute is intentionally blocked; the only way to
         obtain a usable :class:`ColumnsOperation` is to chain
-        :meth:`_IfThenBuilder.else_`.
+        :meth:`_IfThenBuilder.else`.
 
-        This design guarantees that a forgotten ``.else_()`` cannot silently
+        This design guarantees that a forgotten ``.Else()`` cannot silently
         produce malformed SQL — any attempt to read ``_output`` (for example
         by passing the builder to :meth:`Table.get_row`) raises a clear
         :class:`RuntimeError`.
@@ -4139,16 +4149,16 @@ class ColumnsOperation:
                 - A :class:`Column` (used directly, e.g. a boolean column).
                 - A raw Python value (``True``, ``False``, ``1``, ``0``,
                   ``'x'``, ...). It is wrapped in :class:`LiteralValue`
-                  automatically, so ``col.if_(True).else_(x)`` is valid.
+                  automatically, so ``col.If(True).Else(x)`` is valid.
 
         Returns:
             :class:`_IfThenBuilder`: An intermediate builder holding the
             *then* branch (``self``) and the *condition*. It exposes only
-            :meth:`_IfThenBuilder.else_` (also available as ``.else``).
+            :meth:`_IfThenBuilder.else` (also available as ``.else``).
 
         Raises:
             RuntimeError: Not raised by this method itself. However, if the
-                returned builder is used without calling ``.else_()``, any
+                returned builder is used without calling ``.Else()``, any
                 later access to ``builder._output`` raises
                 ``RuntimeError`` with a descriptive message.
 
@@ -4164,7 +4174,7 @@ class ColumnsOperation:
                 # Simple ternary: if name is longer than 20 chars, show
                 # the first 20, otherwise show 'short'.
                 rows = users.get_row([
-                    users.name.if_(Builtins.Len(users.name) > 20).else_('short')
+                    users.name.If(Builtins.Len(users.name) > 20).Else('short')
                 ])
                 # Equivalent SQL:
                 #   SELECT IIF((LENGTH([users].[name]) > ?),
@@ -4175,21 +4185,21 @@ class ColumnsOperation:
 
                 # Use a boolean column as the condition
                 rows = users.get_row([
-                    users.nickname.if_(users.is_active).else_(users.name)
+                    users.nickname.If(users.is_active).Else(users.name)
                 ])
                 # SELECT IIF([users].[is_active], [users].[nickname], [users].[name])
 
                 # Raw truthy condition, wrapped automatically as LiteralValue
                 rows = users.get_row([
-                    users.name.if_(True).else_('never returned')
+                    users.name.If(True).Else('never returned')
                 ])
                 # SELECT IIF(?, [users].[name], ?)
 
                 # Nested: chain two conditionals
                 label = (
                     users.name
-                    .if_(users.role == 'admin').else_('user')
-                    .if_(users.is_active == 1).else_('inactive')
+                    .If(users.role == 'admin').Else('user')
+                    .If(users.is_active == 1).Else('inactive')
                 )
                 # SELECT IIF(([users].[is_active] = ?),
                 #            IIF(([users].[role] = ?), [users].[name], ?),
@@ -4207,8 +4217,8 @@ class LiteralValue(ColumnsOperation):
 
     In some expression chains a plain literal needs to act as the *left-hand
     side* of an operation — most notably as the "then" branch of a
-    conditional (``LiteralValue('n/a').if_(cond).else_(col)``). A bare
-    Python string or number does not have ``.if_()``, ``.add_end()``,
+    conditional (``LiteralValue('n/a').If(cond).Else(col)``). A bare
+    Python string or number does not have ``.If()``, ``.add_end()``,
     ``.upper()``, or any of the other ColumnsOperation methods, so this
     class gives raw values the full expression API by pretending to be a
     ColumnsOperation whose ``_output`` is exactly one ``?`` placeholder.
@@ -4232,7 +4242,7 @@ class LiteralValue(ColumnsOperation):
             from Ormophine.Sqlite import LiteralValue
 
             # 1. As the "then" branch of a conditional
-            label = LiteralValue('n/a').if_(users.age == None).else_(users.age)
+            label = LiteralValue('n/a').If(users.age == None).Else(users.age)
             # label._output[0] -> "(IIF(([users].[age] IS NULL), ?, [users].[age]))"
             # label._output[1] -> ['n/a']
 
@@ -4281,38 +4291,38 @@ class LiteralValue(ColumnsOperation):
 
 class _IfThenBuilder:
     """
-    Intermediate builder returned by :meth:`ColumnsOperation.if_`.
+    Intermediate builder returned by :meth:`ColumnsOperation.If`.
 
     This class represents the "then" half of a one-line ternary expression.
-    It is created exclusively by :meth:`ColumnsOperation.if_` (or the
+    It is created exclusively by :meth:`ColumnsOperation.If` (or the
     equivalent method on :class:`Column`) and is not intended to be
     instantiated directly.
 
-    Its sole purpose is to enforce the "``.if_(...).else_(...)``" calling
+    Its sole purpose is to enforce the "``.If(...).Else(...)``" calling
     pattern. The ``_output`` attribute is deliberately implemented as a
     property that raises :class:`RuntimeError`, so that a forgotten
-    ``.else_()`` is caught immediately — before any SQL is sent to the
+    ``.Else()`` is caught immediately — before any SQL is sent to the
     database.
 
     Attributes:
         _then (ColumnsOperation): The expression selected when the condition
-            is true. Usually the receiver of the original ``.if_(...)`` call.
+            is true. Usually the receiver of the original ``.If(...)`` call.
         _cond (ColumnsOperation | Column): The condition. ``Column`` inputs
             are used directly; literals were already wrapped in
-            :class:`LiteralValue` by ``.if_()``.
+            :class:`LiteralValue` by ``.If()``.
 
     Example:
         Normally created and consumed in a single chained statement::
 
-            users.name.if_(Builtins.Len(users.name) > 20).else_('short')
+            users.name.If(Builtins.Len(users.name) > 20).Else('short')
 
-        If the user forgets ``.else_()``::
+        If the user forgets ``.Else()``::
 
-            bad = users.name.if_(Builtins.Len(users.name) > 20)
+            bad = users.name.If(Builtins.Len(users.name) > 20)
             users.get_row([bad])
-            # RuntimeError: You called `.if_(condition)` but never chained
-            #               `.else_(value)`. Complete the conditional, e.g.
-            #               `col.if_(cond).else_(other)`.
+            # RuntimeError: You called `.If(condition)` but never chained
+            #               `.Else(value)`. Complete the conditional, e.g.
+            #               `col.If(cond).Else(other)`.
     """
 
     def __init__(self, then_branch, condition):
@@ -4320,13 +4330,13 @@ class _IfThenBuilder:
         Initialize the "then" half of a conditional expression.
 
         This constructor is called internally by
-        :meth:`ColumnsOperation.if_` and :meth:`Column.if_`. Prefer those
+        :meth:`ColumnsOperation.If` and :meth:`Column.If`. Prefer those
         entry points over instantiating this class directly.
 
         Args:
             then_branch (ColumnsOperation): The expression evaluated when
                 the condition is true. Typically the receiver of the
-                originating ``.if_(...)`` call.
+                originating ``.If(...)`` call.
             condition (ColumnsOperation | Column): The condition expression.
                 Already normalised by the caller (a ``LiteralValue`` if the
                 original input was a raw Python value).
@@ -4334,7 +4344,7 @@ class _IfThenBuilder:
         Example:
             Called indirectly::
 
-                builder = users.name.if_(users.age > 18)
+                builder = users.name.If(users.age > 18)
                 # builder._then is the ColumnsOperation for `users.name`
                 # builder._cond is the ColumnsOperation for `(users.age > 18)`
         """
@@ -4344,27 +4354,27 @@ class _IfThenBuilder:
     @property
     def _output(self):
         """
-        Block direct access to ``_output`` to enforce ``.else_()``.
+        Block direct access to ``_output`` to enforce ``.Else()``.
 
         Unlike a real :class:`ColumnsOperation`, this class does not have a
         usable ``_output`` attribute. Any attempt to read it — whether from
         user code, from :meth:`Table.get_row`, from :meth:`Table.update`, or
         from any other method that consumes expressions — raises a
-        :class:`RuntimeError` describing the missing ``.else_()``.
+        :class:`RuntimeError` describing the missing ``.Else()``.
 
         Returns:
             Never returns normally.
 
         Raises:
-            RuntimeError: Always. The message explains that ``.else_(value)``
-                must be chained after ``.if_(condition)``.
+            RuntimeError: Always. The message explains that ``.Else(value)``
+                must be chained after ``.If(condition)``.
         """
         raise RuntimeError(
-            "You called `.if_(condition)` but never chained `.else_(value)`. "
-            "Complete the conditional, e.g. `col.if_(cond).else_(other)`."
+            "You called `.If(condition)` but never chained `.Else(value)`. "
+            "Complete the conditional, e.g. `col.If(cond).Else(other)`."
         )
 
-    def else_(self, value):
+    def Else(self, value):
         """
         Complete the conditional with the "else" branch.
 
@@ -4406,20 +4416,20 @@ class _IfThenBuilder:
             Assuming a ``users`` table::
 
                 # then = Column, else = literal
-                expr = users.name.if_(users.is_active == 1).else_('inactive')
+                expr = users.name.If(users.is_active == 1).Else('inactive')
                 # expr._output[0] -> "(IIF(([users].[is_active] = ?), [users].[name], ?))"
                 # expr._output[1] -> [1, 'inactive']
 
                 # then = literal, else = Column
-                expr = LiteralValue('n/a').if_(users.age == None).else_(users.age)
+                expr = LiteralValue('n/a').If(users.age == None).Else(users.age)
                 # expr._output[0] -> "(IIF(([users].[age] IS NULL), ?, [users].[age]))"
                 # expr._output[1] -> ['n/a']
 
                 # then and else are both expressions
                 expr = (
                     users.name.upper()
-                    .if_(users.is_admin == 1)
-                    .else_(users.name.lower())
+                    .If(users.is_admin == 1)
+                    .Else(users.name.lower())
                 )
                 # expr._output[0] -> "(IIF(([users].[is_admin] = ?), (upper([users].[name])), (lower([users].[name]))))"
         """
@@ -6560,17 +6570,17 @@ class Column:
         op._output = (self.name, [])
         return op.not_In(column=column, where=where, data_list=data_list)
 
-    def if_(self, condition):
+    def If(self, condition):
         """
         Start a one-line conditional expression with this column as the
         "then" branch.
 
         This is the :class:`Column`-level entry point for the same
-        ``.if_().else_()`` pattern provided by
-        :meth:`ColumnsOperation.if_`. It wraps the column in a fresh
+        ``.If().Else()`` pattern provided by
+        :meth:`ColumnsOperation.If`. It wraps the column in a fresh
         :class:`ColumnsOperation` and delegates immediately, so the
         behaviour is identical: a :class:`_IfThenBuilder` is returned and
-        ``.else_(value)`` must be chained to complete the expression.
+        ``.Else(value)`` must be chained to complete the expression.
 
         Args:
             condition: The condition that selects between this column and
@@ -6580,12 +6590,12 @@ class Column:
 
         Returns:
             :class:`_IfThenBuilder`: An intermediate builder. Chain
-            ``.else_(value)`` to obtain a usable
+            ``.Else(value)`` to obtain a usable
             :class:`ColumnsOperation`.
 
         Raises:
             RuntimeError: Only if the resulting builder is used without
-                calling ``.else_()``.
+                calling ``.Else()``.
 
         Example:
             Assuming a ``users`` table::
@@ -6597,14 +6607,14 @@ class Column:
 
                 # Column as the "then" branch
                 rows = users.get_row([
-                    users.name.if_(users.is_active == 1).else_('inactive')
+                    users.name.If(users.is_active == 1).Else('inactive')
                 ])
                 # SELECT IIF(([users].[is_active] = ?), [users].[name], ?)
                 #                FROM [users]
                 # Parameters: [1, 'inactive']
 
                 # Combine with other expressions
-                label = users.name.if_(Builtins.Len(users.name) > 20).else_('short')
+                label = users.name.If(Builtins.Len(users.name) > 20).Else('short')
                 upper_label = label.upper()
                 rows = users.get_row([upper_label])
                 # SELECT (UPPER(IIF((LENGTH([users].[name]) > ?), [users].[name], ?)))
@@ -6612,7 +6622,7 @@ class Column:
         """
         op = ColumnsOperation(self)
         op._output = (self.name, [])
-        return op.if_(condition)
+        return op.If(condition)
 
 
 class BatchOperation:
@@ -6937,30 +6947,6 @@ class BatchOperation:
             raise Exception(callback[1])
 
 
-# ----------------------------------------------------------------------
-# Keyword aliases — allow `.if(...)` / `.else(...)` as well as
-# `.if_(...)` / `.else_(...)`.
-#
-# Inside the class body it is impossible to write `def if(self, ...)` or
-# `def else(self, ...)` because `if` and `else` are Python reserved
-# keywords. However, after a dot, Python's grammar accepts any NAME
-# including keywords, so `obj.if(...)` and `obj.else(...)` work fine at
-# the call site. The assignments below inject the same functions under
-# their keyword-shaped names.
-#
-# Both spellings are equivalent and can be mixed freely:
-#
-#     users.name.if(cond).else('x')     # keyword form
-#     users.name.if_(cond).else_('x')   # trailing-underscore form
-#
-# The trailing-underscore form is recommended when working with linters
-# or IDEs that flag keyword-shaped attribute access.
-# ----------------------------------------------------------------------
-
-
-setattr(ColumnsOperation, 'if',    ColumnsOperation.if_)
-setattr(Column,           'if',    Column.if_)
-setattr(_IfThenBuilder,   'else',  _IfThenBuilder.else_)
 
 from __future__ import annotations
 from queue import SimpleQueue
