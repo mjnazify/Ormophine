@@ -209,7 +209,8 @@ class Driver():
         charset: CHARSET = "utf8mb4",
         collate: COLLATE = "utf8mb4_bin",
         sql_modes: list = None,
-        isolation_level: ISOLATION_LEVEL = 'REPEATABLE READ'
+        isolation_level: ISOLATION_LEVEL = 'REPEATABLE READ',
+        timezone: str = '+00:00'
     ):
         """
         Initialize a new MySQL database driver with connection pooling and table ORM.
@@ -243,6 +244,13 @@ class Driver():
                 Must be one of ``'READ UNCOMMITTED'``, ``'READ COMMITTED'``,
                 ``'REPEATABLE READ'``, or ``'SERIALIZABLE'``.
                 Defaults to ``'REPEATABLE READ'``.
+            timezone (str, optional): MySQL session time zone applied to every
+                pooled connection at startup (e.g. ``'+00:00'``, ``'UTC'``,
+                ``'Asia/Tehran'``, or ``'SYSTEM'``). When ``None``, the
+                server's default session zone is kept. The value is folded
+                into ``init_command`` so that reconnects via
+                :meth:`_handle_broken_connection` come up in the same zone.
+                See :meth:`set_timezone` for accepted forms and caveats.
 
         Raises:
             RuntimeError: If the connection pool cannot be created or the database
@@ -297,27 +305,36 @@ class Driver():
         self.collate = collate
         self.connect_timeout = connect_timeout
         self.sql_modes = [] if sql_modes is None else sql_modes
+        self.timezone = timezone                     
+        init_cmd = f'SET SESSION TRANSACTION ISOLATION LEVEL {isolation_level};'
+        if timezone is not None:
+            for ch in (';', "'"):
+                if ch in timezone:
+                    raise ValueError(
+                        f"Invalid timezone {timezone!r}: contains forbidden "
+                        f"character {ch!r}"
+                    )
+            init_cmd += f" SET SESSION time_zone = '{timezone}';"     
+
         self.config = {
-            "host":self.host,
-            "port":self.port,
-            "user":self.username,
-            "password":self.password,
-            "db":self.db_name,
-            "charset":self.charset,
-            "connect_timeout":self.connect_timeout,
-            "init_command": f'SET SESSION TRANSACTION ISOLATION LEVEL {isolation_level};'
+            "host": self.host,
+            "port": self.port,
+            "user": self.username,
+            "password": self.password,
+            "db": self.db_name,
+            "charset": self.charset,
+            "connect_timeout": self.connect_timeout,
+            "init_command": init_cmd                                  
         }
         self.connection_pool = SimpleQueue()
         self.connection_pool_storage = []
-        
-        #To make sure inputs are valid
         conf = {
-        "host":self.host,
-        "port":self.port,
-        "user":self.username,
-        "password":self.password,
-        "charset":self.charset,
-        "connect_timeout":self.connect_timeout
+            "host": self.host,
+            "port": self.port,
+            "user": self.username,
+            "password": self.password,
+            "charset": self.charset,
+            "connect_timeout": self.connect_timeout
         }
         connection = connect(**conf)
         if not create_new_db:

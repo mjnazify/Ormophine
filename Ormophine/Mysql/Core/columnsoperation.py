@@ -534,13 +534,15 @@ class ColumnsOperation:
                 # Resulting SQL: (users.score / users.max_score)
         """
         new_op = ColumnsOperation(self.col_obj)
-        other_dt = other.current_datatype if isinstance(other, ColumnsOperation) else other.datatype if isinstance(other, Column) else int if isinstance(other, bool) or isinstance(other, int) else float if isinstance(other, float) else str if isinstance(other, str) else bytes if isinstance(other, bytes) else None
-        use_div = (self.current_datatype is int) and (other_dt is int)
-        op_symbol = 'DIV' if use_div else '/'
-        new_op._output = ( (f'({self._output[0]} {op_symbol} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {op_symbol} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} {op_symbol} %s)', self._output[1] + [other]) )
-        new_op.current_datatype = int if use_div else float
+        new_op._output = (
+            (f'({self._output[0]} / {other._output[0]})', self._output[1] + other._output[1])
+            if isinstance(other, ColumnsOperation)
+            else (f'({self._output[0]} / {other.name})', self._output[1])
+            if isinstance(other, Column)
+            else (f'({self._output[0]} / %s)', self._output[1] + [other])
+        )
         return new_op
-
+    
     def __rtruediv__(self, other):
         """
         Implement right-side division (`other / self`) for column operations.
@@ -582,11 +584,13 @@ class ColumnsOperation:
                 # Resulting SQL: ((users.age + 1) / users.score)
         """
         new_op = ColumnsOperation(self.col_obj)
-        other_dt = other.current_datatype if isinstance(other, ColumnsOperation) else other.datatype if isinstance(other, Column) else int if isinstance(other, bool) or isinstance(other, int) else float if isinstance(other, float) else str if isinstance(other, str) else bytes if isinstance(other, bytes) else None
-        use_div = (other_dt is int) and (self.current_datatype is int)
-        op_symbol = 'DIV' if use_div else '/'
-        new_op._output = ( (f'({other._output[0]} {op_symbol} {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {op_symbol} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s {op_symbol} {self._output[0]})', [other] + self._output[1]) )
-        new_op.current_datatype = int if use_div else float
+        new_op._output = (
+            (f'({other._output[0]} / {self._output[0]})', other._output[1] + self._output[1])
+            if isinstance(other, ColumnsOperation)
+            else (f'({other.name} / {self._output[0]})', self._output[1])
+            if isinstance(other, Column)
+            else (f'(%s / {self._output[0]})', [other] + self._output[1])
+        )
         return new_op
 
     def __mod__(self, other):

@@ -137,7 +137,7 @@ class Driver():
     ISOLATION_LEVEL = Literal['READ UNCOMMITTED', 'READ COMMITTED', 'REPEATABLE READ', 'SERIALIZABLE']
     PRIVILEGES = Literal['ALL PRIVILEGES', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'CREATE', 'CONNECT', 'TEMPORARY', 'EXECUTE', 'USAGE']
 
-    def __init__(self, host: str, port: int, username: str, password: str, db_name: str, create_new_db: bool = False, pool_size: int = 5, connect_timeout: int = 10, client_encoding: CHARSET = "UTF8", collate: COLLATE = None, isolation_level: ISOLATION_LEVEL = 'READ COMMITTED'):
+    def __init__(self, host: str, port: int, username: str, password: str, db_name: str, create_new_db: bool = False, pool_size: int = 5, connect_timeout: int = 10, client_encoding: CHARSET = "UTF8", collate: COLLATE = None, isolation_level: ISOLATION_LEVEL = 'READ COMMITTED',timezone: str = '+00:00'):
         """Initializes a PostgreSQL driver with a connection pool and table reflection.
 
         Creates a pool of database connections using `psycopg` and reflects all
@@ -171,6 +171,14 @@ class Driver():
                 all sessions in the pool. Must be one of ``'READ UNCOMMITTED'``,
                 ``'READ COMMITTED'``, ``'REPEATABLE READ'``, or
                 ``'SERIALIZABLE'``. Defaults to ``'READ COMMITTED'``.
+            timezone (str, optional): PostgreSQL session time zone applied to every
+                pooled connection at startup (e.g. ``'UTC'``, ``'Europe/London'``,
+                ``'+03:30'``, or ``'LOCAL'``). When ``None``, the server's default
+                session zone is kept. Implemented via libpq's ``options`` parameter
+                (``-c timezone=...``) so that newly created connections — including
+                replacements built by :meth:`_handle_broken_connection` — come up
+                already in the correct zone. See :meth:`set_timezone` for accepted
+                forms and caveats.
 
         Returns:
             None
@@ -219,6 +227,16 @@ class Driver():
         self.collate = collate
         self.connect_timeout = connect_timeout
         self.isolation_level = isolation_level
+        self.timezone = timezone                    
+        options = ""
+        if timezone is not None:
+            for ch in (';', "'"):
+                if ch in timezone:
+                    raise ValueError(
+                        f"Invalid timezone {timezone!r}: contains forbidden "
+                        f"character {ch!r}"
+                    )
+            options = f"-c timezone={timezone}"      
         self.config = {
             "host": self.host,
             "port": self.port,
@@ -226,7 +244,8 @@ class Driver():
             "password": self.password,
             "dbname": self.db_name,
             "client_encoding": self.client_encoding,
-            "connect_timeout": self.connect_timeout
+            "connect_timeout": self.connect_timeout,
+            "options": options                       
         }
         self.connection_pool = SimpleQueue()
         self.connection_pool_storage = []

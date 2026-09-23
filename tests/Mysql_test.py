@@ -154,7 +154,7 @@ def test_builtins_len_datatype_is_int(bt):
 def test_builtins_len_nested_arithmetic(bt):
     expr = ((Mysql.Builtins.Len(bt.name) + 3) / 4) * 4
     res = bt.get_row([expr], order_by=bt.id)
-    assert [_flt(r) for r in res] == [8.0, 4.0, 8.0, None, 4.0]
+    assert [_flt(r) for r in res] == [8.0, 6.0, 8.0, None, 6.0]
 
 
 def test_builtins_reverse(bt):
@@ -589,12 +589,15 @@ def test_builtins_unixnow_datatype():
 
 
 def test_builtins_unixepoch(bt):
+    # Compute expected value from Python's own understanding
+    expected = int(
+        (datetime.datetime(1970, 1, 2) - datetime.datetime(1970, 1, 1)).total_seconds()
+    )  # = 86400
     res = bt.get_row(
         [Mysql.Builtins.UnixEpoch('1970-01-02 00:00:00')],
         limit=1,
     )
-    assert res[0] == 73800 
-
+    assert res[0] == expected
 
 def test_builtins_unixepoch_datatype(bt):
     assert Mysql.Builtins.UnixEpoch(bt.created_at).current_datatype is int
