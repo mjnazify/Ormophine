@@ -410,6 +410,7 @@ class Builtins:
         op._output          = (sql, params)
         op.col_obj          = col_obj if col_obj is not None else Builtins._NullCol
         op.current_datatype = datatype
+        op._skip_post_fetch_str_conversion = False  
         return op
 
     @staticmethod
@@ -897,9 +898,7 @@ class Builtins:
         """
         sql, p, _, c = Builtins._normalize(value)
         inner = f'CONCAT(UPPER(SUBSTRING({sql}, 1, 1)), LOWER(SUBSTRING({sql}, 2)))'
-        return Builtins._make(f'({inner})', p, str, c)
-
-    # ================================================================ aggregate
+        return Builtins._make(f'({inner})', p + p, str, c)   
 
     @staticmethod
     def Sum(value):
@@ -1803,8 +1802,8 @@ class Builtins:
                 # FROM `events`
         """
         sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(f'(CAST({sql} AS SIGNED))', p, int, c)
-
+        return Builtins._make(f'(CAST(FLOOR({sql}) AS SIGNED))', p, int, c)
+    
     @staticmethod
     def Float(value):
         """Convert a value to a floating-point number using ``CAST(x AS DECIMAL)``.
@@ -3107,10 +3106,8 @@ class Builtins:
         sql, p, _, c = Builtins._normalize(value)
         return Builtins._make(f'(CAST({sql} AS DATETIME))', p, str, c)
 
-    # ============================================================ now / today
-
     @staticmethod
-    def Now(_=None):
+    def Now():
         """Return the current moment as a MySQL ``NOW()`` value.
 
         Generates a ``NOW()`` expression. The result is a TEXT string in
@@ -3128,10 +3125,6 @@ class Builtins:
         output when the server runs in a non-UTC time zone, chain
         through ``Builtins.Func('CONVERT_TZ', value, '+00:00', ...)`` or
         set ``SET time_zone = '+00:00'`` on the connection.
-
-        Args:
-            _: Ignored. Any value passed is discarded; the SQL emitted is
-                always ``NOW()``.
 
         Returns:
             ColumnsOperation: An expression whose ``_output[0]`` is
@@ -4618,10 +4611,11 @@ class Builtins:
         for mod in modifiers:
             low = mod.strip().lower()
             if low == 'start of month':
-                sql = f"DATE_FORMAT({sql}, '%Y-%m-01')"
+                sql = f"CONCAT(YEAR({sql}), '-', LPAD(MONTH({sql}), 2, '0'), '-01')"
+                params = params + params        # چون {sql} دو بار آمده
                 continue
             if low == 'start of year':
-                sql = f"DATE_FORMAT({sql}, '%Y-01-01')"
+                sql = f"CONCAT(YEAR({sql}), '-01-01')"
                 continue
             if low == 'start of day':
                 sql = f'DATE({sql})'
@@ -5182,7 +5176,7 @@ class Builtins:
         """
         s1, p1, _, c = Builtins._normalize(a)
         s2, p2, _, _ = Builtins._normalize(b)
-        return Builtins._make(f'(TIMESTAMPDIFF(SECOND, {s2}, {s1}))', p1 + p2, int, c)
+        return Builtins._make(f'(TIMESTAMPDIFF(SECOND, {s2}, {s1}))', p2 + p1, int, c)
 
     @staticmethod
     def Timediff(a, b):
@@ -5272,5 +5266,5 @@ class Builtins:
         """
         s1, p1, _, c = Builtins._normalize(a)
         s2, p2, _, _ = Builtins._normalize(b)
-        return Builtins._make(f'(TIMEDIFF({s1}, {s2}))', p1 + p2, str, c)
+        return Builtins._make(f'(TIMEDIFF({s1}, {s2}))', p1 + p2, str, c)    
     

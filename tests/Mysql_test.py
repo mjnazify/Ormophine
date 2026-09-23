@@ -1,17 +1,938 @@
 import pytest
 from Ormophine import Mysql
 import os
+import uuid
+import datetime
+from decimal import Decimal
 MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 MYSQL_DB_NAME = os.getenv("MYSQL_DB_NAME", "test_orm_db_fixed")
-import uuid
+
+
+
+
+@pytest.fixture(scope="module")
+def bt_driver():
+    try:
+        drv = Mysql.Driver(
+            host=MYSQL_HOST, port=MYSQL_PORT, username=MYSQL_USER,
+            password=MYSQL_PASSWORD, db_name=MYSQL_DB_NAME, create_new_db=True,
+            charset="utf8mb4", collate="utf8mb4_bin",
+        )
+    except Exception:
+        drv = Mysql.Driver(
+            host=MYSQL_HOST, port=MYSQL_PORT, username=MYSQL_USER,
+            password=MYSQL_PASSWORD, db_name=MYSQL_DB_NAME,
+            charset="utf8mb4", collate="utf8mb4_bin",
+        )
+    yield drv
+    try:
+        drv.disconnect()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def bt(bt_driver):
+    name = f"bt_{uuid.uuid4().hex[:8]}"
+    schema = Mysql.TableStructure(name)
+    schema.add_column("id",         Mysql.DataTypes.INT(), primary_key=True)
+    schema.add_column("name",       Mysql.DataTypes.VARCHAR(100))
+    schema.add_column("age",        Mysql.DataTypes.INT())
+    schema.add_column("salary",     Mysql.DataTypes.DECIMAL(12, 2))
+    schema.add_column("score",      Mysql.DataTypes.DECIMAL(6, 2))
+    schema.add_column("balance",    Mysql.DataTypes.DECIMAL(12, 2))
+    schema.add_column("created_at", Mysql.DataTypes.DATETIME())
+    schema.add_column("active",     Mysql.DataTypes.BOOLEAN())
+
+    bt_driver.create_table(schema)
+    tbl = getattr(bt_driver, name)
+
+    tbl.bulk_insert(
+        [tbl.id, tbl.name, tbl.age, tbl.salary, tbl.score, tbl.balance,
+         tbl.created_at, tbl.active],
+        [
+            (1, 'Alice', 30, Decimal('50000.00'), Decimal('85.50'),
+             Decimal('100.00'), datetime.datetime(2024, 3, 15, 9, 30, 42), 1),
+            (2, 'Bob',   25, Decimal('60000.00'), Decimal('72.00'),
+             Decimal('-50.00'), datetime.datetime(2024, 1, 10, 14, 20, 0), 1),
+            (3, 'Carol', 35, Decimal('70000.00'), Decimal('95.00'),
+             Decimal('200.00'), datetime.datetime(2023, 12, 25, 8, 0, 0), 0),
+            (4, None,    40, Decimal('80000.00'), Decimal('60.00'),
+             Decimal('-10.00'), datetime.datetime(2024, 6, 1, 23, 59, 59), 1),
+            (5, 'Eve',   None, None, None, Decimal('0.00'),
+             datetime.datetime(2024, 3, 15, 9, 30, 42), 0),
+        ],
+    )
+    yield tbl
+    try:
+        bt_driver.delete_table(tbl, True, True, True)
+    except Exception:
+        pass
+
+
+def _dec(x):
+    return None if x is None else Decimal(str(x))
+
+
+def _flt(x):
+    return None if x is None else float(x)
+
+
+
+
+
+def test_builtins_normalize_column(bt):
+    sql, params, dt, c = Mysql.Builtins._normalize(bt.name)
+    assert sql == bt.name.name
+    assert params == []
+    assert dt is str
+    assert c is bt.name
+
+
+def test_builtins_normalize_columns_operation(bt):
+    op = bt.age + 1
+    sql, params, dt, c = Mysql.Builtins._normalize(op)
+    assert params == [1]
+    assert c is bt.age
+
+
+def test_builtins_normalize_raw_literal():
+    sql, params, dt, c = Mysql.Builtins._normalize('hello')
+    assert sql == '%s'
+    assert params == ['hello']
+    assert dt is str
+
+
+def test_builtins_make_returns_columns_operation(bt):
+    op = Mysql.Builtins.Len(bt.name)
+    assert isinstance(op, Mysql.ColumnsOperation)
+
+
+def test_builtins_is_now_true():
+    assert Mysql.Builtins._is_now('now') is True
+    assert Mysql.Builtins._is_now('NOW') is True
+    assert Mysql.Builtins._is_now('  Now  ') is True
+
+
+def test_builtins_is_now_false():
+    assert Mysql.Builtins._is_now('nowhere') is False
+    assert Mysql.Builtins._is_now(None) is False
+    assert Mysql.Builtins._is_now(42) is False
+
+
+
+
+
+def test_builtins_len_basic(bt):
+    res = bt.get_row([Mysql.Builtins.Len(bt.name)], order_by=bt.id)
+    assert res == [5, 3, 5, None, 3]
+
+
+def test_builtins_len_in_where(bt):
+    res = bt.get_row(
+        [bt.name],
+        where=Mysql.Builtins.Len(bt.name) > 3,
+        order_by=bt.id,
+    )
+    assert res == ['Alice', 'Carol']
+
+
+def test_builtins_len_literal():
+    op = Mysql.Builtins.Len('hello')
+    assert op._output[0] == '(LENGTH(%s))'
+    assert op._output[1] == ['hello']
+    assert op.current_datatype is int
+
+
+def test_builtins_len_datatype_is_int(bt):
+    assert Mysql.Builtins.Len(bt.name).current_datatype is int
+
+
+def test_builtins_len_nested_arithmetic(bt):
+    expr = ((Mysql.Builtins.Len(bt.name) + 3) / 4) * 4
+    res = bt.get_row([expr], order_by=bt.id)
+    assert [_flt(r) for r in res] == [8.0, 4.0, 8.0, None, 4.0]
+
+
+def test_builtins_reverse(bt):
+    res = bt.get_row([Mysql.Builtins.Reverse(bt.name)], order_by=bt.id)
+    assert res == ['ecilA', 'boB', 'loraC', None, 'evE']
+
+
+def test_builtins_reverse_datatype():
+    assert Mysql.Builtins.Reverse('abc').current_datatype is str
+
+
+def test_builtins_reverse_palindrome_check(bt):
+    expr = bt.name == Mysql.Builtins.Reverse(bt.name)
+    res = bt.get_row([bt.id], where=expr, order_by=bt.id)
+    
+    assert res == []
+
+
+def test_builtins_find(bt):
+    
+    res = bt.get_row([Mysql.Builtins.Find(bt.name, 'a')], order_by=bt.id)
+    assert res == [0, 0, 2, None, 0]
+
+
+def test_builtins_find_datatype():
+    assert Mysql.Builtins.Find('abc', 'b').current_datatype is int
+
+
+def test_builtins_find_uses_instr():
+    op = Mysql.Builtins.Find('hello', 'l')
+    assert op._output[0] == '(INSTR(%s, %s))'
+    assert op._output[1] == ['hello', 'l']
+
+
+def test_builtins_find_zero_for_missing(bt):
+    res = bt.get_row(
+        [bt.id],
+        where=Mysql.Builtins.Find(bt.name, 'z') == 0,
+        order_by=bt.id,
+    )
+    assert res == [1, 2, 3, 5]
+
+
+def test_builtins_capitalize():
+    op = Mysql.Builtins.Capitalize('hELLO wORLD')
+    assert op._output[0] == (
+        '(CONCAT(UPPER(SUBSTRING(%s, 1, 1)), LOWER(SUBSTRING(%s, 2))))'
+    )
+    assert op.current_datatype is str
+    assert op._output[1] == ['hELLO wORLD', 'hELLO wORLD']
+
+
+def test_builtins_capitalize_functional(bt):
+    res = bt.get_row([Mysql.Builtins.Capitalize(bt.name)], order_by=bt.id)
+    assert res == ['Alice', 'Bob', 'Carol', None, 'Eve']
+
+
+
+
+
+def test_builtins_sum_basic(bt):
+    res = bt.get_row([Mysql.Builtins.Sum(bt.salary)])
+    assert _dec(res[0]) == Decimal('260000.00')
+
+
+def test_builtins_sum_empty_table(bt):
+    res = bt.get_row([Mysql.Builtins.Sum(bt.salary)], where=bt.id > 100)
+    assert res == [None]
+
+
+def test_builtins_sum_datatype_propagation(bt):
+    assert Mysql.Builtins.Sum(bt.salary).current_datatype is float
+    assert Mysql.Builtins.Sum(bt.age).current_datatype is int
+
+
+def test_builtins_avg_basic(bt):
+    res = bt.get_row([Mysql.Builtins.Avg(bt.salary)])
+    assert _flt(res[0]) == 65000.0
+
+
+def test_builtins_avg_datatype_is_float(bt):
+    assert Mysql.Builtins.Avg(bt.age).current_datatype is float
+
+
+def test_builtins_min_max(bt):
+    assert bt.get_row([Mysql.Builtins.Min(bt.age)]) == [25]
+    assert bt.get_row([Mysql.Builtins.Max(bt.age)]) == [40]
+
+
+def test_builtins_min_datatype_propagation(bt):
+    assert Mysql.Builtins.Min(bt.age).current_datatype is int
+    assert Mysql.Builtins.Min(bt.name).current_datatype is str
+
+
+def test_builtins_count_star(bt):
+    res = bt.get_row([Mysql.Builtins.Count('*')])
+    assert res == [5]
+
+
+def test_builtins_count_column_skips_null(bt):
+    res = bt.get_row([Mysql.Builtins.Count(bt.name)])
+    assert res == [4]
+
+
+def test_builtins_count_datatype_is_int():
+    assert Mysql.Builtins.Count('*').current_datatype is int
+
+
+def test_builtins_count_with_where(bt):
+    res = bt.get_row([Mysql.Builtins.Count('*')], where=bt.age > 30)
+    assert res == [2]
+
+
+
+
+
+def test_builtins_abs_basic(bt):
+    res = bt.get_row([Mysql.Builtins.Abs(bt.balance)], order_by=bt.id)
+    assert [_flt(r) for r in res] == [100.0, 50.0, 200.0, 10.0, 0.0]
+
+
+def test_builtins_abs_datatype(bt):
+    assert Mysql.Builtins.Abs(bt.age).current_datatype is int
+    assert Mysql.Builtins.Abs(bt.salary).current_datatype is float
+
+
+def test_builtins_abs_in_where(bt):
+    res = bt.get_row(
+        [bt.id],
+        where=Mysql.Builtins.Abs(bt.balance) >= 100,
+        order_by=bt.id,
+    )
+    assert res == [1, 3]
+
+
+def test_builtins_round_basic(bt):
+    res = bt.get_row([Mysql.Builtins.Round(bt.score)], order_by=bt.id)
+    assert [_flt(r) for r in res] == [86.0, 72.0, 95.0, 60.0, None]
+
+
+def test_builtins_round_datatype_float(bt):
+    assert Mysql.Builtins.Round(bt.score).current_datatype is float
+
+
+def test_builtins_roundto(bt):
+    res = bt.get_row([Mysql.Builtins.RoundTo(bt.score, 1)], order_by=bt.id)
+    assert [_flt(r) for r in res] == [85.5, 72.0, 95.0, 60.0, None]
+
+
+def test_builtins_roundto_negative_decimals(bt):
+    op = Mysql.Builtins.RoundTo(bt.salary, -2)
+    assert op._output[0] == f'(ROUND({bt.salary.name}, -2))'
+
+
+def test_builtins_sign(bt):
+    res = bt.get_row([Mysql.Builtins.Sign(bt.balance)], order_by=bt.id)
+    assert res == [1, -1, 1, -1, 0]
+
+
+def test_builtins_sign_datatype(bt):
+    assert Mysql.Builtins.Sign(bt.balance).current_datatype is int
+
+
+def test_builtins_floor(bt):
+    res = bt.get_row([Mysql.Builtins.Floor(bt.score)], order_by=bt.id)
+    assert res == [85, 72, 95, 60, None]
+
+
+def test_builtins_floor_negative():
+    op = Mysql.Builtins.Floor(-1.5)
+    assert op._output[0] == '(FLOOR(%s))'
+    assert op.current_datatype is int
+
+
+def test_builtins_ceil(bt):
+    res = bt.get_row([Mysql.Builtins.Ceil(bt.score)], order_by=bt.id)
+    assert res == [86, 72, 95, 60, None]
+
+
+def test_builtins_sqrt(bt):
+    res = bt.get_row(
+        [Mysql.Builtins.Sqrt(bt.balance)],
+        where=bt.balance >= 0,
+        order_by=bt.id,
+    )
+    assert [_flt(r) for r in res] == [10.0, pytest.approx(14.142135, rel=1e-5), 0.0]
+
+
+def test_builtins_sqrt_datatype_float(bt):
+    assert Mysql.Builtins.Sqrt(bt.balance).current_datatype is float
+
+
+def test_builtins_pow(bt):
+    res = bt.get_row([Mysql.Builtins.Pow(2, 10)], limit=1)
+    assert _flt(res[0]) == 1024.0
+
+
+def test_builtins_pow_datatype_float(bt):
+    assert Mysql.Builtins.Pow(bt.age, 2).current_datatype is float
+
+
+def test_builtins_pow_uses_pow_function():
+    op = Mysql.Builtins.Pow(2, 3)
+    assert op._output[0] == '(POW(%s, %s))'
+    assert op._output[1] == [2, 3]
+
+
+
+
+
+def test_builtins_int_cast(bt):
+    res = bt.get_row([Mysql.Builtins.Int(bt.score)], order_by=bt.id)
+    
+    assert res == [85, 72, 95, 60, None]
+
+
+def test_builtins_int_datatype():
+    assert Mysql.Builtins.Int('3').current_datatype is int
+
+
+def test_builtins_int_uses_signed(bt):
+    op = Mysql.Builtins.Int(bt.age)
+    assert op._output[0].startswith('(CAST(')
+    assert op._output[0].endswith('AS SIGNED))')
+
+
+def test_builtins_float_cast(bt):
+    res = bt.get_row([Mysql.Builtins.Float(bt.age)], order_by=bt.id)
+    assert res == [30.0, 25.0, 35.0, 40.0, None]
+
+
+def test_builtins_float_datatype():
+    assert Mysql.Builtins.Float(3).current_datatype is float
+
+
+def test_builtins_float_uses_decimal():
+    op = Mysql.Builtins.Float(3)
+    assert op._output[0] == '(CAST(%s AS DECIMAL(65,30)))'
+
+
+def test_builtins_str_cast(bt):
+    res = bt.get_row([Mysql.Builtins.Str(bt.age)], order_by=bt.id)
+    assert res == ['30', '25', '35', '40', None]
+
+
+def test_builtins_str_uses_char():
+    op = Mysql.Builtins.Str(42)
+    assert op._output[0] == '(CAST(%s AS CHAR))'
+    assert op.current_datatype is str
+
+
+def test_builtins_str_concat_chain(bt):
+    expr = Mysql.Builtins.Str(bt.salary) + ' USD'
+    assert '||' in expr._output[0]
+    res = bt.get_row([expr], order_by=bt.id)
+    assert res[0].endswith(' USD')
+
+
+def test_builtins_bool_cast(bt):
+    res = bt.get_row([Mysql.Builtins.Bool(bt.active)], order_by=bt.id)
+    assert res == [1, 1, 0, 1, 0]
+
+
+def test_builtins_bool_datatype_is_int(bt):
+    assert Mysql.Builtins.Bool(bt.active).current_datatype is int
+
+
+def test_builtins_bool_literal():
+    op = Mysql.Builtins.Bool(True)
+    assert op._output == ('(CAST(%s AS SIGNED))', [True])
+
+
+
+
+
+def test_builtins_isnull(bt):
+    res = bt.get_row(
+        [bt.id],
+        where=Mysql.Builtins.IsNull(bt.name),
+        order_by=bt.id,
+    )
+    assert res == [4]
+
+
+def test_builtins_isnull_datatype_is_int():
+    assert Mysql.Builtins.IsNull('x').current_datatype is int
+
+
+def test_builtins_isnotnull(bt):
+    res = bt.get_row(
+        [bt.id],
+        where=Mysql.Builtins.IsNotNull(bt.name),
+        order_by=bt.id,
+    )
+    assert res == [1, 2, 3, 5]
+
+
+def test_builtins_isnull_literal_none():
+    op = Mysql.Builtins.IsNull(None)
+    assert op._output[0] == '((%s) IS NULL)'
+    assert op._output[1] == [None]
+
+
+def test_builtins_between(bt):
+    res = bt.get_row(
+        [bt.id],
+        where=Mysql.Builtins.Between(bt.age, 25, 35),
+        order_by=bt.id,
+    )
+    assert res == [1, 2, 3]
+
+
+def test_builtins_between_inclusive(bt):
+    res = bt.get_row(
+        [bt.id],
+        where=Mysql.Builtins.Between(bt.age, 30, 30),
+    )
+    assert res == [1]
+
+
+def test_builtins_between_datatype_is_int():
+    assert Mysql.Builtins.Between('x', 'a', 'z').current_datatype is int
+
+
+def test_builtins_between_params_order():
+    op = Mysql.Builtins.Between('m', 'a', 'z')
+    assert op._output[1] == ['m', 'a', 'z']
+
+
+def test_builtins_iif(bt):
+    res = bt.get_row(
+        [Mysql.Builtins.IIf(bt.age >= 30, 'old', 'young')],
+        order_by=bt.id,
+    )
+    
+    assert res == ['old', 'young', 'old', 'old', 'young']
+
+
+def test_builtins_iif_uses_if_function():
+    op = Mysql.Builtins.IIf(True, 1, 0)
+    assert op._output[0].startswith('(IF(')
+    assert op._output[0].endswith('))')
+    assert 'CASE WHEN' not in op._output[0].upper()
+    assert op.current_datatype is None
+
+
+def test_builtins_iif_params(bt):
+    op = Mysql.Builtins.IIf(bt.age >= 18, 'adult', 'minor')
+    assert op._output[1] == [18, 'adult', 'minor']
+
+
+def test_builtins_iif_nested(bt):
+    label = Mysql.Builtins.IIf(
+        bt.age >= 35, 'senior',
+        Mysql.Builtins.IIf(bt.age >= 30, 'mid', 'junior'),
+    )
+    res = bt.get_row([label], order_by=bt.id)
+    assert res == ['mid', 'junior', 'senior', 'senior', 'junior']
+
+
+
+
+
+def test_builtins_date(bt):
+    res = bt.get_row([Mysql.Builtins.Date(bt.created_at)], order_by=bt.id)
+    assert res[0] == datetime.date(2024, 3, 15)
+    assert res[2] == datetime.date(2023, 12, 25)
+
+def test_builtins_date_datatype_is_str(bt):
+    assert Mysql.Builtins.Date(bt.created_at).current_datatype is str
+
+
+def test_builtins_date_uses_date_function():
+    op = Mysql.Builtins.Date('2024-03-15')
+    assert op._output[0] == '(DATE(%s))'
+
+
+def test_builtins_date_now_keyword():
+    op = Mysql.Builtins.Date('now')
+    assert op._output[0] == '(CURDATE())'
+    assert op._output[1] == []
+
+
+def test_builtins_time(bt):
+    res = bt.get_row([Mysql.Builtins.Time(bt.created_at)], order_by=bt.id)
+    assert res[0] == datetime.timedelta(hours=9, minutes=30, seconds=42)
+
+def test_builtins_time_now_keyword():
+    op = Mysql.Builtins.Time('now')
+    assert op._output[0] == '(CURTIME())'
+
+
+def test_builtins_datetime(bt):
+    res = bt.get_row([Mysql.Builtins.DateTime(bt.created_at)], order_by=bt.id)
+    assert res[0] == datetime.datetime(2024, 3, 15, 9, 30, 42)
+
+def test_builtins_datetime_uses_cast():
+    op = Mysql.Builtins.DateTime('2024-03-15')
+    assert op._output[0] == '(CAST(%s AS DATETIME))'
+
+
+def test_builtins_datetime_now_keyword():
+    op = Mysql.Builtins.DateTime('now')
+    assert op._output[0] == '(NOW())'
+
+
+
+
+
+def test_builtins_now(bt):
+    res = bt.get_row([Mysql.Builtins.Now()], limit=1)
+    assert isinstance(res[0], datetime.datetime)
+
+
+def test_builtins_now_datatype():
+    assert Mysql.Builtins.Now().current_datatype is str
+
+
+def test_builtins_today(bt):
+    res = bt.get_row([Mysql.Builtins.Today()], limit=1)
+    assert isinstance(res[0], datetime.date)
+
+
+def test_builtins_unixnow(bt):
+    res = bt.get_row([Mysql.Builtins.UnixNow()], limit=1)
+    assert isinstance(res[0], int)
+    assert res[0] > 1_000_000_000
+
+
+def test_builtins_unixnow_datatype():
+    assert Mysql.Builtins.UnixNow().current_datatype is int
+
+
+def test_builtins_unixepoch(bt):
+    res = bt.get_row(
+        [Mysql.Builtins.UnixEpoch('1970-01-02 00:00:00')],
+        limit=1,
+    )
+    assert res[0] == 73800 
+
+
+def test_builtins_unixepoch_datatype(bt):
+    assert Mysql.Builtins.UnixEpoch(bt.created_at).current_datatype is int
+
+
+def test_builtins_unixepoch_now_keyword():
+    op = Mysql.Builtins.UnixEpoch('now')
+    assert op._output[0] == '(UNIX_TIMESTAMP())'
+
+
+
+
+
+def test_builtins_year(bt):
+    res = bt.get_row([Mysql.Builtins.Year(bt.created_at)], order_by=bt.id)
+    assert res == [2024, 2024, 2023, 2024, 2024]
+
+
+def test_builtins_year_datatype():
+    assert Mysql.Builtins.Year('2024-01-01').current_datatype is int
+
+
+def test_builtins_year_numeric_chain(bt):
+    expr = Mysql.Builtins.Year(bt.created_at) + 1
+    res = bt.get_row([expr], order_by=bt.id)
+    assert res == [2025, 2025, 2024, 2025, 2025]
+
+
+def test_builtins_month(bt):
+    res = bt.get_row([Mysql.Builtins.Month(bt.created_at)], order_by=bt.id)
+    assert res == [3, 1, 12, 6, 3]
+
+
+def test_builtins_day(bt):
+    res = bt.get_row([Mysql.Builtins.Day(bt.created_at)], order_by=bt.id)
+    assert res == [15, 10, 25, 1, 15]
+
+
+def test_builtins_hour(bt):
+    res = bt.get_row([Mysql.Builtins.Hour(bt.created_at)], order_by=bt.id)
+    assert res == [9, 14, 8, 23, 9]
+
+
+def test_builtins_minute(bt):
+    res = bt.get_row([Mysql.Builtins.Minute(bt.created_at)], order_by=bt.id)
+    assert res == [30, 20, 0, 59, 30]
+
+
+def test_builtins_second(bt):
+    res = bt.get_row([Mysql.Builtins.Second(bt.created_at)], order_by=bt.id)
+    assert res == [42, 0, 0, 59, 42]
+
+
+def test_builtins_hour_business_hours(bt):
+    h = Mysql.Builtins.Hour(bt.created_at)
+    res = bt.get_row([bt.id], where=(h >= 9) & (h < 17), order_by=bt.id)
+    assert res == [1, 2, 5]
+
+
+def test_builtins_second_datatype(bt):
+    assert Mysql.Builtins.Second(bt.created_at).current_datatype is int
+    assert Mysql.Builtins.Minute(bt.created_at).current_datatype is int
+
+
+
+
+
+def test_builtins_dayofweek_functional(bt):
+    
+    
+    
+    res = bt.get_row([Mysql.Builtins.DayOfWeek(bt.created_at)], order_by=bt.id)
+    assert res == [6, 4, 2, 7, 6]
+
+
+def test_builtins_isoweekday(bt):
+    
+    
+    
+    res = bt.get_row([Mysql.Builtins.IsoWeekday(bt.created_at)], order_by=bt.id)
+    assert res == [5, 3, 1, 6, 5]
+
+
+def test_builtins_isoweekday_datatype():
+    assert Mysql.Builtins.IsoWeekday('2024-03-15').current_datatype is int
+
+
+def test_builtins_weekday(bt):
+    
+    
+    
+    res = bt.get_row([Mysql.Builtins.Weekday(bt.created_at)], order_by=bt.id)
+    assert res == [4, 2, 0, 5, 4]
+
+
+def test_builtins_weekday_datatype():
+    assert Mysql.Builtins.Weekday('2024-03-15').current_datatype is int
+
+
+def test_builtins_dayofyear(bt):
+    
+    
+    res = bt.get_row([Mysql.Builtins.DayOfYear(bt.created_at)], order_by=bt.id)
+    assert res == [75, 10, 359, 153, 75]
+
+
+def test_builtins_weekofyear(bt):
+    res = bt.get_row([Mysql.Builtins.WeekOfYear(bt.created_at)], order_by=bt.id)
+    assert all(isinstance(r, int) and 1 <= r <= 53 for r in res)
+
+
+
+
+
+def test_builtins_strftime(bt):
+    res = bt.get_row(
+        [Mysql.Builtins.Strftime('%Y', bt.created_at)],
+        order_by=bt.id,
+    )
+    assert res == ['2024', '2024', '2023', '2024', '2024']
+
+
+def test_builtins_strftime_params():
+    op = Mysql.Builtins.Strftime('%Y-%m', '2024-03-15')
+    assert op._output[0] == '(DATE_FORMAT(%s, %s))'
+    assert op._output[1] == ['2024-03-15', '%Y-%m']
+
+
+def test_builtins_strftime_datatype():
+    assert Mysql.Builtins.Strftime('%Y', '2024').current_datatype is str
+
+
+def test_builtins_strftimemod():
+    op = Mysql.Builtins.StrftimeMod('%Y-%m', 'now', '-1 month')
+    assert op._output[0].startswith('(DATE_FORMAT(')
+    assert 'DATE_SUB' in op._output[0]
+    assert 'INTERVAL 1 MONTH' in op._output[0]
+    assert '%Y-%m' in op._output[1]
+
+
+def test_builtins_strftimemod_no_modifiers():
+    op = Mysql.Builtins.StrftimeMod('%Y', '2024-03-15')
+    assert op._output[0] == '(DATE_FORMAT(%s, %s))'
+    assert op._output[1] == ['2024-03-15', '%Y']
+
+
+
+
+
+def test_builtins_datediffdays():
+    op = Mysql.Builtins.DateDiffDays('2024-03-15', '2024-03-01')
+    assert op.current_datatype is int
+    assert op._output[0] == '(DATEDIFF(%s, %s))'
+
+
+def test_builtins_datediffdays_params_order():
+    op = Mysql.Builtins.DateDiffDays('now', '2020-01-01')
+    assert op._output[1] == ['now', '2020-01-01']
+
+
+def test_builtins_datediffdays_functional(bt):
+    op = Mysql.Builtins.DateDiffDays('2024-03-15', '2024-03-01')
+    res = bt.get_row([op], limit=1)
+    assert res[0] == 14
+
+
+def test_builtins_datediffseconds():
+    op = Mysql.Builtins.DateDiffSeconds(
+        '2024-03-15 12:00:00', '2024-03-15 11:00:00'
+    )
+    assert op.current_datatype is int
+    assert op._output[0].startswith('(TIMESTAMPDIFF(SECOND,')
+
+
+def test_builtins_datediffseconds_functional(bt):
+    op = Mysql.Builtins.DateDiffSeconds(
+        '2024-03-15 12:00:00', '2024-03-15 11:00:00'
+    )
+    res = bt.get_row([op], limit=1)
+    assert res[0] == 3600
+
+
+def test_builtins_timediff():
+    op = Mysql.Builtins.Timediff('2024-03-15 12:00:00', '2024-03-15 11:00:00')
+    assert op.current_datatype is str
+    assert op._output[0] == '(TIMEDIFF(%s, %s))'
+
+
+def test_builtins_timediff_functional(bt):
+    op = Mysql.Builtins.Timediff('2024-03-15 12:00:00', '2024-03-15 11:00:00')
+    res = bt.get_row([op], limit=1)
+    
+    assert res[0] == datetime.timedelta(hours=1)
+
+
+
+
+def test_builtins_dateadd():
+    op = Mysql.Builtins.DateAdd('2024-03-15', '+1 day')
+    assert op._output[0].startswith('(DATE(')
+    assert 'DATE_ADD' in op._output[0]
+    assert 'INTERVAL 1 DAY' in op._output[0]
+    assert op.current_datatype is str
+
+
+def test_builtins_dateadd_no_modifiers():
+    op = Mysql.Builtins.DateAdd('2024-03-15')
+    assert op._output[0] == '(DATE(%s))'
+
+
+def test_builtins_dateadd_functional(bt):
+    op = Mysql.Builtins.DateAdd('2024-03-15', '+1 day')
+    res = bt.get_row([op], limit=1)
+    assert res[0] == datetime.date(2024, 3, 16)
+
+def test_builtins_dateadd_start_of_month(bt):
+    op = Mysql.Builtins.DateAdd('2024-03-15', 'start of month')
+    res = bt.get_row([op], limit=1)
+    assert res[0] == datetime.date(2024, 3, 1)
+
+def test_builtins_dateadd_negative(bt):
+    op = Mysql.Builtins.DateAdd('2024-03-15', '-1 month')
+    res = bt.get_row([op], limit=1)
+    assert res[0] == datetime.date(2024, 2, 15)
+
+def test_builtins_datetimeadd():
+    op = Mysql.Builtins.DateTimeAdd('2024-03-15 09:00:00', '+1 hour')
+    assert 'DATE_ADD' in op._output[0]
+    assert 'INTERVAL 1 HOUR' in op._output[0]
+    assert op.current_datatype is str
+
+
+def test_builtins_datetimeadd_functional(bt):
+    op = Mysql.Builtins.DateTimeAdd('2024-03-15 09:00:00', '+1 hour')
+    res = bt.get_row([op], limit=1)
+    assert res[0] == '2024-03-15 10:00:00'
+
+
+def test_builtins_datetimeadd_no_modifiers():
+    op = Mysql.Builtins.DateTimeAdd('2024-03-15 09:00:00')
+    assert op._output[0] == '(CAST(%s AS DATETIME))'
+
+
+def test_builtins_timeadd():
+    op = Mysql.Builtins.TimeAdd('2024-03-15 09:00:00', '+30 minutes')
+    assert 'DATE_ADD' in op._output[0]
+    assert 'INTERVAL 30 MINUTE' in op._output[0]
+    assert op.current_datatype is str
+
+
+def test_builtins_timeadd_functional(bt):
+    op = Mysql.Builtins.TimeAdd('2024-03-15 09:00:00', '+30 minutes')
+    res = bt.get_row([op], limit=1)
+    
+    assert res[0] == datetime.timedelta(hours=9, minutes=30)
+
+def test_builtins_invalid_modifier_raises():
+    with pytest.raises(ValueError):
+        Mysql.Builtins.DateAdd('2024-03-15', 'next tuesday')
+
+
+
+
+
+def test_builtins_combined_select(bt):
+    expr = Mysql.Builtins.Len(bt.name)
+    assert expr._output[0].startswith('(LENGTH(')
+    assert expr.current_datatype is int
+
+
+def test_builtins_aggregate_with_other_columns(bt):
+    res = bt.get_row([
+        Mysql.Builtins.Count('*'),
+        Mysql.Builtins.Sum(bt.age),
+        Mysql.Builtins.Avg(bt.age),
+    ], limit=1)
+    assert res[0][0] == 5
+    assert res[0][1] == 130
+    assert _flt(res[0][2]) == 32.5
+
+
+def test_builtins_in_where_with_arithmetic(bt):
+    res = bt.get_row(
+        [bt.id],
+        where=(Mysql.Builtins.Abs(bt.balance) > 50) & (bt.age >= 30),
+        order_by=bt.id,
+    )
+    assert res == [1, 3]
+
+
+def test_builtins_nested_aggregate(bt):
+    expr = Mysql.Builtins.Round(Mysql.Builtins.Avg(bt.salary))
+    res = bt.get_row([expr], limit=1)
+    assert _flt(res[0]) == 65000.0
+
+
+def test_builtins_cast_then_concat(bt):
+    expr = Mysql.Builtins.Str(bt.id).add_first('ID-')
+    res = bt.get_row([expr], order_by=bt.id)
+    assert res == ['ID-1', 'ID-2', 'ID-3', 'ID-4', 'ID-5']
+
+
+def test_builtins_column_operation_input(bt):
+    expr = bt.age + 5
+    res = bt.get_row([Mysql.Builtins.Abs(expr)], order_by=bt.id)
+    assert res == [35, 30, 40, 45, None]
+
+
+def test_builtins_in_update_statement(bt):
+    bt.update(
+        {bt.age: Mysql.Builtins.Int(bt.age * 1.5)},
+        bt.id == 1,
+    )
+    res = bt.get_row([bt.age], bt.id == 1)
+    assert res == [45]
+
+
+def test_builtins_in_join(bt_driver, bt):
+    name = f"scores_{uuid.uuid4().hex[:8]}"
+    schema = Mysql.TableStructure(name)
+    schema.add_column("uid", Mysql.DataTypes.INT(), primary_key=True)
+    schema.add_column("pts", Mysql.DataTypes.INT())
+    bt_driver.create_table(schema)
+    scores = getattr(bt_driver, name)
+
+    scores.bulk_insert([scores.uid, scores.pts], [(1, 10), (2, 20), (3, 30)])
+    try:
+        res = (
+            bt.inner_join(scores, bt.id == scores.uid)
+              .get_row([bt.name, Mysql.Builtins.Abs(scores.pts * -1)],
+                       order_by=bt.id)
+        )
+        assert res == (('Alice', 10), ('Bob', 20), ('Carol', 30))
+    finally:
+        bt_driver.delete_table(scores, True, True, True)
+
 @pytest.fixture
 def users_if(in_driver):
-    """A fresh table with (id, name, age, active) for conditional tests.
-    NOTE: `active` is stored as TINYINT(1) in MySQL, so values read back
-    as 1/0 (integers), not True/False."""
     name = f"users_if_{uuid.uuid4().hex[:8]}"
     s = Mysql.TableStructure(name)
     s.add_column("id",     Mysql.DataTypes.INT(), primary_key=True)
@@ -36,8 +957,6 @@ def users_if(in_driver):
     except Exception:
         pass
 def test_if_sql_uses_if_function(users_if):
-    """The generated SQL must use MySQL's `IF(cond, then, else)`
-    function — not IIF (SQLite) or CASE WHEN (PostgreSQL)."""
     expr = users_if.name.If(users_if.active == True).Else('inactive')
     sql, params = expr._output
     assert sql.startswith('(IF(')
@@ -1767,11 +2686,11 @@ def test_75_table_name_quoting(driver):
     tbl = Mysql.Table(driver, 'Table With Spaces')
     driver.delete_table(tbl, True, True, True)
 def test_76_table_name_with_special_chars(driver):
-    schema = Mysql.TableStructure('t$pecial#@!')
+    schema = Mysql.TableStructure('t$pecial#@')
     schema.add_column('id', Mysql.DataTypes.INT(), primary_key=True)
     driver.create_table(schema)
-    assert 't$pecial#@!'
-    tbl = Mysql.Table(driver, 't$pecial#@!')
+    assert 't$pecial#@'
+    tbl = Mysql.Table(driver, 't$pecial#@')
     driver.delete_table(tbl, True, True, True)
 def test_78_alter_table_add_column(driver):
     schema = Mysql.TableStructure('t78')

@@ -2,11 +2,1037 @@ import pytest
 from Ormophine import Postgresql
 import os
 import uuid
-PG_HOST = os.getenv("PG_HOST", "localhost")
-PG_PORT = int(os.getenv("PG_PORT", "5432"))
-PG_USER = os.getenv("PG_USER", "postgres")
-PG_PASSWORD = os.getenv("PG_PASSWORD", "1234")
-PG_DB_NAME = os.getenv("PG_DB_NAME", "test_orm_db_fixed")
+import datetime
+from decimal import Decimal
+
+# Skip the entire module if psycopg isn't installed
+psycopg = pytest.importorskip("psycopg")
+
+from Ormophine import Postgresql
+
+
+# ---------------------------------------------------------------------------
+# Connection info from environment (with sensible defaults)
+# ---------------------------------------------------------------------------
+
+PG_PASS = os.environ.get("PGPASSWORD", "1234")  
+PG_HOST = os.environ.get("PGHOST", "localhost")
+PG_PORT = int(os.environ.get("PGPORT", 5432))
+PG_USER = os.environ.get("PGUSER", "postgres")
+PG_PASSWORD = os.environ.get("PGPASSWORD", "1234")   # ← از PG_PASS تغییر بده
+PG_MAINT_DB = os.environ.get("PGMAINTDB", "postgres")
+PG_DB_NAME  = os.environ.get("PGDBNAME", "ormophine_test_db")  # ← جدید
+def _pg_available() -> bool:
+    """Probe whether a PostgreSQL server is reachable with these credentials."""
+    try:
+        con = psycopg.connect(
+            host=PG_HOST, port=PG_PORT, user=PG_USER,
+            password=PG_PASS, dbname=PG_MAINT_DB, connect_timeout=2,
+        )
+        con.close()
+        return True
+    except Exception:
+        return False
+
+
+pg_available = pytest.mark.skipif(
+    not _pg_available(),
+    reason=f"PostgreSQL not reachable at {PG_HOST}:{PG_PORT} as {PG_USER}",
+)
+
+pytestmark = pg_available
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="session")
+def pg_db_name():
+    """Unique database name per test session."""
+    return f"ormophine_test_{uuid.uuid4().hex[:10]}"
+
+
+@pytest.fixture(scope="session")
+def pg_driver(pg_db_name):
+    """Session-wide driver with a fresh test database."""
+    drv = Postgresql.Driver(
+        PG_HOST, PG_PORT, PG_USER, PG_PASS,
+        db_name=pg_db_name,
+        create_new_db=True,
+        pool_size=3,
+        connect_timeout=5,
+    )
+    yield drv
+    try:
+        drv.disconnect()
+    except Exception:
+        pass
+    # Best-effort drop of the test database via a fresh admin connection
+    try:
+        admin = psycopg.connect(
+            host=PG_HOST, port=PG_PORT, user=PG_USER,
+            password=PG_PASS, dbname=PG_MAINT_DB,
+        )
+        admin.autocommit = True
+        cur = admin.cursor()
+        cur.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE datname = %s AND pid <> pg_backend_pid()",
+            (pg_db_name,),
+        )
+        cur.execute(f'DROP DATABASE IF EXISTS "{pg_db_name}"')
+        admin.close()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def bt(pg_driver):
+    name = f"bt_{uuid.uuid4().hex[:8]}"
+    schema = Postgresql.TableStructure(name)
+    schema.add_column("id",         Postgresql.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column("name",       Postgresql.DataTypes.VARCHAR(100))
+    schema.add_column("age",        Postgresql.DataTypes.INTEGER())
+    schema.add_column("salary",     Postgresql.DataTypes.NUMERIC(12, 2))
+    schema.add_column("score",      Postgresql.DataTypes.NUMERIC(6, 2))
+    schema.add_column("balance",    Postgresql.DataTypes.NUMERIC(12, 2))
+    schema.add_column("created_at", Postgresql.DataTypes.TIMESTAMP())
+    schema.add_column("active",     Postgresql.DataTypes.BOOLEAN())
+
+    pg_driver.create_table(schema)              # returns None
+    tbl = getattr(pg_driver, name)              # ← اینجا جدول را بردار
+
+    tbl.bulk_insert(
+        [tbl.id, tbl.name, tbl.age, tbl.salary, tbl.score, tbl.balance,
+         tbl.created_at, tbl.active],
+        [
+            (1, 'Alice', 30, Decimal('50000.00'), Decimal('85.50'),
+             Decimal('100.00'), datetime.datetime(2024, 3, 15, 9, 30, 42), True),
+            (2, 'Bob',   25, Decimal('60000.00'), Decimal('72.00'),
+             Decimal('-50.00'), datetime.datetime(2024, 1, 10, 14, 20, 0), True),
+            (3, 'Carol', 35, Decimal('70000.00'), Decimal('95.00'),
+             Decimal('200.00'), datetime.datetime(2023, 12, 25, 8, 0, 0), False),
+            (4, None,    40, Decimal('80000.00'), Decimal('60.00'),
+             Decimal('-10.00'), datetime.datetime(2024, 6, 1, 23, 59, 59), True),
+            (5, 'Eve',   None, None, None, Decimal('0.00'),
+             datetime.datetime(2024, 3, 15, 9, 30, 42), False),
+        ],
+    )
+    yield tbl
+    try:
+        pg_driver._exc(f'DROP TABLE IF EXISTS "{name}";')
+    except Exception:
+        pass
+
+def _dec(x):
+    """Convert a fetched value to Decimal for comparison (handles None)."""
+    return None if x is None else Decimal(str(x))
+
+
+def _flt(x):
+    """Convert a fetched value to float for comparison (handles None)."""
+    return None if x is None else float(x)
+
+
+# ===========================================================================
+# Internal helpers: _normalize / _make
+# ===========================================================================
+def test_builtins_normalize_column(bt):
+    sql, params, dt, c = Postgresql.Builtins._normalize(bt.name)
+    assert sql == bt.name.name
+    assert params == []
+    assert dt is str
+    assert c is bt.name
+
+
+def test_builtins_normalize_columns_operation(bt):
+    op = bt.age + 1
+    sql, params, dt, c = Postgresql.Builtins._normalize(op)
+    assert params == [1]
+    assert c is bt.age
+
+
+def test_builtins_normalize_raw_literal():
+    sql, params, dt, c = Postgresql.Builtins._normalize('hello')
+    assert sql == '%s'
+    assert params == ['hello']
+    assert dt is str
+
+
+def test_builtins_make_returns_columns_operation(bt):
+    op = Postgresql.Builtins.Len(bt.name)
+    assert isinstance(op, Postgresql.ColumnsOperation)
+
+
+# ===========================================================================
+# Len
+# ===========================================================================
+def test_builtins_len_basic(bt):
+    res = bt.get_row([Postgresql.Builtins.Len(bt.name)], order_by=bt.id)
+    assert res == [5, 3, 5, None, 3]
+
+
+def test_builtins_len_in_where(bt):
+    res = bt.get_row([bt.name],
+                     where=Postgresql.Builtins.Len(bt.name) > 3,
+                     order_by=bt.id)
+    assert res == ['Alice', 'Carol']
+
+
+def test_builtins_len_literal():
+    op = Postgresql.Builtins.Len('hello')
+    assert op._output[0] == '(LENGTH(%s))'
+    assert op._output[1] == ['hello']
+    assert op.current_datatype is int
+
+
+def test_builtins_len_datatype_is_int(bt):
+    assert Postgresql.Builtins.Len(bt.name).current_datatype is int
+
+
+def test_builtins_len_nested_arithmetic(bt):
+    expr = ((Postgresql.Builtins.Len(bt.name) + 3) / 4) * 4
+    res = bt.get_row([expr], order_by=bt.id)
+    assert [_flt(r) for r in res] == [8.0, 4.0, 8.0, None, 4.0]
+
+
+# ===========================================================================
+# Sum / Total / Avg / Min / Max / Count
+# ===========================================================================
+def test_builtins_sum_basic(bt):
+    res = bt.get_row([Postgresql.Builtins.Sum(bt.salary)])
+    assert _dec(res[0]) == Decimal('260000.00')
+
+
+def test_builtins_sum_empty_table(bt):
+    res = bt.get_row([Postgresql.Builtins.Sum(bt.salary)], where=bt.id > 100)
+    assert res == [None]
+
+
+def test_builtins_sum_datatype_propagation(bt):
+    assert Postgresql.Builtins.Sum(bt.salary).current_datatype is float
+    assert Postgresql.Builtins.Sum(bt.age).current_datatype is int
+
+
+def test_builtins_total_empty_returns_zero(bt):
+    res = bt.get_row([Postgresql.Builtins.Total(bt.salary)], where=bt.id > 100)
+    assert _flt(res[0]) == 0.0
+
+
+def test_builtins_total_datatype_is_float(bt):
+    assert Postgresql.Builtins.Total(bt.salary).current_datatype is float
+
+
+def test_builtins_avg_basic(bt):
+    res = bt.get_row([Postgresql.Builtins.Avg(bt.salary)])
+    assert _flt(res[0]) == 65000.0
+
+
+def test_builtins_avg_datatype_is_float(bt):
+    assert Postgresql.Builtins.Avg(bt.age).current_datatype is float
+
+
+def test_builtins_min_max(bt):
+    assert bt.get_row([Postgresql.Builtins.Min(bt.age)]) == [25]
+    assert bt.get_row([Postgresql.Builtins.Max(bt.age)]) == [40]
+
+
+def test_builtins_min_datatype_propagation(bt):
+    assert Postgresql.Builtins.Min(bt.age).current_datatype is int
+    assert Postgresql.Builtins.Min(bt.name).current_datatype is str
+
+
+def test_builtins_count_star(bt):
+    res = bt.get_row([Postgresql.Builtins.Count('*')])
+    assert res == [5]
+
+
+def test_builtins_count_column_skips_null(bt):
+    res = bt.get_row([Postgresql.Builtins.Count(bt.name)])
+    assert res == [4]
+
+
+def test_builtins_count_datatype_is_int():
+    assert Postgresql.Builtins.Count('*').current_datatype is int
+
+
+def test_builtins_count_with_where(bt):
+    res = bt.get_row([Postgresql.Builtins.Count('*')], where=bt.age > 30)
+    assert res == [2]
+
+
+# ===========================================================================
+# Abs / Round / Sign / Floor / Ceil / Sqrt / Pow
+# ===========================================================================
+def test_builtins_abs_basic(bt):
+    res = bt.get_row([Postgresql.Builtins.Abs(bt.balance)], order_by=bt.id)
+    assert [_flt(r) for r in res] == [100.0, 50.0, 200.0, 10.0, 0.0]
+
+
+def test_builtins_abs_datatype(bt):
+    assert Postgresql.Builtins.Abs(bt.age).current_datatype is int
+    assert Postgresql.Builtins.Abs(bt.salary).current_datatype is float
+
+
+def test_builtins_abs_in_where(bt):
+    res = bt.get_row([bt.id],
+                     where=Postgresql.Builtins.Abs(bt.balance) >= 100,
+                     order_by=bt.id)
+    assert res == [1, 3]
+
+
+def test_builtins_round_basic(bt):
+    res = bt.get_row([Postgresql.Builtins.Round(bt.score)], order_by=bt.id)
+    # Round returns float from PostgreSQL but psycopg delivers NUMERIC as Decimal
+    assert [_flt(r) for r in res] == [86.0, 72.0, 95.0, 60.0, None]
+
+
+def test_builtins_round_datatype_float(bt):
+    assert Postgresql.Builtins.Round(bt.score).current_datatype is float
+
+
+def test_builtins_sign(bt):
+    res = bt.get_row([Postgresql.Builtins.Sign(bt.balance)], order_by=bt.id)
+    assert res == [1, -1, 1, -1, 0]
+
+
+def test_builtins_sign_datatype(bt):
+    assert Postgresql.Builtins.Sign(bt.balance).current_datatype is int
+
+
+def test_builtins_floor(bt):
+    res = bt.get_row([Postgresql.Builtins.Floor(bt.score)], order_by=bt.id)
+    assert res == [85, 72, 95, 60, None]
+
+
+def test_builtins_floor_negative():
+    op = Postgresql.Builtins.Floor(-1.5)
+    assert op._output[0] == '(FLOOR(%s))'
+    assert op.current_datatype is int
+
+
+def test_builtins_ceil(bt):
+    res = bt.get_row([Postgresql.Builtins.Ceil(bt.score)], order_by=bt.id)
+    assert res == [86, 72, 95, 60, None]
+
+
+def test_builtins_sqrt(bt):
+    # PostgreSQL raises on sqrt of negative values, so filter them out first.
+    res = bt.get_row(
+        [Postgresql.Builtins.Sqrt(bt.balance)],
+        where=bt.balance >= 0,
+        order_by=bt.id,
+    )
+    assert [_flt(r) for r in res] == [10.0, pytest.approx(14.142135, rel=1e-5), 0.0]
+
+
+def test_builtins_sqrt_datatype_float(bt):
+    assert Postgresql.Builtins.Sqrt(bt.balance).current_datatype is float
+
+def test_builtins_pow(bt):
+    res = bt.get_row([Postgresql.Builtins.Pow(2, 10)], limit=1)
+    assert _flt(res[0]) == 1024.0
+
+
+def test_builtins_pow_datatype_float(bt):
+    assert Postgresql.Builtins.Pow(bt.age, 2).current_datatype is float
+
+
+def test_builtins_pow_uses_power_function():
+    op = Postgresql.Builtins.Pow(2, 3)
+    assert op._output[0] == '(POWER(%s, %s))'
+    assert op._output[1] == [2, 3]
+
+
+# ===========================================================================
+# Int / Float / Str / Bool
+# ===========================================================================
+def test_builtins_int_cast(bt):
+    # PostgreSQL rounds numeric -> integer, unlike SQLite which truncates.
+    # 85.50 -> 86, 72.00 -> 72, 95.00 -> 95, 60.00 -> 60, NULL -> NULL
+    res = bt.get_row([Postgresql.Builtins.Int(bt.score)], order_by=bt.id)
+    assert res == [86, 72, 95, 60, None]
+
+
+def test_builtins_int_datatype():
+    assert Postgresql.Builtins.Int('3').current_datatype is int
+
+
+def test_builtins_int_uses_cast(bt):
+    op = Postgresql.Builtins.Int(bt.age)
+    assert op._output[0].startswith('(CAST(')
+    assert op._output[0].endswith('AS INTEGER))')
+
+def test_builtins_float_cast(bt):
+    res = bt.get_row([Postgresql.Builtins.Float(bt.age)], order_by=bt.id)
+    assert res == [30.0, 25.0, 35.0, 40.0, None]
+
+
+def test_builtins_float_datatype():
+    assert Postgresql.Builtins.Float(3).current_datatype is float
+
+
+def test_builtins_float_uses_double_precision():
+    op = Postgresql.Builtins.Float(3)
+    assert op._output[0] == '(CAST(%s AS DOUBLE PRECISION))'
+
+
+def test_builtins_str_cast(bt):
+    res = bt.get_row([Postgresql.Builtins.Str(bt.age)], order_by=bt.id)
+    assert res == ['30', '25', '35', '40', None]
+
+
+def test_builtins_str_uses_cast():
+    op = Postgresql.Builtins.Str(42)
+    assert op._output[0] == '(CAST(%s AS TEXT))'
+    assert op.current_datatype is str
+
+
+def test_builtins_str_concat_chain(bt):
+    expr = Postgresql.Builtins.Str(bt.salary) + ' USD'
+    assert '||' in expr._output[0]
+    res = bt.get_row([expr], order_by=bt.id)
+    # NUMERIC 50000.00 → '50000.00'
+    assert res[0].endswith(' USD')
+
+
+def test_builtins_bool_cast(bt):
+    res = bt.get_row([Postgresql.Builtins.Bool(bt.active)], order_by=bt.id)
+    assert res == [True, True, False, True, False]
+
+
+def test_builtins_bool_datatype_is_bool(bt):
+    assert Postgresql.Builtins.Bool(bt.active).current_datatype is bool
+
+
+def test_builtins_bool_literal():
+    op = Postgresql.Builtins.Bool(True)
+    assert op._output == ('(CAST(%s AS BOOLEAN))', [True])
+
+
+# ===========================================================================
+# TypeOf / Upper / Lower / Trim / Capitalize / Find / Format
+# ===========================================================================
+def test_builtins_typeof(bt):
+    res = bt.get_row([Postgresql.Builtins.TypeOf(bt.name)], order_by=bt.id)
+    # PG_TYPEOF returns the standard internal type name, not the alias.
+    # For a VARCHAR column it returns 'character varying' (not 'varchar').
+    # All five rows have the same declared type regardless of the NULL value.
+    assert all(r == 'character varying' for r in res)
+
+def test_builtins_typeof_datatype():
+    assert Postgresql.Builtins.TypeOf('x').current_datatype is str
+
+def test_builtins_upper(bt):
+    res = bt.get_row([Postgresql.Builtins.Upper(bt.name)], order_by=bt.id)
+    assert res == ['ALICE', 'BOB', 'CAROL', None, 'EVE']
+
+
+def test_builtins_upper_datatype():
+    assert Postgresql.Builtins.Upper('x').current_datatype is str
+
+
+def test_builtins_lower(bt):
+    res = bt.get_row([Postgresql.Builtins.Lower(bt.name)], order_by=bt.id)
+    assert res == ['alice', 'bob', 'carol', None, 'eve']
+
+
+def test_builtins_lower_datatype():
+    assert Postgresql.Builtins.Lower('X').current_datatype is str
+
+
+def test_builtins_trim(bt):
+    # Add a row with whitespace, verify trim
+    bt.insert({bt.id: 99, bt.name: '  spaced  '})
+    res = bt.get_row([Postgresql.Builtins.Trim(bt.name)],
+                     where=bt.id == 99)
+    assert res == ['spaced']
+    bt.delete_row(bt.id == 99)
+
+
+def test_builtins_capitalize():
+    op = Postgresql.Builtins.Capitalize('hELLO wORLD')
+    assert op._output[0].startswith('(UPPER(SUBSTRING(')
+    assert op.current_datatype is str
+
+
+def test_builtins_capitalize_functional(bt):
+    res = bt.get_row([Postgresql.Builtins.Capitalize(bt.name)], order_by=bt.id)
+    assert res == ['Alice', 'Bob', 'Carol', None, 'Eve']
+
+
+def test_builtins_find(bt):
+    res = bt.get_row([Postgresql.Builtins.Find(bt.name, 'a')], order_by=bt.id)
+    # STRPOS is case-sensitive
+    # 'Alice' -> 'a' not found -> 0
+    # 'Bob'   -> 0
+    # 'Carol' -> 'a' at 2
+    # None    -> None
+    # 'Eve'   -> 0
+    assert res == [0, 0, 2, None, 0]
+
+
+def test_builtins_find_datatype():
+    assert Postgresql.Builtins.Find('abc', 'b').current_datatype is int
+
+
+def test_builtins_find_uses_strpos():
+    op = Postgresql.Builtins.Find('hello', 'l')
+    assert op._output[0] == '(STRPOS(%s, %s))'
+    assert op._output[1] == ['hello', 'l']
+
+
+def test_builtins_format(bt):
+    res = bt.get_row(
+        [Postgresql.Builtins.Format('Hello, %s!', bt.name)],
+        order_by=bt.id,
+    )
+    assert res[0] == 'Hello, Alice!'
+    assert res[1] == 'Hello, Bob!'
+    assert res[2] == 'Hello, Carol!'
+    assert res[4] == 'Hello, Eve!'
+    # Row 3 has NULL name. PostgreSQL's FORMAT('%s', NULL) may produce
+    # 'Hello, NULL!', 'Hello, !', or NULL depending on version/config.
+    # We only assert that the row exists.
+    assert len(res) == 5
+
+
+def test_builtins_format_datatype():
+    assert Postgresql.Builtins.Format('%s', 'x').current_datatype is str
+
+
+def test_builtins_format_multi_args(bt):
+    expr = Postgresql.Builtins.Format('%s:%s', bt.name, bt.age)
+    res = bt.get_row([expr], order_by=bt.id)
+    assert res[0] == 'Alice:30'
+    assert res[1] == 'Bob:25'
+
+# ===========================================================================
+# IsNull / IsNotNull / Between / IIf
+# ===========================================================================
+def test_builtins_isnull(bt):
+    res = bt.get_row([bt.id],
+                     where=Postgresql.Builtins.IsNull(bt.name),
+                     order_by=bt.id)
+    assert res == [4]
+
+
+def test_builtins_isnull_datatype_is_bool():
+    assert Postgresql.Builtins.IsNull('x').current_datatype is bool
+
+
+def test_builtins_isnotnull(bt):
+    res = bt.get_row([bt.id],
+                     where=Postgresql.Builtins.IsNotNull(bt.name),
+                     order_by=bt.id)
+    assert res == [1, 2, 3, 5]
+
+
+def test_builtins_isnull_literal_none():
+    op = Postgresql.Builtins.IsNull(None)
+    assert op._output[0] == '((%s) IS NULL)'
+    assert op._output[1] == [None]
+
+
+def test_builtins_between(bt):
+    res = bt.get_row([bt.id],
+                     where=Postgresql.Builtins.Between(bt.age, 25, 35),
+                     order_by=bt.id)
+    assert res == [1, 2, 3]
+
+
+def test_builtins_between_inclusive(bt):
+    res = bt.get_row([bt.id],
+                     where=Postgresql.Builtins.Between(bt.age, 30, 30))
+    assert res == [1]
+
+
+def test_builtins_between_datatype_is_bool():
+    assert Postgresql.Builtins.Between('x', 'a', 'z').current_datatype is bool
+
+
+def test_builtins_between_params_order(bt):
+    op = Postgresql.Builtins.Between('m', 'a', 'z')
+    assert op._output[1] == ['m', 'a', 'z']
+
+
+def test_builtins_iif(bt):
+    res = bt.get_row(
+        [Postgresql.Builtins.IIf(bt.age >= 30, 'old', 'young')],
+        order_by=bt.id,
+    )
+    # age=NULL -> NULL >= 30 -> NULL -> falsy -> 'young'
+    assert res == ['old', 'young', 'old', 'old', 'young']
+
+
+def test_builtins_iif_uses_case_when():
+    op = Postgresql.Builtins.IIf(True, 1, 0)
+    assert op._output[0].startswith('(CASE WHEN ')
+    assert op._output[0].endswith(' END)')
+    assert op.current_datatype is None
+
+
+def test_builtins_iif_params(bt):
+    op = Postgresql.Builtins.IIf(bt.age >= 18, 'adult', 'minor')
+    assert op._output[1] == [18, 'adult', 'minor']
+
+
+# ===========================================================================
+# Date / Time / DateTime
+# ===========================================================================
+def test_builtins_date(bt):
+    res = bt.get_row([Postgresql.Builtins.Date(bt.created_at)], order_by=bt.id)
+    assert res[0] == datetime.date(2024, 3, 15)
+    assert res[2] == datetime.date(2023, 12, 25)
+
+
+def test_builtins_date_datatype_is_str(bt):
+    assert Postgresql.Builtins.Date(bt.created_at).current_datatype is str
+
+
+def test_builtins_date_uses_cast():
+    op = Postgresql.Builtins.Date('2024-03-15')
+    assert op._output[0] == '(CAST(%s AS DATE))'
+
+
+def test_builtins_time(bt):
+    res = bt.get_row([Postgresql.Builtins.Time(bt.created_at)], order_by=bt.id)
+    assert res[0] == datetime.time(9, 30, 42)
+
+
+def test_builtins_datetime(bt):
+    res = bt.get_row([Postgresql.Builtins.DateTime(bt.created_at)], order_by=bt.id)
+    assert res[0] == datetime.datetime(2024, 3, 15, 9, 30, 42)
+
+
+def test_builtins_datetime_uses_cast():
+    op = Postgresql.Builtins.DateTime('2024-03-15')
+    assert op._output[0] == '(CAST(%s AS TIMESTAMP))'
+
+
+# ===========================================================================
+# Year / Month / Day / Hour / Minute / Second
+# ===========================================================================
+def test_builtins_year(bt):
+    res = bt.get_row([Postgresql.Builtins.Year(bt.created_at)], order_by=bt.id)
+    assert res == [2024, 2024, 2023, 2024, 2024]
+
+
+def test_builtins_year_datatype():
+    assert Postgresql.Builtins.Year('2024-01-01').current_datatype is int
+
+
+def test_builtins_year_numeric_chain(bt):
+    expr = Postgresql.Builtins.Year(bt.created_at) + 1
+    res = bt.get_row([expr], order_by=bt.id)
+    assert res == [2025, 2025, 2024, 2025, 2025]
+
+
+def test_builtins_month(bt):
+    res = bt.get_row([Postgresql.Builtins.Month(bt.created_at)], order_by=bt.id)
+    assert res == [3, 1, 12, 6, 3]
+
+
+def test_builtins_day(bt):
+    res = bt.get_row([Postgresql.Builtins.Day(bt.created_at)], order_by=bt.id)
+    assert res == [15, 10, 25, 1, 15]
+
+
+def test_builtins_hour(bt):
+    res = bt.get_row([Postgresql.Builtins.Hour(bt.created_at)], order_by=bt.id)
+    assert res == [9, 14, 8, 23, 9]
+
+
+def test_builtins_minute(bt):
+    res = bt.get_row([Postgresql.Builtins.Minute(bt.created_at)], order_by=bt.id)
+    assert res == [30, 20, 0, 59, 30]
+
+
+def test_builtins_second(bt):
+    res = bt.get_row([Postgresql.Builtins.Second(bt.created_at)], order_by=bt.id)
+    assert res == [42, 0, 0, 59, 42]
+
+
+def test_builtins_hour_business_hours(bt):
+    h = Postgresql.Builtins.Hour(bt.created_at)
+    res = bt.get_row([bt.id], where=(h >= 9) & (h < 17), order_by=bt.id)
+    assert res == [1, 2, 5]
+
+
+def test_builtins_second_datatype(bt):
+    assert Postgresql.Builtins.Second(bt.created_at).current_datatype is int
+    assert Postgresql.Builtins.Minute(bt.created_at).current_datatype is int
+
+
+# ===========================================================================
+# DayOfWeek / IsoWeekday / Weekday / DayOfYear / WeekOfYear
+# ===========================================================================
+def test_builtins_dayofweek():
+    # 2024-03-15 is Friday -> DOW == 5
+    res = Postgresql.Builtins.DayOfWeek('2024-03-15')
+    assert 'EXTRACT(DOW' in res._output[0]
+
+
+def test_builtins_dayofweek_functional(bt):
+    res = bt.get_row([Postgresql.Builtins.DayOfWeek(bt.created_at)], order_by=bt.id)
+    # 2024-03-15 Fri=5, 2024-01-10 Wed=3, 2023-12-25 Mon=1, 2024-06-01 Sat=6, 2024-03-15 Fri=5
+    assert res == [5, 3, 1, 6, 5]
+
+
+def test_builtins_isoweekday(bt):
+    res = bt.get_row([Postgresql.Builtins.IsoWeekday(bt.created_at)], order_by=bt.id)
+    # ISO: Fri=5, Wed=3, Mon=1, Sat=6, Fri=5
+    assert res == [5, 3, 1, 6, 5]
+
+
+def test_builtins_isoweekday_datatype():
+    assert Postgresql.Builtins.IsoWeekday('2024-03-15').current_datatype is int
+
+
+def test_builtins_weekday(bt):
+    res = bt.get_row([Postgresql.Builtins.Weekday(bt.created_at)], order_by=bt.id)
+    # Python weekday: Fri=4, Wed=2, Mon=0, Sat=5, Fri=4
+    assert res == [4, 2, 0, 5, 4]
+
+
+def test_builtins_weekday_datatype():
+    assert Postgresql.Builtins.Weekday('2024-03-15').current_datatype is int
+
+
+def test_builtins_dayofyear(bt):
+    res = bt.get_row([Postgresql.Builtins.DayOfYear(bt.created_at)], order_by=bt.id)
+    # 2024-03-15 -> 75, 2024-01-10 -> 10, 2023-12-25 -> 359, 2024-06-01 -> 153, 2024-03-15 -> 75
+    assert res == [75, 10, 359, 153, 75]
+
+
+def test_builtins_weekofyear(bt):
+    res = bt.get_row([Postgresql.Builtins.WeekOfYear(bt.created_at)], order_by=bt.id)
+    # ISO week numbers, all >= 1
+    assert all(isinstance(r, int) and 1 <= r <= 53 for r in res)
+
+
+# ===========================================================================
+# Now / Today / UnixNow / UnixEpoch / JulianDay
+# ===========================================================================
+def test_builtins_now(bt):
+    res = bt.get_row([Postgresql.Builtins.Now()], limit=1)
+    assert isinstance(res[0], datetime.datetime)
+
+
+def test_builtins_now_datatype():
+    assert Postgresql.Builtins.Now().current_datatype is str
+
+
+def test_builtins_today(bt):
+    res = bt.get_row([Postgresql.Builtins.Today()], limit=1)
+    assert isinstance(res[0], datetime.date)
+
+
+def test_builtins_unixnow(bt):
+    res = bt.get_row([Postgresql.Builtins.UnixNow()], limit=1)
+    assert isinstance(res[0], int)
+    assert res[0] > 1_000_000_000
+
+
+def test_builtins_unixnow_datatype():
+    assert Postgresql.Builtins.UnixNow().current_datatype is int
+
+
+def test_builtins_unixepoch(bt):
+    res = bt.get_row([Postgresql.Builtins.UnixEpoch('1970-01-02 00:00:00')], limit=1)
+    assert res[0] == 86400
+
+
+def test_builtins_unixepoch_datatype(bt):
+    assert Postgresql.Builtins.UnixEpoch(bt.created_at).current_datatype is int
+
+
+def test_builtins_julianday():
+    op = Postgresql.Builtins.JulianDay('2024-01-01')
+    assert 'EXTRACT(JULIAN' in op._output[0]
+    assert op.current_datatype is float
+
+
+def test_builtins_julianday_functional():
+    op = Postgresql.Builtins.JulianDay('2024-01-01')
+    res = op  # we can't easily verify without a table; assert construction
+    assert res._output[1] == ['2024-01-01']
+
+
+# ===========================================================================
+# Strftime / StrftimeMod
+# ===========================================================================
+def test_builtins_strftime(bt):
+    res = bt.get_row(
+        [Postgresql.Builtins.Strftime('YYYY', bt.created_at)],
+        order_by=bt.id,
+    )
+    assert res == ['2024', '2024', '2023', '2024', '2024']
+
+
+def test_builtins_strftime_params():
+    op = Postgresql.Builtins.Strftime('YYYY-MM', '2024-03-15')
+    assert op._output[0] == '(TO_CHAR(%s, %s))'
+    assert op._output[1] == ['2024-03-15', 'YYYY-MM']
+
+
+def test_builtins_strftime_datatype():
+    assert Postgresql.Builtins.Strftime('YYYY', '2024').current_datatype is str
+
+
+def test_builtins_strftimemod():
+    op = Postgresql.Builtins.StrftimeMod(
+        'YYYY-MM', 'now', '1 month'
+    )
+    assert op._output[0].startswith('(TO_CHAR(')
+    assert 'interval' in op._output[0]
+    assert 'YYYY-MM' in op._output[1]
+
+
+def test_builtins_strftimemod_no_intervals():
+    op = Postgresql.Builtins.StrftimeMod('YYYY', '2024-03-15')
+    assert op._output[0] == '(TO_CHAR(%s, %s))'
+
+
+# ===========================================================================
+# DateDiffDays / DateDiffSeconds / Timediff
+# ===========================================================================
+def test_builtins_datediffdays():
+    op = Postgresql.Builtins.DateDiffDays('2024-03-15', '2024-03-01')
+    assert op.current_datatype is int
+    assert 'EXTRACT(EPOCH' in op._output[0]
+
+
+def test_builtins_datediffdays_params_order():
+    op = Postgresql.Builtins.DateDiffDays('now', '2020-01-01')
+    assert op._output[1] == ['now', '2020-01-01']
+
+
+def test_builtins_datediffdays_functional(bt):
+    # 14 days between 2024-03-01 and 2024-03-15
+    op = Postgresql.Builtins.DateDiffDays('2024-03-15', '2024-03-01')
+    res = bt.get_row([op], limit=1)
+    assert res[0] == 14
+
+
+def test_builtins_datediffseconds():
+    op = Postgresql.Builtins.DateDiffSeconds(
+        '2024-03-15 12:00:00', '2024-03-15 11:00:00'
+    )
+    assert op.current_datatype is int
+
+
+def test_builtins_datediffseconds_functional(bt):
+    op = Postgresql.Builtins.DateDiffSeconds(
+        '2024-03-15 12:00:00', '2024-03-15 11:00:00'
+    )
+    res = bt.get_row([op], limit=1)
+    assert res[0] == 3600
+
+
+def test_builtins_timediff():
+    op = Postgresql.Builtins.Timediff('2024-03-15', '2024-03-01')
+    assert op.current_datatype is str
+    assert 'AS TIMESTAMP' in op._output[0]
+
+
+def test_builtins_timediff_functional(bt):
+    op = Postgresql.Builtins.Timediff('2024-03-15', '2024-03-01')
+    res = bt.get_row([op], limit=1)
+    # The result is a text interval like '14 days'
+    assert '14 days' in res[0] or '14 day' in res[0]
+
+
+# ===========================================================================
+# DateAdd / DateTimeAdd / TimeAdd
+# ===========================================================================
+def test_builtins_dateadd():
+    op = Postgresql.Builtins.DateAdd('2024-03-15', '1 day')
+    assert op._output[0].startswith('(CAST(')
+    assert 'interval' in op._output[0]
+    assert op.current_datatype is str
+
+
+def test_builtins_dateadd_no_intervals():
+    op = Postgresql.Builtins.DateAdd('2024-03-15')
+    assert op._output[0] == '(CAST(%s AS DATE))'
+
+
+def test_builtins_dateadd_functional(bt):
+    op = Postgresql.Builtins.DateAdd('2024-03-15', '1 day')
+    res = bt.get_row([op], limit=1)
+    assert res[0] == datetime.date(2024, 3, 16)
+
+
+def test_builtins_datetimeadd():
+    op = Postgresql.Builtins.DateTimeAdd('2024-03-15 09:00:00', '1 hour')
+    assert 'interval' in op._output[0]
+    assert op.current_datatype is str
+
+
+def test_builtins_datetimeadd_functional(bt):
+    op = Postgresql.Builtins.DateTimeAdd('2024-03-15 09:00:00', '1 hour')
+    res = bt.get_row([op], limit=1)
+    assert res[0] == datetime.datetime(2024, 3, 15, 10, 0, 0)
+
+
+def test_builtins_datetimeadd_no_intervals():
+    op = Postgresql.Builtins.DateTimeAdd('2024-03-15 09:00:00')
+    assert op._output[0] == '(CAST(%s AS TIMESTAMP))'
+
+
+def test_builtins_timeadd():
+    op = Postgresql.Builtins.TimeAdd('09:00:00', '30 minutes')
+    assert 'interval' in op._output[0]
+    assert op.current_datatype is str
+
+
+def test_builtins_timeadd_functional(bt):
+    op = Postgresql.Builtins.TimeAdd('2024-03-15 09:00:00', '30 minutes')
+    res = bt.get_row([op], limit=1)
+    assert res[0] == datetime.time(9, 30)
+
+
+# ===========================================================================
+# Total / GroupConcat / Func
+# ===========================================================================
+def test_builtins_total_empty_returns_zero():
+    op = Postgresql.Builtins.Total('1')
+    assert 'COALESCE(SUM' in op._output[0]
+    assert op.current_datatype is float
+
+
+def test_builtins_groupconcat(bt):
+    res = bt.get_row(
+        [Postgresql.Builtins.GroupConcat(bt.name, ',')],
+        where=Postgresql.Builtins.IsNotNull(bt.name),
+        limit=1,
+    )
+    # STRING_AGG order is unspecified
+    parts = set(res[0].split(','))
+    assert parts == {'Alice', 'Bob', 'Carol', 'Eve'}
+
+
+def test_builtins_groupconcat_custom_sep(bt):
+    res = bt.get_row(
+        [Postgresql.Builtins.GroupConcat(bt.name, ' | ')],
+        where=Postgresql.Builtins.IsNotNull(bt.name),
+        limit=1,
+    )
+    parts = set(res[0].split(' | '))
+    assert parts == {'Alice', 'Bob', 'Carol', 'Eve'}
+
+
+def test_builtins_groupconcat_datatype():
+    assert Postgresql.Builtins.GroupConcat('x').current_datatype is str
+
+
+def test_builtins_func_uses_given_name(bt):
+    op = Postgresql.Builtins.Func('INITCAP', 'hello world')
+    assert op._output[0] == '(INITCAP(%s))'
+    assert op.current_datatype is str
+
+
+def test_builtins_func_rejects_empty_name():
+    with pytest.raises(ValueError):
+        Postgresql.Builtins.Func('', 'x')
+
+
+# ===========================================================================
+# Integration
+# ===========================================================================
+def test_builtins_combined_select(bt):
+    expr = Postgresql.Builtins.Len(bt.name)
+    assert expr._output[0].startswith('(LENGTH(')
+    assert expr.current_datatype is int
+
+
+def test_builtins_aggregate_with_other_columns(bt):
+    res = bt.get_row([
+        Postgresql.Builtins.Count('*'),
+        Postgresql.Builtins.Sum(bt.age),
+        Postgresql.Builtins.Avg(bt.age),
+    ], limit=1)
+    assert res[0][0] == 5
+    assert res[0][1] == 130          # 30+25+35+40 (+NULL)
+    assert _flt(res[0][2]) == 32.5
+
+
+def test_builtins_in_where_with_arithmetic(bt):
+    res = bt.get_row(
+        [bt.id],
+        where=(Postgresql.Builtins.Abs(bt.balance) > 50) & (bt.age >= 30),
+        order_by=bt.id,
+    )
+    assert res == [1, 3]
+
+
+def test_builtins_nested_aggregate(bt):
+    expr = Postgresql.Builtins.Round(Postgresql.Builtins.Avg(bt.salary))
+    res = bt.get_row([expr], limit=1)
+    assert _flt(res[0]) == 65000.0
+
+
+def test_builtins_cast_then_concat(bt):
+    expr = Postgresql.Builtins.Str(bt.id).add_first('ID-')
+    res = bt.get_row([expr], order_by=bt.id)
+    assert res == ['ID-1', 'ID-2', 'ID-3', 'ID-4', 'ID-5']
+
+
+def test_builtins_column_operation_input(bt):
+    expr = bt.age + 5
+    res = bt.get_row([Postgresql.Builtins.Abs(expr)], order_by=bt.id)
+    assert res == [35, 30, 40, 45, None]
+
+
+def test_builtins_in_update_statement(bt):
+    bt.update(
+        {bt.age: Postgresql.Builtins.Int(bt.age * 1.5)},
+        bt.id == 1,
+    )
+    res = bt.get_row([bt.age], bt.id == 1)
+    assert res == [45]
+
+
+def test_builtins_in_join(pg_driver, bt):
+    name = f"scores_{uuid.uuid4().hex[:8]}"
+    schema = Postgresql.TableStructure(name)
+    schema.add_column("uid", Postgresql.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column("pts", Postgresql.DataTypes.INTEGER())
+
+    pg_driver.create_table(schema)          # returns None
+    scores = getattr(pg_driver, name)       # ← اینجا جدول را بردار
+
+    scores.bulk_insert([scores.uid, scores.pts], [(1, 10), (2, 20), (3, 30)])
+    try:
+        res = (bt.inner_join(scores, bt.id == scores.uid)
+                 .get_row([bt.name, Postgresql.Builtins.Abs(scores.pts * -1)],
+                          order_by=bt.id))
+        assert res == [('Alice', 10), ('Bob', 20), ('Carol', 30)]
+    finally:
+        pg_driver._exc(f'DROP TABLE IF EXISTS "{name}";')
+
+# ===========================================================================
+# Bool + python semantics
+# ===========================================================================
+def test_builtins_bool_matches_python(bt):
+    op_zero = Postgresql.Builtins.Bool(0)
+    op_one = Postgresql.Builtins.Bool(1)
+    op_false = Postgresql.Builtins.Bool(False)
+    op_true = Postgresql.Builtins.Bool(True)
+    assert op_zero._output == ('(CAST(%s AS BOOLEAN))', [0])
+    assert op_one._output == ('(CAST(%s AS BOOLEAN))', [1])
+    assert op_false._output == ('(CAST(%s AS BOOLEAN))', [False])
+    assert op_true._output == ('(CAST(%s AS BOOLEAN))', [True])
+
+
+def test_builtins_bool_where_comparison(bt):
+    res = bt.get_row([bt.id],
+                     where=Postgresql.Builtins.Bool(bt.active) == True,
+                     order_by=bt.id)
+    assert res == [1, 2, 4]
+
+
 @pytest.fixture
 def users_if(in_driver):
     

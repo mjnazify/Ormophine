@@ -465,6 +465,34 @@ from MySQLdb import connect, OperationalError, ProgrammingError
 from queue import SimpleQueue, Empty
 from typing import Literal
 
+<<<<<<< Updated upstream
+=======
+
+
+from . import TableStructure, Table
+from MySQLdb import connect, OperationalError, ProgrammingError
+from MySQLdb.converters import conversions as _mysql_conversions
+from MySQLdb.constants import FIELD_TYPE
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+
+
+from . import TableStructure, Table
+from MySQLdb import connect, OperationalError, ProgrammingError
+from MySQLdb.converters import conversions as _mysql_conversions
+from MySQLdb.constants import FIELD_TYPE
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+
+
+from . import TableStructure, Table
+from MySQLdb import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+>>>>>>> Stashed changes
 class Driver():
     """
     MySQL connection manager with thread-safe connection pooling and ORM capabilities.
@@ -2501,6 +2529,7 @@ class Builtins:
         op._output          = (sql, params)
         op.col_obj          = col_obj if col_obj is not None else Builtins._NullCol
         op.current_datatype = datatype
+        op._skip_post_fetch_str_conversion = False  
         return op
 
     @staticmethod
@@ -2988,9 +3017,7 @@ class Builtins:
         """
         sql, p, _, c = Builtins._normalize(value)
         inner = f'CONCAT(UPPER(SUBSTRING({sql}, 1, 1)), LOWER(SUBSTRING({sql}, 2)))'
-        return Builtins._make(f'({inner})', p, str, c)
-
-    # ================================================================ aggregate
+        return Builtins._make(f'({inner})', p + p, str, c)   
 
     @staticmethod
     def Sum(value):
@@ -3894,8 +3921,8 @@ class Builtins:
                 # FROM `events`
         """
         sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(f'(CAST({sql} AS SIGNED))', p, int, c)
-
+        return Builtins._make(f'(CAST(FLOOR({sql}) AS SIGNED))', p, int, c)
+    
     @staticmethod
     def Float(value):
         """Convert a value to a floating-point number using ``CAST(x AS DECIMAL)``.
@@ -5198,10 +5225,8 @@ class Builtins:
         sql, p, _, c = Builtins._normalize(value)
         return Builtins._make(f'(CAST({sql} AS DATETIME))', p, str, c)
 
-    # ============================================================ now / today
-
     @staticmethod
-    def Now(_=None):
+    def Now():
         """Return the current moment as a MySQL ``NOW()`` value.
 
         Generates a ``NOW()`` expression. The result is a TEXT string in
@@ -5219,10 +5244,6 @@ class Builtins:
         output when the server runs in a non-UTC time zone, chain
         through ``Builtins.Func('CONVERT_TZ', value, '+00:00', ...)`` or
         set ``SET time_zone = '+00:00'`` on the connection.
-
-        Args:
-            _: Ignored. Any value passed is discarded; the SQL emitted is
-                always ``NOW()``.
 
         Returns:
             ColumnsOperation: An expression whose ``_output[0]`` is
@@ -6709,10 +6730,11 @@ class Builtins:
         for mod in modifiers:
             low = mod.strip().lower()
             if low == 'start of month':
-                sql = f"DATE_FORMAT({sql}, '%Y-%m-01')"
+                sql = f"CONCAT(YEAR({sql}), '-', LPAD(MONTH({sql}), 2, '0'), '-01')"
+                params = params + params        # چون {sql} دو بار آمده
                 continue
             if low == 'start of year':
-                sql = f"DATE_FORMAT({sql}, '%Y-01-01')"
+                sql = f"CONCAT(YEAR({sql}), '-01-01')"
                 continue
             if low == 'start of day':
                 sql = f'DATE({sql})'
@@ -7273,7 +7295,7 @@ class Builtins:
         """
         s1, p1, _, c = Builtins._normalize(a)
         s2, p2, _, _ = Builtins._normalize(b)
-        return Builtins._make(f'(TIMESTAMPDIFF(SECOND, {s2}, {s1}))', p1 + p2, int, c)
+        return Builtins._make(f'(TIMESTAMPDIFF(SECOND, {s2}, {s1}))', p2 + p1, int, c)
 
     @staticmethod
     def Timediff(a, b):
@@ -7363,7 +7385,7 @@ class Builtins:
         """
         s1, p1, _, c = Builtins._normalize(a)
         s2, p2, _, _ = Builtins._normalize(b)
-        return Builtins._make(f'(TIMEDIFF({s1}, {s2}))', p1 + p2, str, c)
+        return Builtins._make(f'(TIMEDIFF({s1}, {s2}))', p1 + p2, str, c)    
     
 
 from __future__ import annotations
@@ -7902,7 +7924,11 @@ class ColumnsOperation:
                 # Resulting SQL: (users.score / users.max_score)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({self._output[0]} / {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} / {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} / %s)', self._output[1]+[other])
+        other_dt = other.current_datatype if isinstance(other, ColumnsOperation) else other.datatype if isinstance(other, Column) else int if isinstance(other, bool) or isinstance(other, int) else float if isinstance(other, float) else str if isinstance(other, str) else bytes if isinstance(other, bytes) else None
+        use_div = (self.current_datatype is int) and (other_dt is int)
+        op_symbol = 'DIV' if use_div else '/'
+        new_op._output = ( (f'({self._output[0]} {op_symbol} {other._output[0]})', self._output[1] + other._output[1]) if isinstance(other, ColumnsOperation) else (f'({self._output[0]} {op_symbol} {other.name})', self._output[1]) if isinstance(other, Column) else (f'({self._output[0]} {op_symbol} %s)', self._output[1] + [other]) )
+        new_op.current_datatype = int if use_div else float
         return new_op
 
     def __rtruediv__(self, other):
@@ -7946,7 +7972,11 @@ class ColumnsOperation:
                 # Resulting SQL: ((users.age + 1) / users.score)
         """
         new_op = ColumnsOperation(self.col_obj)
-        new_op._output = (f'({other._output[0]} / {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} / {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s / {self._output[0]})', [other]+self._output[1])
+        other_dt = other.current_datatype if isinstance(other, ColumnsOperation) else other.datatype if isinstance(other, Column) else int if isinstance(other, bool) or isinstance(other, int) else float if isinstance(other, float) else str if isinstance(other, str) else bytes if isinstance(other, bytes) else None
+        use_div = (other_dt is int) and (self.current_datatype is int)
+        op_symbol = 'DIV' if use_div else '/'
+        new_op._output = ( (f'({other._output[0]} {op_symbol} {self._output[0]})', other._output[1] + self._output[1]) if isinstance(other, ColumnsOperation) else (f'({other.name} {op_symbol} {self._output[0]})', self._output[1]) if isinstance(other, Column) else (f'(%s {op_symbol} {self._output[0]})', [other] + self._output[1]) )
+        new_op.current_datatype = int if use_div else float
         return new_op
 
     def __mod__(self, other):

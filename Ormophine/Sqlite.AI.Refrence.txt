@@ -659,6 +659,39 @@ from typing import Any, Literal
 from threading import Thread, Event
 from queue import SimpleQueue
 
+<<<<<<< Updated upstream
+=======
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
+>>>>>>> Stashed changes
 class Driver:
     """
     Comprehensive SQLite Driver for Ormophine.
@@ -2829,8 +2862,8 @@ class Builtins:
                 # SELECT (SUM((CAST([users].[is_active] AS INTEGER)))) FROM [users]
         """
         sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(f'(CAST({sql} AS INTEGER))', p, int, c)
-
+        return Builtins._make(f'(CASE WHEN {sql} THEN 1 ELSE 0 END)',p, int, c,)
+    
     @staticmethod
     def TypeOf(value):
         """Return the SQLite storage class of a value using ``TYPEOF()``.
@@ -2988,7 +3021,7 @@ class Builtins:
                 ])
         """
         sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(f'(SIGN({sql}))', p, int, c)
+        return Builtins._make(f'(CAST({sql} > 0 AS INTEGER) - CAST({sql} < 0 AS INTEGER))',p + p, int, c,)
 
     @staticmethod
     def Floor(value):
@@ -3069,7 +3102,7 @@ class Builtins:
                 rows = products.get_row([products.name, discount])
         """
         sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(f'(FLOOR({sql}))', p, int, c)
+        return Builtins._make(f'(CAST({sql} AS INTEGER) - ({sql} < CAST({sql} AS INTEGER)))',p + p + p, int, c,)
     
     @staticmethod
     def Ceil(value):
@@ -3148,202 +3181,7 @@ class Builtins:
                 rows = products.get_row([products.price, low, high])
         """
         sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(f'(CEIL({sql}))', p, int, c)
-
-    @staticmethod
-    def Sqrt(value):
-        """Compute the square root of a number using SQLite's ``SQRT()`` function.
-
-        Generates a ``SQRT(<expr>)`` expression. The result is always a
-        REAL (float) — even ``SQRT(4)`` returns ``2.0``, not ``2``. This is
-        consistent with SQLite's decision to keep all math functions in the
-        floating-point domain.
-
-        Negative inputs produce ``NULL`` in SQLite rather than raising an
-        error. If your application needs to distinguish "no result" from
-        "zero", wrap the call or add a ``CHECK`` constraint on the column.
-
-        .. note::
-            ``SQRT()`` requires SQLite >= 3.35. On older libraries, use the
-            portable fallback ``Builtins.Func('POW', value, 0.5)``.
-
-        Args:
-            value: The expression whose square root is computed. Supported
-                types:
-
-                - :class:`ColumnsOperation` — its SQL fragment and parameters
-                  are reused.
-                - :class:`Column` — the fully qualified column name is used.
-                - A raw Python value (``int``, ``float``) — bound as a
-                  ``?`` placeholder.
-
-        Returns:
-            :class:`ColumnsOperation`: An expression whose ``_output[0]`` is
-            ``(SQRT(<expr>))`` and whose ``current_datatype`` is always
-            ``float``.
-
-        Example:
-            Euclidean distance — the standard ``sqrt(a² + b²)`` pattern::
-
-                from Ormophine.Sqlite import Driver, Builtins
-
-                db     = Driver('geometry.db')
-                points = db.points
-
-                distance_from_origin = Builtins.Sqrt(
-                    points.x * points.x + points.y * points.y
-                )
-                rows = points.get_row([
-                    points.id,
-                    distance_from_origin,
-                ])
-                # SELECT [points].[id],
-                #        (SQRT((([points].[x] * [points].[x])
-                #                + ([points].[y] * [points].[y]))))
-                # FROM [points]
-
-            Standard deviation of a small set — square root of the mean
-            squared deviation::
-
-                mean = Builtins.Avg(points.x)
-                sq_dev = Builtins.Avg((points.x - mean) * (points.x - mean))
-                stddev = Builtins.Sqrt(sq_dev)
-                rows = points.get_row([stddev])
-                # SELECT (SQRT((AVG((([points].[x] - (AVG([points].[x])))
-                #                     * ([points].[x] - (AVG([points].[x]))))))))
-                # FROM [points]
-
-            Filter by magnitude — points more than 10 units from origin::
-
-                rows = points.get_row(
-                    [points.id, points.x, points.y],
-                    where=Builtins.Sqrt(
-                        points.x * points.x + points.y * points.y
-                    ) > 10,
-                )
-
-            Combine with Round for display::
-
-                pretty = Builtins.Round(
-                    Builtins.Sqrt(points.x * points.x + points.y * points.y) * 100
-                ) / 100
-                rows = points.get_row([points.id, pretty])
-
-            Applied to a raw literal::
-
-                rows = points.get_row([
-                    Builtins.Sqrt(16),    # -> (SQRT(?)) with param 16 -> 4.0
-                    Builtins.Sqrt(2),     # -> 1.41421356...
-                ])
-        """
-        sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(f'(SQRT({sql}))', p, float, c)
-
-    @staticmethod
-    def Pow(base, exp):
-        """Raise a base value to a power using SQLite's ``POW(a, b)`` function.
-
-        Generates a ``POW(<base>, <exp>)`` expression. This is the SQL
-        analogue of Python's built-in ``pow(base, exp)`` and the ``**``
-        operator. Both operands may be any expression — a column, another
-        builtin, a raw literal, or a nested :class:`ColumnsOperation`.
-
-        The result is always a REAL (float) — even ``POW(2, 3)`` returns
-        ``8.0``, not ``8``, because SQLite keeps all math functions in the
-        floating-point domain.
-
-        .. note::
-            ``POW()`` requires SQLite >= 3.35. On older libraries, use the
-            portable fallback ``exp * Builtins.Func('LOG', base)`` after
-            registering a ``LOG`` SQL function via ``conn.create_function``,
-            or upgrade SQLite.
-
-        Args:
-            base: The base expression. Any of the standard operand types:
-
-                - :class:`ColumnsOperation`
-                - :class:`Column`
-                - A raw Python number
-
-            exp: The exponent expression. Same accepted types as ``base``.
-
-        Returns:
-            :class:`ColumnsOperation`: An expression whose ``_output[0]`` is
-            ``(POW(<base>, <exp>))`` and whose ``current_datatype`` is
-            always ``float``.
-
-        Example:
-            Compound interest — principal times ``(1 + rate)^years``::
-
-                from Ormophine.Sqlite import Driver, Builtins
-
-                db       = Driver('bank.db')
-                accounts = db.accounts
-
-                future_value = accounts.principal * Builtins.Pow(
-                    1 + accounts.rate,
-                    accounts.years,
-                )
-                rows = accounts.get_row([
-                    accounts.id,
-                    future_value,
-                ])
-                # SELECT [accounts].[id],
-                #        ([accounts].[principal] * (POW((? + [accounts].[rate]),
-                #                                       [accounts].[years])))
-                # FROM [accounts]
-                # Parameters: [1]
-
-            Square or cube a value::
-
-                rows = accounts.get_row([
-                    Builtins.Pow(accounts.principal, 2),   # square
-                    Builtins.Pow(accounts.principal, 3),   # cube
-                ])
-                # SELECT (POW([accounts].[principal], ?)),
-                #        (POW([accounts].[principal], ?))
-                # FROM [accounts]
-
-            Square root via fractional exponent — equivalent to
-            :meth:`Sqrt` on SQLite versions that have ``POW`` but not
-            ``SQRT``::
-
-                rows = accounts.get_row([
-                    Builtins.Pow(accounts.principal, 0.5),
-                ])
-                # SELECT (POW([accounts].[principal], ?)) FROM [accounts]
-                # Parameters: [0.5]
-
-            Inverse power — ``x⁻¹`` equals ``1/x``::
-
-                rows = accounts.get_row([
-                    Builtins.Pow(accounts.principal, -1),
-                ])
-
-            Distance squared without the square root — useful for
-            comparisons where you don't need the exact distance::
-
-                rows = accounts.get_row(
-                    [accounts.id],
-                    where=Builtins.Pow(accounts.x, 2)
-                        + Builtins.Pow(accounts.y, 2) > 100,
-                )
-
-            Combine with Round for display::
-
-                pretty = Builtins.Round(
-                    Builtins.Pow(accounts.principal, 1.05) * 100
-                ) / 100
-                rows = accounts.get_row([accounts.id, pretty])
-
-            Chained with arithmetic — stays numeric::
-
-                doubled = Builtins.Pow(accounts.principal, 2) * 2
-                # SELECT ((POW([accounts].[principal], ?)) * ?) FROM [accounts]
-        """
-        s1, p1, dt1, c1 = Builtins._normalize(base)
-        s2, p2, _,  _  = Builtins._normalize(exp)
-        return Builtins._make(f'(POW({s1}, {s2}))', p1 + p2, float, c1)
+        return Builtins._make(f'(CAST({sql} AS INTEGER) + ({sql} > CAST({sql} AS INTEGER)))',p + p + p, int, c,)
 
     @staticmethod
     def Find(value, sub):
@@ -3454,99 +3292,6 @@ class Builtins:
         s2, p2, _, _ = Builtins._normalize(sub)
         return Builtins._make(f'(INSTR({s1}, {s2}))', p1 + p2, int, c)
 
-    @staticmethod
-    def Reverse(value):
-        """Reverse the characters of a text value using SQLite's ``REVERSE()``.
-
-        Generates a ``REVERSE(<expr>)`` expression. The result is a new
-        string with the same characters in the opposite order. This is the
-        SQL analogue of Python's ``s[::-1]`` idiom.
-
-        The result is always a ``TEXT`` string, so ``+`` chained after it
-        produces concatenation (``||``) rather than arithmetic addition.
-
-        .. note::
-            ``REVERSE()`` requires SQLite >= 3.44 (released 2023-11-01). On
-            older libraries the generated SQL will fail at execution time.
-            If you must support older SQLite, reverse the string in Python
-            after fetching, or register a custom SQL function via
-            ``conn.create_function``.
-
-        Args:
-            value: The expression whose characters are reversed. Supported
-                types:
-
-                - :class:`ColumnsOperation` — its SQL fragment and parameters
-                  are reused.
-                - :class:`Column` — the fully qualified column name is used.
-                - A raw Python string — bound as a ``?`` placeholder.
-
-        Returns:
-            :class:`ColumnsOperation`: An expression whose ``_output[0]`` is
-            ``(REVERSE(<expr>))`` and whose ``current_datatype`` is always
-            ``str``.
-
-        Example:
-            Reverse every username as a simple pseudo-hash::
-
-                from Ormophine.Sqlite import Driver, Builtins
-
-                db    = Driver('app.db')
-                users = db.users
-
-                rows = users.get_row([
-                    users.id,
-                    users.username,
-                    Builtins.Reverse(users.username),
-                ])
-                # SELECT [users].[id], [users].[username],
-                #        (REVERSE([users].[username]))
-                # FROM [users]
-                # -> e.g. [(1, 'alice', 'ecila'), (2, 'bob', 'bob'), ...]
-
-            Palindrome check — a string equals its own reverse::
-
-                is_palindrome = users.username == Builtins.Reverse(users.username)
-                rows = users.get_row(
-                    [users.username],
-                    where=is_palindrome,
-                )
-                # SELECT [users].[username] FROM [users]
-                # WHERE ([users].[username] = (REVERSE([users].[username])))
-
-            Suffix search turned into prefix search — reverse both sides
-            so that ``endswith`` becomes ``startswith``::
-
-                rows = users.get_row(
-                    [users.username],
-                    where=Builtins.Reverse(users.username).startswith('e'),
-                )
-                # SELECT [users].[username] FROM [users]
-                # WHERE ((REVERSE([users].[username])) LIKE ? || '%')
-                # Parameters: ['e']
-
-            Sort by reversed string — clusters anagrams::
-
-                rows = users.get_row(
-                    [users.username],
-                    order_by=Builtins.Reverse(users.username),
-                )
-
-            Chain with other string builtins::
-
-                expr = Builtins.Reverse(Builtins.Upper(users.username))
-                # -> (REVERSE((UPPER([users].[username]))))
-                rows = users.get_row([expr])
-
-            Applied to a raw literal::
-
-                rows = users.get_row([
-                    Builtins.Reverse('hello'),    # -> (REVERSE(?)) with param 'hello'
-                ])
-                # -> [('olleh',)]
-        """
-        sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(f'(REVERSE({sql}))', p, str, c)
 
     @staticmethod
     def Format(fmt, *args):
@@ -4964,7 +4709,7 @@ class Builtins:
                 ])
         """
         sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(f"(unixepoch({sql}))", p, int, c)
+        return Builtins._make(f'(CAST((julianday({sql}) - 2440587.5) * 86400 AS INTEGER))',p, int, c,)
 
     @staticmethod
     def Year(value):
@@ -6147,137 +5892,6 @@ class Builtins:
         return Builtins._make(
             f"(((CAST(strftime('%w', {sql}) AS INTEGER) + 6) % 7) + 1)",
             p, int, c)
-
-    @staticmethod
-    def Timediff(a, b):
-        """Compute the difference between two date/time values in human-readable form.
-
-        Generates a ``timediff(<a>, <b>)`` expression. SQLite returns a
-        TEXT string describing the elapsed time between ``a`` and ``b`` in
-        the format:
-
-        .. code-block:: text
-
-            [+-]YYYY-MM-DD HH:MM:SS.SSS
-
-        Sign convention: the result is ``a - b``. A positive sign means
-        ``a`` occurs after ``b``; a negative sign means ``a`` occurs before
-        ``b``. When ``a`` and ``b`` are within the same year, month, and
-        day, the date portion is ``0000-00-00``.
-
-        This is the SQL analogue of Python's ``datetime.timedelta``
-        formatted as a string. It is convenient for display because the
-        output is directly readable, but not for arithmetic — for numeric
-        differences in days or seconds, use :meth:`DateDiffDays` or
-        :meth:`DateDiffSeconds` instead.
-
-        .. note::
-            ``timediff()`` requires SQLite >= 3.43 (released 2023-08-24).
-            On older libraries, use
-            ``Builtins.JulianDay(a) - Builtins.JulianDay(b)`` and format
-            the resulting day count in Python.
-
-        Args:
-            a: The subtrahend — the "later" side of the difference.
-                Supported types:
-
-                - :class:`ColumnsOperation` — its SQL fragment and parameters
-                  are reused.
-                - :class:`Column` — the fully qualified column name is used.
-                - A raw Python string or number — bound as a ``?``
-                  placeholder.
-
-            b: The minuend — the "earlier" side of the difference. Same
-                accepted types as ``a``.
-
-        Returns:
-            :class:`ColumnsOperation`: An expression whose ``_output[0]`` is
-            ``(timediff(<a>, <b>))`` and whose ``current_datatype`` is
-            always ``str``. Parameters are concatenated left-to-right:
-            first ``a``'s parameters, then ``b``'s.
-
-        Example:
-            Human-readable account age for every user::
-
-                from Ormophine.Sqlite import Driver, Builtins
-
-                db    = Driver('app.db')
-                users = db.users
-
-                age = Builtins.Timediff(Builtins.Now(), users.created_at)
-                rows = users.get_row([
-                    users.username,
-                    age,
-                ])
-                # SELECT [users].[username],
-                #        (timediff((datetime(?)), [users].[created_at]))
-                # FROM [users]
-                # Parameters: ['now']
-                # -> [('Alice', '+0000-00-02 05:29:18.000'), ...]
-
-            Time since last login::
-
-                elapsed = Builtins.Timediff(
-                    Builtins.Now(),
-                    users.last_login,
-                )
-                rows = users.get_row([users.username, elapsed])
-
-            Compare two timestamp columns::
-
-                session_len = Builtins.Timediff(
-                    users.session_ended,
-                    users.session_started,
-                )
-                rows = users.get_row([users.id, session_len])
-                # -> [(1, '+0000-00-00 01:23:45.000'), ...]
-
-            Filter by elapsed time — compare against a literal duration
-            using the string ordering::
-
-                # Note: string comparison on timediff output is
-                # lexicographic, which is NOT the same as chronological.
-                # For a numeric filter, use DateDiffDays / DateDiffSeconds:
-                recently = (
-                    Builtins.DateDiffDays(Builtins.Now(), users.created_at) < 7
-                )
-                rows = users.get_row([users.username], where=recently)
-
-            Combine with Format for a prettier display::
-
-                age_str = Builtins.Timediff(Builtins.Now(), users.created_at)
-                display = Builtins.Format('Member for %s', age_str)
-                rows = users.get_row([users.username, display])
-                # -> [('Alice', 'Member for +0000-00-02 05:29:18.000'), ...]
-
-            Sign convention — the "a - b" order matters::
-
-                later_minus_earlier = Builtins.Timediff(
-                    users.updated_at,      # a
-                    users.created_at,      # b
-                )
-                rows = users.get_row([users.id, later_minus_earlier])
-                # -> [(1, '+0000-00-00 00:30:00.000'), ...]  (updated after created)
-
-                earlier_minus_later = Builtins.Timediff(
-                    users.created_at,      # a
-                    users.updated_at,      # b
-                )
-                rows = users.get_row([users.id, earlier_minus_later])
-                # -> [(1, '-0000-00-00 00:30:00.000'), ...]  (created before updated)
-
-            Applied to raw literals::
-
-                rows = users.get_row([
-                    Builtins.Timediff('2024-03-15', '2024-03-01'),
-                    # -> '+0000-00-14 00:00:00.000'
-                    Builtins.Timediff('2024-03-01', '2024-03-15'),
-                    # -> '-0000-00-14 00:00:00.000'
-                ])
-        """
-        s1, p1, _, c = Builtins._normalize(a)
-        s2, p2, _, _ = Builtins._normalize(b)
-        return Builtins._make(f"(timediff({s1}, {s2}))", p1 + p2, str, c)
     
     @staticmethod
     def DateDiffDays(a, b):
@@ -6853,7 +6467,7 @@ class Builtins:
                     where=users.token_expires < now_epoch,
                 )
         """
-        return Builtins._make("(unixepoch('now'))", [], int, Builtins._NullCol)
+        return Builtins._make("(CAST((julianday('now') - 2440587.5) * 86400 AS INTEGER))",[], int, Builtins._NullCol,)
 
     @staticmethod
     def DateAdd(value, *modifiers):

@@ -2,6 +2,7 @@ from .Core.columnsoperation import ColumnsOperation, Column, BatchOperation, Lit
 from .Core.join import JoinQuery
 from .Core.table import Table
 from .Core.tablestructure import TableStructure, DataTypes
+from .Core.builtins import Builtins
 from .driver import Driver
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     'DataTypes',
     'TableStructure',
     'Driver',
-    'LiteralValue'
+    'LiteralValue',
+    'Builtins'
 ]

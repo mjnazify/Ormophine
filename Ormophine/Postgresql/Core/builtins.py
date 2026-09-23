@@ -4107,8 +4107,7 @@ class Builtins:
                 # Parameters: ['2024-03-15']
         """
         sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(
-            f'(EXTRACT(YEAR FROM {sql})::INTEGER)', p, int, c)
+        return Builtins._make(f'(EXTRACT(YEAR FROM CAST({sql} AS TIMESTAMP))::INTEGER)', p, int, c)
 
     @staticmethod
     def Month(value):
@@ -5830,9 +5829,8 @@ class Builtins:
                 # Parameters: ['2024-03-15 00:00:00', '1970-01-01 00:00:00']
         """
         sql, p, _, c = Builtins._normalize(value)
-        return Builtins._make(
-            f'(EXTRACT(EPOCH FROM {sql})::BIGINT)', p, int, c)
-
+        return Builtins._make(f'(EXTRACT(EPOCH FROM CAST({sql} AS TIMESTAMP))::BIGINT)',p, int, c,)
+    
     @staticmethod
     def JulianDay(value):
         """Convert a date/time value to its Julian day number.
