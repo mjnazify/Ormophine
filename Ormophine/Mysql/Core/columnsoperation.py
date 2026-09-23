@@ -1,5 +1,22 @@
 from __future__ import annotations
 
+class _NullCol:
+    """
+    Fallback ``col_obj`` used when a ColumnsOperation-shaped object has no
+    originating Column.
+
+    Supplies the same attribute surface as a real :class:`Column`
+    (``datatype``, ``name``, ``first_name``, ``table_obj``) so that every
+    method inherited from :class:`ColumnsOperation` keeps working when the
+    expression is built from a raw literal rather than a real column.
+    """
+    datatype   = None
+    name       = ''
+    first_name = ''
+    class table_obj:
+        _PlaceHolder = type(None)   # Nothing isinstance-matches this
+
+
 class ColumnsOperation:
     """
     Builds SQL expressions for column operations, enabling chainable arithmetic, string manipulation, comparisons, and logical conditions.
@@ -2058,6 +2075,127 @@ class ColumnsOperation:
         
         return new_op
 
+    def if_(self, condition):
+        """
+        Start a one-line conditional expression: ``then if cond else other``.
+
+        Returns a :class:`_IfThenBuilder`. Chain ``.Else(value)`` to obtain
+        a usable :class:`ColumnsOperation`. Any attempt to read ``_output``
+        on the builder without chaining ``.Else()`` raises a clear
+        :class:`RuntimeError`.
+
+        The SQL is rendered with MySQL's ``IF(cond, then, else)`` function.
+
+        Args:
+            condition: A :class:`ColumnsOperation`, a :class:`Column`, or a
+                raw Python value (``True``, ``1``, ``'x'``, ...). Raw values
+                are wrapped in :class:`LiteralValue` automatically.
+
+        Returns:
+            _IfThenBuilder: Intermediate builder; call ``.Else(value)`` next.
+
+        Example:
+            >>> users.name.If(users.is_active == True).Else('inactive')
+            # SQL: (IF((`users`.`is_active` = %s), `users`.`name`, %s))
+        """
+        return _IfThenBuilder(
+            self,
+            condition if isinstance(condition, (ColumnsOperation, Column)) else LiteralValue(condition)
+        )
+
+
+class LiteralValue(ColumnsOperation):
+    """
+    Wrap a raw Python value inside a ColumnsOperation-shaped object.
+
+    Used when a plain literal must be the left-hand side of a conditional
+    (``LiteralValue('n/a').If(cond).Else(col)``) or any other expression
+    chain. Subclasses :class:`ColumnsOperation` but deliberately does
+    **not** call ``super().__init__()`` — the parent constructor would
+    reset ``_output`` to ``('', [])`` and erase the wrapped value.
+
+    Attributes:
+        _output (tuple[str, list]): Always ``('%s', [wrapped_value])``.
+        col_obj (_NullCol): Stub in place of a real parent Column.
+        current_datatype (type): ``type(wrapped_value)``.
+    """
+
+    def __init__(self, value):
+        """
+        Wrap a Python value in a ColumnsOperation-compatible shell.
+
+        Args:
+            value: Any value that MySQLdb can bind later.
+
+        Example:
+            >>> LiteralValue('Alice')._output
+            ('%s', ['Alice'])
+            >>> LiteralValue(42)._output
+            ('%s', [42])
+        """
+        self._output          = ('%s', [value])
+        self.col_obj          = _NullCol
+        self.current_datatype = type(value)
+
+
+class _IfThenBuilder:
+    """
+    Intermediate builder returned by :meth:`ColumnsOperation.If`.
+
+    The ``_output`` attribute is a read-only property that always raises
+    :class:`RuntimeError` — this is what guarantees that a forgotten
+    ``.Else()`` is caught before any SQL reaches the database.
+
+    SQL syntax note:
+        MySQL/MariaDB provide the ``IF(cond, then, else)`` function with
+        the same argument order as the ORM's ternary syntax, so no extra
+        rewriting is needed.
+
+    Attributes:
+        _then (ColumnsOperation): The "then" branch expression.
+        _cond (ColumnsOperation | Column): The condition.
+    """
+
+    def __init__(self, then_branch, condition):
+        self._then = then_branch
+        self._cond = condition
+
+    @property
+    def _output(self):
+        """Always raise — forces the user to chain ``.Else()``."""
+        raise RuntimeError(
+            "You called `.If(condition)` but never chained `.Else(value)`. "
+            "Complete the conditional, e.g. `col.If(cond).Else(other)`."
+        )
+
+    def else_(self, value):
+        """
+        Complete the conditional with the "else" branch.
+
+        Produces ``(IF(cond, then, else))`` with all parameters concatenated
+        in the order: cond → then → else.
+
+        Args:
+            value: A :class:`ColumnsOperation`, :class:`Column`, or a raw
+                Python value.
+
+        Returns:
+            ColumnsOperation: The fully-formed expression.
+        """
+        new_op = ColumnsOperation(self._then.col_obj)
+        new_op._output = (
+            f'(IF({self._cond._output[0]}, {self._then._output[0]}, {value._output[0]}))',
+            self._cond._output[1] + self._then._output[1] + value._output[1]
+        ) if isinstance(value, ColumnsOperation) else (
+            f'(IF({self._cond._output[0]}, {self._then._output[0]}, {value.name}))',
+            self._cond._output[1] + self._then._output[1]
+        ) if isinstance(value, Column) else (
+            f'(IF({self._cond._output[0]}, {self._then._output[0]}, %s))',
+            self._cond._output[1] + self._then._output[1] + [value]
+        )
+        new_op.current_datatype = None
+        return new_op
+
 
 class Column:
     """
@@ -4031,6 +4169,28 @@ class Column:
         temp_ob = ColumnsOperation(self)
         temp_ob._output = (self.name, [])
         return temp_ob.not_In(column=column, where=where, data_list=data_list)
+
+    def if_(self, condition):
+        """
+        Start a one-line conditional with this column as the "then" branch.
+
+        Same behavior as :meth:`ColumnsOperation.If` but starts from the
+        column itself. The generated SQL uses MySQL's ``IF(cond, then, else)``.
+
+        Args:
+            condition: A :class:`ColumnsOperation`, :class:`Column`, or raw
+                value (auto-wrapped in :class:`LiteralValue`).
+
+        Returns:
+            _IfThenBuilder: Chain ``.Else(value)`` to complete.
+
+        Example:
+            >>> users.name.If(users.is_active == True).Else('inactive')
+            # SQL: (IF((`users`.`is_active` = %s), `users`.`name`, %s))
+        """
+        temp_ob = ColumnsOperation(self)
+        temp_ob._output = (self.name, [])
+        return temp_ob.If(condition)
 
 
 class BatchOperation:

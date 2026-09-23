@@ -1,4 +1,4 @@
-from .Core.columnsoperation import ColumnsOperation, Column, BatchOperation
+from .Core.columnsoperation import ColumnsOperation, Column, BatchOperation, LiteralValue
 from .Core.join import JoinQuery
 from .Core.table import Table
 from .Core.tablestructure import TableStructure, DataTypes
@@ -12,5 +12,6 @@ __all__ = [
     'Table',
     'DataTypes',
     'TableStructure',
-    'Driver'
+    'Driver',
+    'LiteralValue'
 ]

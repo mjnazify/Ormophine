@@ -458,6 +458,30 @@ from queue import SimpleQueue, Empty
 from typing import Literal
 
             
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
+
+
+from . import TableStructure, Table
+from psycopg  import connect, OperationalError, ProgrammingError
+from queue import SimpleQueue, Empty
+from typing import Literal
+
+            
 class Driver():
     """High-level PostgreSQL driver for Ormophine.
 
@@ -1826,6 +1850,23 @@ class Driver():
 
 
 from __future__ import annotations
+
+class _NullCol:
+    """
+    Fallback ``col_obj`` used when a ColumnsOperation-shaped object has no
+    originating Column.
+
+    Supplies the same attribute surface as a real :class:`Column`
+    (``datatype``, ``name``, ``first_name``, ``table_obj``) so that every
+    method inherited from :class:`ColumnsOperation` keeps working when the
+    expression is built from a raw literal rather than a real column.
+    """
+    datatype   = None
+    name       = ''
+    first_name = ''
+    class table_obj:
+        _PlaceHolder = type(None)   # Nothing isinstance-matches this
+
 
 class ColumnsOperation:
     """
@@ -3669,7 +3710,125 @@ class ColumnsOperation:
         
         return new_op
 
+    def if_(self, condition):
+        """
+        Start a one-line conditional expression: ``then if cond else other``.
 
+        Returns a :class:`_IfThenBuilder`. Chain ``.else_(value)`` to obtain
+        a usable :class:`ColumnsOperation`. Any attempt to read ``_output``
+        on the builder without chaining ``.else_()`` raises a clear
+        :class:`RuntimeError`.
+
+        Args:
+            condition: A :class:`ColumnsOperation`, a :class:`Column`, or a
+                raw Python value (``True``, ``1``, ``'x'``, ...). Raw values
+                are wrapped in :class:`LiteralValue` automatically.
+
+        Returns:
+            _IfThenBuilder: Intermediate builder; call ``.else_(value)`` next.
+
+        Example:
+            >>> users.name.if_(users.is_active == True).else_('inactive')
+            # SQL: (CASE WHEN ("users"."is_active" = %s) THEN "users"."name" ELSE %s END)
+        """
+        return _IfThenBuilder(
+            self,
+            condition if isinstance(condition, (ColumnsOperation, Column)) else LiteralValue(condition)
+        )
+
+
+class LiteralValue(ColumnsOperation):
+    """
+    Wrap a raw Python value inside a ColumnsOperation-shaped object.
+
+    Used when a plain literal must be the left-hand side of a conditional
+    (``LiteralValue('n/a').if_(cond).else_(col)``) or any other expression
+    chain. Subclasses :class:`ColumnsOperation` but deliberately does
+    **not** call ``super().__init__()`` — the parent constructor would
+    reset ``_output`` to ``('', [])`` and erase the wrapped value.
+
+    Attributes:
+        _output (tuple[str, list]): Always ``('%s', [wrapped_value])``.
+        col_obj (_NullCol): Stub in place of a real parent Column.
+        current_datatype (type): ``type(wrapped_value)``.
+    """
+
+    def __init__(self, value):
+        """
+        Wrap a Python value in a ColumnsOperation-compatible shell.
+
+        Args:
+            value: Any value that psycopg can bind later.
+
+        Example:
+            >>> LiteralValue('Alice')._output
+            ('%s', ['Alice'])
+            >>> LiteralValue(42)._output
+            ('%s', [42])
+        """
+        self._output          = ('%s', [value])
+        self.col_obj          = _NullCol
+        self.current_datatype = type(value)
+
+
+class _IfThenBuilder:
+    """
+    Intermediate builder returned by :meth:`ColumnsOperation.if_`.
+
+    The ``_output`` attribute is a read-only property that always raises
+    :class:`RuntimeError` — this is what guarantees that a forgotten
+    ``.else_()`` is caught before any SQL reaches the database.
+
+    SQL syntax note:
+        PostgreSQL has no ``IIF`` function, so the ternary is rendered as
+        ``CASE WHEN cond THEN then ELSE else END``.
+
+    Attributes:
+        _then (ColumnsOperation): The "then" branch expression.
+        _cond (ColumnsOperation | Column): The condition.
+    """
+
+    def __init__(self, then_branch, condition):
+        self._then = then_branch
+        self._cond = condition
+
+    @property
+    def _output(self):
+        """Always raise — forces the user to chain ``.else_()``."""
+        raise RuntimeError(
+            "You called `.if_(condition)` but never chained `.else_(value)`. "
+            "Complete the conditional, e.g. `col.if_(cond).else_(other)`."
+        )
+
+    def else_(self, value):
+        """
+        Complete the conditional with the "else" branch.
+
+        Produces ``(CASE WHEN cond THEN then ELSE else END)`` with all
+        parameters concatenated in the order: cond → then → else.
+
+        Args:
+            value: A :class:`ColumnsOperation`, :class:`Column`, or a raw
+                Python value.
+
+        Returns:
+            ColumnsOperation: The fully-formed expression.
+        """
+        new_op = ColumnsOperation(self._then.col_obj)
+        new_op._output = (
+            f'(CASE WHEN {self._cond._output[0]} THEN {self._then._output[0]} ELSE {value._output[0]} END)',
+            self._cond._output[1] + self._then._output[1] + value._output[1]
+        ) if isinstance(value, ColumnsOperation) else (
+            f'(CASE WHEN {self._cond._output[0]} THEN {self._then._output[0]} ELSE {value.name} END)',
+            self._cond._output[1] + self._then._output[1]
+        ) if isinstance(value, Column) else (
+            f'(CASE WHEN {self._cond._output[0]} THEN {self._then._output[0]} ELSE %s END)',
+            self._cond._output[1] + self._then._output[1] + [value]
+        )
+        new_op.current_datatype = None
+        return new_op
+
+    
 class Column:
     """
     A database column representation with expression-building capabilities.
@@ -5489,6 +5648,28 @@ class Column:
         temp_ob._output = (self.name, [])
         return temp_ob.not_In(column=column, where=where, data_list=data_list)
 
+    def if_(self, condition):
+        """
+        Start a one-line conditional with this column as the "then" branch.
+
+        Same behavior as :meth:`ColumnsOperation.if_` but starts from the
+        column itself.
+
+        Args:
+            condition: A :class:`ColumnsOperation`, :class:`Column`, or raw
+                value (auto-wrapped in :class:`LiteralValue`).
+
+        Returns:
+            _IfThenBuilder: Chain ``.else_(value)`` to complete.
+
+        Example:
+            >>> users.name.if_(users.is_active == True).else_('inactive')
+        """
+        op = ColumnsOperation(self)
+        op._output = (self.name, [])
+        return op.if_(condition)
+
+
 
 class BatchOperation:
     """A builder for batch executing multiple SQL operations in a single transaction.
@@ -5760,6 +5941,21 @@ class BatchOperation:
         self.table_obj._excs(self.script)
 
 
+# ----------------------------------------------------------------------
+# Keyword aliases — allow `.if(...)` / `.else(...)` as well as
+# `.if_(...)` / `.else_(...)`.
+#
+# Inside the class body it is impossible to write `def if(self, ...)` or
+# `def else(self, ...)` because `if` and `else` are Python reserved
+# keywords. However, after a dot, Python's grammar accepts any NAME
+# including keywords, so `obj.if(...)` and `obj.else(...)` work at the
+# call site. The assignments below inject the same functions under
+# their keyword-shaped names.
+# ----------------------------------------------------------------------
+
+setattr(ColumnsOperation, 'if',    ColumnsOperation.if_)
+setattr(Column,           'if',    Column.if_)
+setattr(_IfThenBuilder,   'else',  _IfThenBuilder.else_)
 
 from __future__ import annotations
 from .. import Column, ColumnsOperation

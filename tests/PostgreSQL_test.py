@@ -7,6 +7,384 @@ PG_PORT = int(os.getenv("PG_PORT", "5432"))
 PG_USER = os.getenv("PG_USER", "postgres")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "1234")
 PG_DB_NAME = os.getenv("PG_DB_NAME", "test_orm_db_fixed")
+
+
+# ======================================================================
+# Conditional expression tests (If / else_ — PostgreSQL CASE WHEN)
+# ======================================================================
+
+@pytest.fixture
+def users_if(in_driver):
+    """A fresh table with (id, name, age, active) for conditional tests."""
+    name = f"users_If{uuid.uuid4().hex[:8]}"
+    s = Postgresql.TableStructure(name)
+    s.add_column("id",     Postgresql.DataTypes.INTEGER(), primary_key=True)
+    s.add_column("name",   Postgresql.DataTypes.VARCHAR(100))
+    s.add_column("age",    Postgresql.DataTypes.INTEGER())
+    s.add_column("active", Postgresql.DataTypes.BOOLEAN())
+    in_driver.create_table(s)
+    tbl = getattr(in_driver, name)
+    tbl.bulk_insert(
+        [tbl.id, tbl.name, tbl.age, tbl.active],
+        [
+            (1, 'Ali',   30,   True),
+            (2, 'Reza',  17,   True),
+            (3, 'Sara',  25,   False),
+            (4, None,    40,   True),
+            (5, 'Nima',  None, False),
+        ]
+    )
+    yield tbl
+    try:
+        in_driver.delete_table(tbl, True, True, True)
+    except Exception:
+        pass
+
+
+# ------------------------------------------------------ SQL generation
+
+def test_Ifsql_uses_case_when(users_if):
+    """The generated SQL must use `CASE WHEN ... THEN ... ELSE ... END`
+    (not IIF, which PostgreSQL doesn't have)."""
+    expr = users_if.name.If(users_if.active == True).Else('inactive')
+    sql, params = expr._output
+    assert sql.startswith('(CASE WHEN ')
+    assert ' THEN ' in sql
+    assert ' ELSE ' in sql
+    assert sql.endswith(' END)')
+    assert 'IIF' not in sql.upper()
+    # params order: cond → then → else
+    assert params == [True, 'inactive']
+    # qualified column names appear with double quotes
+    assert users_if.name.name in sql
+    assert users_if.active.name in sql
+
+
+def test_Ifsql_then_literal_else_column(users_if):
+    """When the `then` branch is a literal, its `%s` comes before `else`."""
+    expr = (
+        Postgresql.LiteralValue('n/a')
+        .If(users_if.age == None)
+        .Else(users_if.age)
+    )
+    sql, params = expr._output
+    assert sql == (
+        f'(CASE WHEN ({users_if.age.name} IS NULL) '
+        f'THEN %s ELSE {users_if.age.name} END)'
+    )
+    assert params == ['n/a']
+
+
+def test_Ifsql_then_and_else_both_columns(users_if):
+    """Both branches are Columns — no extra params consumed."""
+    expr = users_if.name.If(users_if.active == True).Else(users_if.name)
+    sql, params = expr._output
+    assert sql == (
+        f'(CASE WHEN ({users_if.active.name} = %s) '
+        f'THEN {users_if.name.name} ELSE {users_if.name.name} END)'
+    )
+    assert params == [True]
+
+
+def test_Ifsql_then_and_else_both_operations(users_if):
+    """Both branches are ColumnsOperation expressions."""
+    expr = (
+        users_if.name.upper()
+        .If(users_if.active == True)
+        .Else(users_if.name.lower())
+    )
+    sql, params = expr._output
+    assert f'(UPPER({users_if.name.name}))' in sql
+    assert f'(LOWER({users_if.name.name}))' in sql
+    assert params == [True]
+
+
+# ------------------------------------------------------ functional
+
+def test_If01_column_then_literal_else(users_if):
+    res = users_if.get_row(
+        [users_if.name.If(users_if.active == True).Else('inactive')],
+        order_by=users_if.id,
+    )
+    assert res == ['Ali', 'Reza', 'inactive', None, 'inactive']
+
+
+def test_If02_literal_then_column_else(users_if):
+    res = users_if.get_row(
+        [Postgresql.LiteralValue('n/a').If(users_if.age == None).Else(users_if.age)],
+        order_by=users_if.id,
+    )
+    assert res == [30, 17, 25, 40, 'n/a']
+
+
+def test_If03_raw_condition_auto_wrapped(users_if):
+    """Raw Python truthy/falsy gets wrapped in LiteralValue."""
+    res_true = users_if.get_row(
+        [users_if.name.If(True).Else('never')],
+        order_by=users_if.id,
+    )
+    assert res_true == ['Ali', 'Reza', 'Sara', None, 'Nima']
+
+    res_false = users_if.get_row(
+        [users_if.name.If(False).Else('always')],
+        order_by=users_if.id,
+    )
+    assert res_false == ['always', 'always', 'always', 'always', 'always']
+
+
+def test_If04_expression_branches(users_if):
+    expr = (
+        users_if.name.upper()
+        .If(users_if.active == True)
+        .Else(users_if.name.lower())
+    )
+    res = users_if.get_row([expr], order_by=users_if.id)
+    assert res == ['ALI', 'REZA', 'sara', None, 'nima']
+
+
+def test_If05_nested_conditionals(users_if):
+    label = (
+        users_if.name
+        .If(users_if.age == None).Else('has_age')
+        .If(users_if.active == False).Else('active')
+    )
+    res = users_if.get_row([label], order_by=users_if.id)
+    assert res == ['active', 'active', 'has_age', 'active', 'Nima']
+
+
+# ---------------------------------------------------- error handling
+
+def test_If06_forgot_else_raises_runtime_error(users_if):
+    bad = users_if.name.If(users_if.active == True)
+    with pytest.raises(RuntimeError, match="never chained"):
+        users_if.get_row([bad])
+
+
+def test_If09_partial_builder_in_where_raises(users_if):
+    bad = users_if.age.If(users_if.age > 18)
+    with pytest.raises(RuntimeError, match="never chained"):
+        users_if.get_row([users_if.id], where=bad)
+
+
+# ---------------------------------------- keyword form and mixing
+
+def test_If10_keyword_form(users_if):
+    res = users_if.get_row(
+        [users_if.name.If(users_if.active == True).Else('inactive')],
+        order_by=users_if.id,
+    )
+    assert res == ['Ali', 'Reza', 'inactive', None, 'inactive']
+
+
+def test_If11_mixed_keyword_and_underscore_form(users_if):
+    a = users_if.name.If(users_if.active == True).Else('X')
+    b = users_if.name.If(users_if.active == True).Else('Y')
+    res = users_if.get_row([a, b], order_by=users_if.id)
+    assert res == [
+        ('Ali', 'Ali'),
+        ('Reza', 'Reza'),
+        ('X', 'Y'),
+        (None, None),
+        ('X', 'Y'),
+    ]
+
+
+# ------------------------------------ compound conditions
+
+def test_If12_compound_and(users_if):
+    cond = (users_if.active == True) & (users_if.age > 18)
+    res = users_if.get_row(
+        [users_if.name.If(cond).Else('nope')],
+        order_by=users_if.id,
+    )
+    assert res == ['Ali', 'nope', 'nope', None, 'nope']
+
+
+def test_If13_or_condition(users_if):
+    cond = (users_if.age == None) | (users_if.age > 30)
+    res = users_if.get_row(
+        [users_if.name.If(cond).Else('ok')],
+        order_by=users_if.id,
+    )
+    assert res == ['ok', 'ok', 'ok', None, 'Nima']
+
+
+# ------------------------------------------ usage in queries
+
+def test_If14_used_in_where(users_if):
+    label = Postgresql.LiteralValue('inactive').If(users_if.active == False).Else(users_if.name)
+    res = users_if.get_row(
+        [users_if.id],
+        where=label == 'inactive',
+        order_by=users_if.id,
+    )
+    assert res == [3, 5]
+
+
+def test_If15_used_in_update(users_if):
+    users_if.update(
+        {users_if.name: Postgresql.LiteralValue('unknown').If(users_if.name == None).Else(users_if.name)},
+        where=users_if.id > 0,
+    )
+    res = users_if.get_row([users_if.name], order_by=users_if.id)
+    assert res == ['Ali', 'Reza', 'Sara', 'unknown', 'Nima']
+
+
+def test_If16_used_in_batch_update(users_if):
+    batch = users_if.batch()
+    batch.update(
+        {users_if.name: Postgresql.LiteralValue('unknown').If(users_if.name == None).Else(users_if.name)},
+        where=users_if.id > 0,
+    )
+    batch.run()
+    res = users_if.get_row([users_if.name], order_by=users_if.id)
+    assert res == ['Ali', 'Reza', 'Sara', 'unknown', 'Nima']
+
+
+def test_If17_used_in_delete(users_if):
+    # '' if name is not NULL, otherwise name
+    label = Postgresql.LiteralValue('').If(users_if.name != None).Else(users_if.name)
+    users_if.delete_row(label == '')
+    res = users_if.get_row([users_if.id], order_by=users_if.id)
+    assert res == [4]
+
+
+# ---------------------------------------------- chaining
+
+def test_If18_chained_string_method(users_if):
+    expr = users_if.name.If(users_if.active == True).Else('inactive').upper()
+    res = users_if.get_row([expr], order_by=users_if.id)
+    assert res == ['ALI', 'REZA', 'INACTIVE', None, 'INACTIVE']
+
+
+def test_If19_conditional_with_str_concat(users_if):
+    expr = (
+        Postgresql.LiteralValue('unknown')
+        .If(users_if.name == None)
+        .Else(users_if.name)
+        .add_end('!')
+    )
+    res = users_if.get_row([expr], order_by=users_if.id)
+    assert res == ['Ali!', 'Reza!', 'Sara!', 'unknown!', 'Nima!']
+
+
+def test_If20_arithmetic_on_conditional(users_if):
+    expr = Postgresql.LiteralValue(0).If(users_if.age == None).Else(users_if.age) + 1
+    res = users_if.get_row([expr], order_by=users_if.id)
+    assert res == [31, 18, 26, 41, 1]
+
+
+def test_If21_used_in_order_by(users_if):
+    # Rows with NULL name get 'zzz', everything else keeps its name
+    label = users_if.name.If(users_if.name == None).Else(Postgresql.LiteralValue('zzz'))
+    # names after ternary: 'Ali', 'Reza', 'Sara', 'zzz', 'Nima'
+    # sorted ascending: Ali(1), Nima(5), Reza(2), Sara(3), zzz(4)
+    res = users_if.get_row([users_if.id], order_by=label)
+    assert res == [1, 5, 2, 3, 4]
+
+
+# ----------------------------------------- type / value
+
+def test_If22_both_branches_literal(users_if):
+    res = users_if.get_row(
+        [Postgresql.LiteralValue('yes').If(users_if.active == True).Else(Postgresql.LiteralValue('no'))],
+        order_by=users_if.id,
+    )
+    assert res == ['yes', 'yes', 'no', 'yes', 'no']
+
+
+def test_If23_int_branches(users_if):
+    res = users_if.get_row(
+        [Postgresql.LiteralValue(0).If(users_if.age == None).Else(users_if.age)],
+        order_by=users_if.id,
+    )
+    assert res == [30, 17, 25, 40, 0]
+
+
+def test_If24_empty_string_else(users_if):
+    res = users_if.get_row(
+        [users_if.name.If(users_if.name == None).Else(Postgresql.LiteralValue(''))],
+        order_by=users_if.id,
+    )
+    assert res == ['', '', '', None, '']
+
+
+def test_If25_current_datatype_is_none(users_if):
+    label = users_if.name.If(users_if.active == True).Else(Postgresql.LiteralValue(0))
+    assert label.current_datatype is None
+
+
+def test_If26_multiple_conditionals_in_select(users_if):
+    a = users_if.name.If(users_if.active == True).Else('X')
+    b = users_if.age.If(users_if.age == None).Else(Postgresql.LiteralValue(-1))
+    res = users_if.get_row([a, b], order_by=users_if.id)
+    assert res == [
+        ('Ali', 30),
+        ('Reza', 17),
+        ('X', 25),
+        (None, 40),
+        ('X', -1),
+    ]
+
+
+# ------------------------------------------ joins
+
+def test_If27_conditional_in_join(in_driver, users_if):
+    name = f"orders_If{uuid.uuid4().hex[:8]}"
+    s = Postgresql.TableStructure(name)
+    s.add_column("id",      Postgresql.DataTypes.INTEGER(), primary_key=True)
+    s.add_column("user_id", Postgresql.DataTypes.INTEGER())
+    s.add_column("total",   Postgresql.DataTypes.REAL())
+    in_driver.create_table(s)
+    orders = getattr(in_driver, name)
+    orders.bulk_insert(
+        [orders.id, orders.user_id, orders.total],
+        [(100, 1, 50.0), (101, 3, 0.0)]
+    )
+    expr = users_if.name.If(orders.total == 0).Else(users_if.name)
+    try:
+        res = (users_if
+               .inner_join(orders, users_if.id == orders.user_id)
+               .get_row([expr], order_by=users_if.id))
+        # id=1: total=50 -> else -> 'Ali'
+        # id=3: total=0  -> then -> 'Sara'
+        assert res == [('Ali',), ('Sara',)]
+    finally:
+        try:
+            in_driver.delete_table(orders, True, True, True)
+        except Exception:
+            pass
+
+
+# -------------------------------------- LiteralValue API
+
+def test_If28_literal_value_exported():
+    """LiteralValue is importable from the public Postgresql package."""
+    assert hasattr(Postgresql, 'LiteralValue')
+    lv = Postgresql.LiteralValue('hello')
+    assert lv._output == ('%s', ['hello'])
+
+
+def test_If29_literal_value_arithmetic():
+    lv = Postgresql.LiteralValue(100)
+    expr = lv - 1
+    assert expr._output == ('(%s - %s)', [100, 1])
+
+
+def test_If30_literal_value_string_methods():
+    lv = Postgresql.LiteralValue('hello').upper()
+    assert lv._output == ('(UPPER(%s))', ['hello'])
+
+
+def test_If31_literal_value_in_where(users_if):
+    """A LiteralValue can be used as the left side of a WHERE condition."""
+    res = users_if.get_row(
+        [users_if.name],
+        where=Postgresql.LiteralValue(1) == users_if.id,
+        order_by=users_if.id,
+    )
+    assert res == ['Ali']
+    
 @pytest.fixture(scope="module")
 def in_driver():
     """One driver for the whole module; creates the DB if it doesn't exist."""
@@ -1517,7 +1895,7 @@ def test_51_create_table_basic(driver):
     driver.create_table(schema)
     assert 't51' in driver.get_tables()
     assert hasattr(driver, 't51')
-def test_52_create_table_if_not_exists_logic(driver):
+def test_52_create_table_Ifnot_exists_logic(driver):
     
     schema = Postgresql.TableStructure('t51')
     schema.add_column('id', Postgresql.DataTypes.INTEGER(), primary_key=True)
@@ -3786,12 +4164,6 @@ def test_434_delete_with_subquery(driver_upd):
     res = tbl.get_row([tbl.id], where=tbl.name == 'SubDel')
     assert len(res) == 0
 def test_437_delete_violates_foreign_key(driver_upd):
-    
-    
-    
-    
-    
-    
     parent = driver_upd.fk_parent
     child = driver_upd.fk_child
     parent.insert({parent.id: 100})

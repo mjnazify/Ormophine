@@ -569,6 +569,36 @@ from typing import Any, Literal
 from threading import Thread, Event
 from queue import SimpleQueue
 
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
+
+
+from . import SetPragma, TableStructure, Table
+from traceback import print_exc
+from time import sleep
+from sqlite3 import connect
+from typing import Any, Literal
+from threading import Thread, Event
+from queue import SimpleQueue
+
 class Driver:
     """
     Comprehensive SQLite Driver for Ormophine.
@@ -1409,7 +1439,278 @@ class Driver:
 
 
 from __future__ import annotations
+from .. import Column, ColumnsOperation
+
+
+class Builtins:
+    """
+    SQL function helpers that always return a ColumnsOperation.
+
+    current_datatype rule (matches how ColumnsOperation.__add__ picks
+    between '||' and '+'):
+        - SQL function returns TEXT   -> current_datatype = str
+        - SQL function returns NUMBER -> current_datatype = int / float
+        - SQL function result depends on input (MIN, MAX, SUM, ABS, Func)
+          -> propagate the input's datatype, with a numeric fallback when
+             the input is not numeric.
+    """
+
+    class _NullCol:
+        datatype   = None
+        table_obj  = None
+        name       = ''
+        first_name = ''
+
+    @staticmethod
+    def _normalize(value):
+        if isinstance(value, ColumnsOperation):
+            raw    = value._output[1]
+            params = list(raw) if isinstance(raw, list) else [raw]
+            return (
+                value._output[0],
+                params,
+                value.current_datatype,
+                value.col_obj if value.col_obj is not None else Builtins._NullCol,
+            )
+        if isinstance(value, Column):
+            return value.name, [], value.datatype, value
+        return '?', [value], type(value), Builtins._NullCol
+
+    @staticmethod
+    def _make(sql, params, datatype, col_obj):
+        op = ColumnsOperation.__new__(ColumnsOperation)
+        op._output          = (sql, params)
+        op.col_obj          = col_obj if col_obj is not None else Builtins._NullCol
+        op.current_datatype = datatype
+        return op
+
+    # ------------------------------------------------------------------
+    # Numeric-returning functions
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def Len(value):
+        """LENGTH(x) -> always INTEGER."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(LENGTH({sql}))', p, int, c)
+
+    @staticmethod
+    def Sum(value):
+        """SUM(x) -> INTEGER for int input, REAL otherwise."""
+        sql, p, dt, c = Builtins._normalize(value)
+        result_dt = dt if dt in (int, float) else int
+        return Builtins._make(f'(SUM({sql}))', p, result_dt, c)
+
+    @staticmethod
+    def Avg(value):
+        """AVG(x) -> always REAL (SQLite returns a float)."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(AVG({sql}))', p, float, c)
+
+    @staticmethod
+    def Min(value):
+        """MIN(x) -> same type as input."""
+        sql, p, dt, c = Builtins._normalize(value)
+        return Builtins._make(f'(MIN({sql}))', p, dt, c)
+
+    @staticmethod
+    def Max(value):
+        """MAX(x) -> same type as input."""
+        sql, p, dt, c = Builtins._normalize(value)
+        return Builtins._make(f'(MAX({sql}))', p, dt, c)
+
+    @staticmethod
+    def Count(value):
+        """COUNT(*) / COUNT(x) -> always INTEGER."""
+        if isinstance(value, str) and value == '*':
+            return Builtins._make('(COUNT(*))', [], int, Builtins._NullCol)
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(COUNT({sql}))', p, int, c)
+
+    @staticmethod
+    def Abs(value):
+        """ABS(x) -> INTEGER for int input, REAL otherwise."""
+        sql, p, dt, c = Builtins._normalize(value)
+        result_dt = dt if dt in (int, float) else float
+        return Builtins._make(f'(ABS({sql}))', p, result_dt, c)
+
+    @staticmethod
+    def Round(value):
+        """ROUND(x) -> always REAL in SQLite."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(ROUND({sql}))', p, float, c)
+
+    @staticmethod
+    def Int(value):
+        """CAST(x AS INTEGER) -> INTEGER."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(CAST({sql} AS INTEGER))', p, int, c)
+
+    @staticmethod
+    def Float(value):
+        """CAST(x AS REAL) -> REAL."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(CAST({sql} AS REAL))', p, float, c)
+
+    @staticmethod
+    def Str(value):
+        """CAST(x AS TEXT) -> TEXT."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(CAST({sql} AS TEXT))', p, str, c)
+
+    @staticmethod
+    def Bool(value):
+        """CAST(x AS INTEGER) but declared BOOLEAN -> INTEGER."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(CAST({sql} AS INTEGER))', p, int, c)
+
+    @staticmethod
+    def TypeOf(value):
+        """TYPEOF(x) -> 'null' / 'integer' / 'real' / 'text' / 'blob'."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(TYPEOF({sql}))', p, str, c)
+
+    @staticmethod
+    def Sign(value):
+        """SIGN(x) -> INTEGER (-1, 0, 1). SQLite >= 3.35."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(SIGN({sql}))', p, int, c)
+
+    @staticmethod
+    def Floor(value):
+        """CAST(x AS INTEGER) when x >= 0, else (CAST(x AS INTEGER) - (x != CAST(x AS INTEGER)))."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(FLOOR({sql}))', p, int, c)   # SQLite >= 3.35
+
+    @staticmethod
+    def Ceil(value):
+        """CEIL(x) -> INTEGER. SQLite >= 3.35."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(CEIL({sql}))', p, int, c)
+
+    @staticmethod
+    def Sqrt(value):
+        """SQRT(x) -> REAL. SQLite >= 3.35."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(SQRT({sql}))', p, float, c)
+
+    @staticmethod
+    def Pow(base, exp):
+        """POW(a, b) -> REAL. Takes two operands (like Python's pow())."""
+        s1, p1, dt1, c1 = Builtins._normalize(base)
+        s2, p2, _,  _  = Builtins._normalize(exp)
+        return Builtins._make(f'(POW({s1}, {s2}))', p1 + p2, float, c1)
+
+    @staticmethod
+    def Find(value, sub):
+        """INSTR(x, sub) -> 1-based position, or 0 if not found. (Python's str.find is 0-based -1)."""
+        s1, p1, _, c = Builtins._normalize(value)
+        s2, p2, _, _ = Builtins._normalize(sub)
+        return Builtins._make(f'(INSTR({s1}, {s2}))', p1 + p2, int, c)
+
+    @staticmethod
+    def Reverse(value):
+        """REVERSE(x) -> TEXT. SQLite >= 3.44."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(REVERSE({sql}))', p, str, c)
+
+    @staticmethod
+    def Format(fmt, *args):
+        """Python-style %-formatting; maps to SQLite PRINTF/FORMAT. Variadic."""
+        s0, p0, _, c = Builtins._normalize(fmt)
+        parts, params = [s0], list(p0)
+        for v in args:
+            s, p, _, _ = Builtins._normalize(v)
+            parts.append(s); params.extend(p)
+        return Builtins._make(f'(PRINTF({", ".join(parts)}))', params, str, c)
+
+    @staticmethod
+    def Capitalize(value):
+        """UPPER of first char + LOWER of the rest."""
+        sql, p, _, c = Builtins._normalize(value)
+        # SQLite has no direct equivalent; use a two-step expression.
+        inner = f'UPPER(SUBSTR({sql}, 1, 1)) || LOWER(SUBSTR({sql}, 2))'
+        return Builtins._make(f'({inner})', p, str, c)
+
+    @staticmethod
+    def Total(value):
+        """TOTAL(x) -> REAL. Like SUM but returns 0.0 (not NULL) for empty groups."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(TOTAL({sql}))', p, float, c)
+
+    @staticmethod
+    def IsNull(value):
+        """IS NULL predicate."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(({sql}) IS NULL)', p, int, c)
+
+    @staticmethod
+    def IsNotNull(value):
+        """IS NOT NULL predicate."""
+        sql, p, _, c = Builtins._normalize(value)
+        return Builtins._make(f'(({sql}) IS NOT NULL)', p, int, c)
+
+    @staticmethod
+    def Between(value, low, high):
+        """x BETWEEN low AND high."""
+        s,  p,  _,  c  = Builtins._normalize(value)
+        lo, lp, _,  _  = Builtins._normalize(low)
+        hi, hp, _,  _  = Builtins._normalize(high)
+        return Builtins._make(f'(({s}) BETWEEN {lo} AND {hi})', p + lp + hp, int, c)
+
+    @staticmethod
+    def IIf(condition, then_value, else_value):
+        """IIF(cond, a, b) -> a if cond else b. SQLite >= 3.32."""
+        cs, cp, _, c = Builtins._normalize(condition)
+        ts, tp, _, _ = Builtins._normalize(then_value)
+        es, ep, _, _ = Builtins._normalize(else_value)
+        return Builtins._make(f'(IIF({cs}, {ts}, {es}))', cp + tp + ep, None, c)
+
+from __future__ import annotations
 from queue import SimpleQueue
+
+
+class _NullCol:
+    """
+    Fallback ``col_obj`` used when a ColumnsOperation-shaped object has no
+    originating Column.
+
+    Every method of :class:`ColumnsOperation` reads ``self.col_obj.datatype``
+    (for operator overloads like ``__add__``) or ``self.col_obj.name`` /
+    ``self.col_obj.first_name`` (as a fallback when ``_output`` is empty).
+    When an expression is built from a raw literal — e.g. inside
+    :class:`LiteralValue` or from :meth:`Builtins.Len` applied to a plain
+    number — there is no Column behind it, so this stub supplies the same
+    attribute surface with neutral values.
+
+    Attributes:
+        datatype (None): Always ``None``. Operators that compare against
+            ``str`` / ``int`` / ``float`` therefore take the "not string"
+            branch, which is the conservative choice for unknown values.
+        name (str): Empty string. Used only when an operator falls through
+            to the "no ``_output`` yet" branch, which should never happen
+            for well-formed expressions.
+        first_name (str): Empty string. Same purpose as ``name``.
+        table_obj (type): A tiny namespace class that exposes
+            ``_PlaceHolder = type(None)`` so that ``isinstance(x, ...)``
+            checks in ``ColumnsOperation`` never accidentally match a real
+            ``_PlaceHolder`` marker.
+
+    Example:
+        Normally instantiated indirectly. It appears whenever you build an
+        expression from a bare literal::
+
+            from Ormophine.Sqlite import LiteralValue
+
+            op = LiteralValue('hello').upper()
+            # op.col_obj is a _NullCol instance, op._output == ("(upper(?))", ['hello'])
+    """
+    datatype   = None
+    name       = ''
+    first_name = ''
+    class table_obj:
+        _PlaceHolder = type(None)   # Nothing isinstance-matches this
+
 
 class ColumnsOperation:
     """
@@ -3811,7 +4112,331 @@ class ColumnsOperation:
         new_op._output = (f'({self._output[0]} NOT IN ({", ".join(["?" for _ in data_list])}))', self._output[1] + data_list) if data_list is not None else (f'({self._output[0]} NOT IN (SELECT {column.name if isinstance(column, Column) else column._output[0]} FROM {(column.name if isinstance(column, Column) else column.col_obj.name).split('.')[0]}{f' WHERE {where._output[0]}' if isinstance(where, ColumnsOperation) else f' WHERE {where.name}' if isinstance(where, Column) else ''}))', self._output[1] + ([] if isinstance(column, Column) else column._output[1]) + (where._output[1] if isinstance(where, ColumnsOperation) else [])) if isinstance(column, (Column, ColumnsOperation)) else None
             
         return new_op
+
+    def if_(self, condition):
+        """
+        Start a one-line conditional expression: ``then if cond else other``.
+
+        This method begins a Python-style ternary conditional that is
+        rendered to SQL using SQLite's ``IIF(cond, then, else)`` function.
+        It returns an intermediate :class:`_IfThenBuilder` object whose
+        ``_output`` attribute is intentionally blocked; the only way to
+        obtain a usable :class:`ColumnsOperation` is to chain
+        :meth:`_IfThenBuilder.else_`.
+
+        This design guarantees that a forgotten ``.else_()`` cannot silently
+        produce malformed SQL — any attempt to read ``_output`` (for example
+        by passing the builder to :meth:`Table.get_row`) raises a clear
+        :class:`RuntimeError`.
+
+        Args:
+            condition: The condition that decides which branch is returned.
+                May be any of:
+
+                - A :class:`ColumnsOperation` produced by a comparison such
+                  as ``users.age > 18``, ``users.name.eq('Alice')``,
+                  ``(users.a == 1) & (users.b == 2)``, etc.
+                - A :class:`Column` (used directly, e.g. a boolean column).
+                - A raw Python value (``True``, ``False``, ``1``, ``0``,
+                  ``'x'``, ...). It is wrapped in :class:`LiteralValue`
+                  automatically, so ``col.if_(True).else_(x)`` is valid.
+
+        Returns:
+            :class:`_IfThenBuilder`: An intermediate builder holding the
+            *then* branch (``self``) and the *condition*. It exposes only
+            :meth:`_IfThenBuilder.else_` (also available as ``.else``).
+
+        Raises:
+            RuntimeError: Not raised by this method itself. However, if the
+                returned builder is used without calling ``.else_()``, any
+                later access to ``builder._output`` raises
+                ``RuntimeError`` with a descriptive message.
+
+        Example:
+            Assuming a ``users`` table with columns ``name``, ``nickname``,
+            and ``age``::
+
+                from ormophine.Sqlite import Driver, Builtins
+
+                db = Driver('app.db')
+                users = db.users
+
+                # Simple ternary: if name is longer than 20 chars, show
+                # the first 20, otherwise show 'short'.
+                rows = users.get_row([
+                    users.name.if_(Builtins.Len(users.name) > 20).else_('short')
+                ])
+                # Equivalent SQL:
+                #   SELECT IIF((LENGTH([users].[name]) > ?),
+                #              [users].[name],
+                #              ?)
+                #   FROM [users]
+                # Parameters: [20, 'short']
+
+                # Use a boolean column as the condition
+                rows = users.get_row([
+                    users.nickname.if_(users.is_active).else_(users.name)
+                ])
+                # SELECT IIF([users].[is_active], [users].[nickname], [users].[name])
+
+                # Raw truthy condition, wrapped automatically as LiteralValue
+                rows = users.get_row([
+                    users.name.if_(True).else_('never returned')
+                ])
+                # SELECT IIF(?, [users].[name], ?)
+
+                # Nested: chain two conditionals
+                label = (
+                    users.name
+                    .if_(users.role == 'admin').else_('user')
+                    .if_(users.is_active == 1).else_('inactive')
+                )
+                # SELECT IIF(([users].[is_active] = ?),
+                #            IIF(([users].[role] = ?), [users].[name], ?),
+                #            ?)
+        """
+        return _IfThenBuilder(
+            self,
+            condition if isinstance(condition, (ColumnsOperation, Column)) else LiteralValue(condition)
+        )
     
+
+class LiteralValue(ColumnsOperation):
+    """
+    Wrap a raw Python value inside a ColumnsOperation-shaped object.
+
+    In some expression chains a plain literal needs to act as the *left-hand
+    side* of an operation — most notably as the "then" branch of a
+    conditional (``LiteralValue('n/a').if_(cond).else_(col)``). A bare
+    Python string or number does not have ``.if_()``, ``.add_end()``,
+    ``.upper()``, or any of the other ColumnsOperation methods, so this
+    class gives raw values the full expression API by pretending to be a
+    ColumnsOperation whose ``_output`` is exactly one ``?`` placeholder.
+
+    The class subclasses :class:`ColumnsOperation` but deliberately does
+    **not** call ``super().__init__()`` — because the parent's constructor
+    would reset ``_output`` to ``('', [])`` and erase the wrapped value.
+    Every other method inherited from :class:`ColumnsOperation` reads
+    ``self._output`` first, so the entire expression API works unchanged on
+    a LiteralValue.
+
+    Attributes:
+        _output (tuple[str, list]): Always ``('?', [wrapped_value])``.
+        col_obj (_NullCol): A stub in place of a real parent Column.
+        current_datatype (type): ``type(wrapped_value)`` — e.g. ``str`` for
+            strings, ``int`` for integers, ``bool`` for booleans.
+
+    Example:
+        Basic wrapping and chaining::
+
+            from Ormophine.Sqlite import LiteralValue
+
+            # 1. As the "then" branch of a conditional
+            label = LiteralValue('n/a').if_(users.age == None).else_(users.age)
+            # label._output[0] -> "(IIF(([users].[age] IS NULL), ?, [users].[age]))"
+            # label._output[1] -> ['n/a']
+
+            # 2. Arithmetic on the left
+            expr = LiteralValue(100) - users.score
+            # expr._output[0] -> "(? - [users].[score])"
+            # expr._output[1] -> [100]
+
+            # 3. String methods
+            expr = LiteralValue('hello').upper()
+            # expr._output[0] -> "(upper(?))"
+            # expr._output[1] -> ['hello']
+
+            # 4. As a WHERE operand
+            users.get_row([users.name], where=LiteralValue(1) == users.active)
+            # SELECT [users].[name] FROM [users] WHERE (? = [users].[active])
+    """
+
+    def __init__(self, value):
+        """
+        Wrap a Python value in a ColumnsOperation-compatible shell.
+
+        The value is stored as a single ``?`` placeholder in ``_output`` so
+        that the sqlite3 driver will bind it safely when the query is
+        executed. No conversion, no quoting, no special-casing of types —
+        whatever you pass is what will be bound.
+
+        Args:
+            value: The value to wrap. Any Python object is accepted; the
+                only requirement is that sqlite3 can bind it later
+                (``str``, ``int``, ``float``, ``bool``, ``None``, ``bytes``
+                are the standard DB-API compatible types).
+
+        Example:
+            >>> LiteralValue('Alice')._output
+            ('?', ['Alice'])
+            >>> LiteralValue(42)._output
+            ('?', [42])
+            >>> LiteralValue(None)._output
+            ('?', [None])
+        """
+        self._output          = ('?', [value])
+        self.col_obj          = _NullCol
+        self.current_datatype = type(value)
+
+
+class _IfThenBuilder:
+    """
+    Intermediate builder returned by :meth:`ColumnsOperation.if_`.
+
+    This class represents the "then" half of a one-line ternary expression.
+    It is created exclusively by :meth:`ColumnsOperation.if_` (or the
+    equivalent method on :class:`Column`) and is not intended to be
+    instantiated directly.
+
+    Its sole purpose is to enforce the "``.if_(...).else_(...)``" calling
+    pattern. The ``_output`` attribute is deliberately implemented as a
+    property that raises :class:`RuntimeError`, so that a forgotten
+    ``.else_()`` is caught immediately — before any SQL is sent to the
+    database.
+
+    Attributes:
+        _then (ColumnsOperation): The expression selected when the condition
+            is true. Usually the receiver of the original ``.if_(...)`` call.
+        _cond (ColumnsOperation | Column): The condition. ``Column`` inputs
+            are used directly; literals were already wrapped in
+            :class:`LiteralValue` by ``.if_()``.
+
+    Example:
+        Normally created and consumed in a single chained statement::
+
+            users.name.if_(Builtins.Len(users.name) > 20).else_('short')
+
+        If the user forgets ``.else_()``::
+
+            bad = users.name.if_(Builtins.Len(users.name) > 20)
+            users.get_row([bad])
+            # RuntimeError: You called `.if_(condition)` but never chained
+            #               `.else_(value)`. Complete the conditional, e.g.
+            #               `col.if_(cond).else_(other)`.
+    """
+
+    def __init__(self, then_branch, condition):
+        """
+        Initialize the "then" half of a conditional expression.
+
+        This constructor is called internally by
+        :meth:`ColumnsOperation.if_` and :meth:`Column.if_`. Prefer those
+        entry points over instantiating this class directly.
+
+        Args:
+            then_branch (ColumnsOperation): The expression evaluated when
+                the condition is true. Typically the receiver of the
+                originating ``.if_(...)`` call.
+            condition (ColumnsOperation | Column): The condition expression.
+                Already normalised by the caller (a ``LiteralValue`` if the
+                original input was a raw Python value).
+
+        Example:
+            Called indirectly::
+
+                builder = users.name.if_(users.age > 18)
+                # builder._then is the ColumnsOperation for `users.name`
+                # builder._cond is the ColumnsOperation for `(users.age > 18)`
+        """
+        self._then = then_branch
+        self._cond = condition
+
+    @property
+    def _output(self):
+        """
+        Block direct access to ``_output`` to enforce ``.else_()``.
+
+        Unlike a real :class:`ColumnsOperation`, this class does not have a
+        usable ``_output`` attribute. Any attempt to read it — whether from
+        user code, from :meth:`Table.get_row`, from :meth:`Table.update`, or
+        from any other method that consumes expressions — raises a
+        :class:`RuntimeError` describing the missing ``.else_()``.
+
+        Returns:
+            Never returns normally.
+
+        Raises:
+            RuntimeError: Always. The message explains that ``.else_(value)``
+                must be chained after ``.if_(condition)``.
+        """
+        raise RuntimeError(
+            "You called `.if_(condition)` but never chained `.else_(value)`. "
+            "Complete the conditional, e.g. `col.if_(cond).else_(other)`."
+        )
+
+    def else_(self, value):
+        """
+        Complete the conditional with the "else" branch.
+
+        Combines the previously-stored condition and "then" branch with the
+        supplied "else" branch into a single :class:`ColumnsOperation` whose
+        ``_output`` is ``IIF(cond, then, else)``. All parameter values are
+        concatenated in left-to-right order: condition first, then the
+        "then" branch, then the "else" branch.
+
+        Args:
+            value: The expression to return when the condition is false.
+                May be any of:
+
+                - A :class:`ColumnsOperation` — its SQL fragment and
+                  parameters are inlined.
+                - A :class:`Column` — its fully qualified name is inlined;
+                  no parameters are consumed.
+                - A raw Python value (``str``, ``int``, ``float``, ``bool``,
+                  ``None``, ...) — bound as a ``?`` placeholder.
+
+        Returns:
+            :class:`ColumnsOperation`: A fully-formed expression whose
+            ``_output[0]`` is ``(IIF(<cond>, <then>, <else>))`` and whose
+            ``_output[1]`` contains every accumulated parameter.
+
+        Raises:
+            Nothing directly. Downstream use of the returned expression in a
+                query may raise database errors if the two branches have
+                incompatible types for the surrounding SQL context.
+
+        Note:
+            ``current_datatype`` on the returned operation is set to
+            ``None`` because the two branches may disagree (e.g.
+            ``users.name`` → ``str`` vs ``LiteralValue(0)`` → ``int``).
+            This is the same conservative rule used by :class:`Builtins`
+            for functions whose return type depends on arguments.
+
+        Example:
+            Assuming a ``users`` table::
+
+                # then = Column, else = literal
+                expr = users.name.if_(users.is_active == 1).else_('inactive')
+                # expr._output[0] -> "(IIF(([users].[is_active] = ?), [users].[name], ?))"
+                # expr._output[1] -> [1, 'inactive']
+
+                # then = literal, else = Column
+                expr = LiteralValue('n/a').if_(users.age == None).else_(users.age)
+                # expr._output[0] -> "(IIF(([users].[age] IS NULL), ?, [users].[age]))"
+                # expr._output[1] -> ['n/a']
+
+                # then and else are both expressions
+                expr = (
+                    users.name.upper()
+                    .if_(users.is_admin == 1)
+                    .else_(users.name.lower())
+                )
+                # expr._output[0] -> "(IIF(([users].[is_admin] = ?), (upper([users].[name])), (lower([users].[name]))))"
+        """
+        new_op = ColumnsOperation(self._then.col_obj)
+        new_op._output = (
+            f'(IIF({self._cond._output[0]}, {self._then._output[0]}, {value._output[0]}))',
+            self._cond._output[1] + self._then._output[1] + value._output[1]
+        ) if isinstance(value, ColumnsOperation) else (
+            f'(IIF({self._cond._output[0]}, {self._then._output[0]}, {value.name}))',
+            self._cond._output[1] + self._then._output[1]
+        ) if isinstance(value, Column) else (
+            f'(IIF({self._cond._output[0]}, {self._then._output[0]}, ?))',
+            self._cond._output[1] + self._then._output[1] + [value]
+        )
+        new_op.current_datatype = None
+        return new_op
+
     
 class Column:
     """Represents a database column in the SQLite ORM.
@@ -5934,7 +6559,61 @@ class Column:
         op = ColumnsOperation(self)
         op._output = (self.name, [])
         return op.not_In(column=column, where=where, data_list=data_list)
-        
+
+    def if_(self, condition):
+        """
+        Start a one-line conditional expression with this column as the
+        "then" branch.
+
+        This is the :class:`Column`-level entry point for the same
+        ``.if_().else_()`` pattern provided by
+        :meth:`ColumnsOperation.if_`. It wraps the column in a fresh
+        :class:`ColumnsOperation` and delegates immediately, so the
+        behaviour is identical: a :class:`_IfThenBuilder` is returned and
+        ``.else_(value)`` must be chained to complete the expression.
+
+        Args:
+            condition: The condition that selects between this column and
+                the "else" branch. May be a :class:`ColumnsOperation`, a
+                :class:`Column`, or a raw Python value (wrapped
+                automatically in :class:`LiteralValue`).
+
+        Returns:
+            :class:`_IfThenBuilder`: An intermediate builder. Chain
+            ``.else_(value)`` to obtain a usable
+            :class:`ColumnsOperation`.
+
+        Raises:
+            RuntimeError: Only if the resulting builder is used without
+                calling ``.else_()``.
+
+        Example:
+            Assuming a ``users`` table::
+
+                from ormophine.Sqlite import Driver, Builtins
+
+                db = Driver('app.db')
+                users = db.users
+
+                # Column as the "then" branch
+                rows = users.get_row([
+                    users.name.if_(users.is_active == 1).else_('inactive')
+                ])
+                # SELECT IIF(([users].[is_active] = ?), [users].[name], ?)
+                #                FROM [users]
+                # Parameters: [1, 'inactive']
+
+                # Combine with other expressions
+                label = users.name.if_(Builtins.Len(users.name) > 20).else_('short')
+                upper_label = label.upper()
+                rows = users.get_row([upper_label])
+                # SELECT (UPPER(IIF((LENGTH([users].[name]) > ?), [users].[name], ?)))
+                #                FROM [users]
+        """
+        op = ColumnsOperation(self)
+        op._output = (self.name, [])
+        return op.if_(condition)
+
 
 class BatchOperation:
     """
@@ -6257,6 +6936,31 @@ class BatchOperation:
         if not (callback := queue_call_back.get(block=True))[0]:
             raise Exception(callback[1])
 
+
+# ----------------------------------------------------------------------
+# Keyword aliases — allow `.if(...)` / `.else(...)` as well as
+# `.if_(...)` / `.else_(...)`.
+#
+# Inside the class body it is impossible to write `def if(self, ...)` or
+# `def else(self, ...)` because `if` and `else` are Python reserved
+# keywords. However, after a dot, Python's grammar accepts any NAME
+# including keywords, so `obj.if(...)` and `obj.else(...)` work fine at
+# the call site. The assignments below inject the same functions under
+# their keyword-shaped names.
+#
+# Both spellings are equivalent and can be mixed freely:
+#
+#     users.name.if(cond).else('x')     # keyword form
+#     users.name.if_(cond).else_('x')   # trailing-underscore form
+#
+# The trailing-underscore form is recommended when working with linters
+# or IDEs that flag keyword-shaped attribute access.
+# ----------------------------------------------------------------------
+
+
+setattr(ColumnsOperation, 'if',    ColumnsOperation.if_)
+setattr(Column,           'if',    Column.if_)
+setattr(_IfThenBuilder,   'else',  _IfThenBuilder.else_)
 
 from __future__ import annotations
 from queue import SimpleQueue
