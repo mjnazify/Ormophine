@@ -91,4 +91,12 @@ DataTypes
    :inherited-members:
    :member-order: bysource
 
-
+Builtins
+---------
+.. autoclass:: Builtins
+   :no-index:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :inherited-members:
+   :member-order: bysource

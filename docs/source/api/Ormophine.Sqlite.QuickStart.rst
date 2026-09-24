@@ -20,14 +20,13 @@ All core classes are available from the ``Ormophine.Sqlite`` module:
 
 .. code-block:: python
 
-    from Ormophine.Sqlite import Driver, TableStructure, DataTypes, Join
+    from Ormophine.Sqlite import Driver, TableStructure, DataTypes
 
 .. hint::
 
    ``Driver`` manages the connection.  
    ``TableStructure`` defines a table schema.  
    ``DataTypes`` provides typed column definitions with optional constraints.  
-   ``Join`` is used for JOIN queries.
 
 Connecting to a Database
 --------------------------
@@ -148,6 +147,37 @@ Update rows that match a condition. You can assign a constant value or an expres
     users.update(
         update={users.age: users.age + 1},   # using ColumnsOperation
         where=condition
+    )
+
+Python-Style Query Expressions
+--------------------------------
+
+Columns and composed expressions support Python-like string methods, slicing,
+and one-line conditional values. Each expression is translated into
+parameterized SQL and can be selected, filtered, ordered, or used in an update.
+
+.. code-block:: python
+
+    # String methods and slicing
+    display_name = users.username.strip().upper()
+    username_suffix = users.username[-3:]
+    is_alice = users.username.lstrip().startswith("ali")
+    normalized = users.username.replace("-", "_")
+
+    # Python-style: value if condition else fallback
+    label = users.username.If(users.age >= 18).Else("minor")
+
+    rows = users.get_row(
+        which_columns=[display_name, username_suffix, label],
+        where=is_alice,
+        order_by=display_name
+    )
+
+    # Nested conditionals are also composable
+    membership = (
+        users.username
+        .If(users.age >= 18).Else("minor")
+        .If(users.username.startswith("a")).Else("other")
     )
 
 Deleting Data
@@ -280,21 +310,18 @@ Now join ``orders`` with ``products``:
 
 .. code-block:: python
 
-    from Ormophine.Sqlite import Join  # if not already imported
-
-    join_condition = orders.product_id == products.id
-
-    columns = [
-        orders.id,
-        products.name,
-        orders.quantity,
-        products.price * orders.quantity   # total cost
-    ]
-
-    result = orders.join(
-        columns=columns,
-        joins_list=[Join.Inner(products, join_condition)],
-        order_by=orders.id
+    result = (
+        orders
+        .inner_join(products, orders.product_id == products.id)
+        .get_row(
+            [
+                orders.id,
+                products.name,
+                orders.quantity,
+                products.price * orders.quantity,  # total cost
+            ],
+            order_by=orders.id
+        )
     )
 
     for row in result:
@@ -302,4 +329,4 @@ Now join ``orders`` with ``products``:
 
 .. seealso::
 
-   The API Reference covers all available methods for ``Driver``, ``Table``, ``ColumnsOperation``, ``DataTypes``, and ``Join``. Explore it to discover even more functionality like string slicing (``column[1:5]``), regex‑like patterns (``.startswith()``, ``.endswith()``), and bulk operations with placeholders.
+    The API Reference covers all available methods for ``Driver``, ``Table``, ``ColumnsOperation``, and ``DataTypes``. Explore it to discover more functionality like string slicing (``column[1:5]``), ``.upper()``, ``.lstrip()``, ``.rstrip()``, ``.replace()``, ``.startswith()``, ``.endswith()``, ``.contains()``, conditional expressions, and chained joins.

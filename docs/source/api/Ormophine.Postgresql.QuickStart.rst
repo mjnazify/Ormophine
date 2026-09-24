@@ -16,11 +16,11 @@ This guide will get you started with **Ormophine** for PostgreSQL. If you have u
 Import the ORM
 --------------
 
-Everything you need is in ``Ormophine.PostgreSQL``:
+Everything you need is in ``Ormophine.Postgresql``:
 
 .. code-block:: python
 
-    from Ormophine.PostgreSQL import Driver, TableStructure, DataTypes, Join
+    from Ormophine.Postgresql import Driver, TableStructure, DataTypes
 
 Connecting to a Database
 ------------------------
@@ -128,6 +128,37 @@ Building conditions with ``ColumnsOperation``:
     )
     for (username,) in older_users:
         print(username)  # alice, bob, diana
+
+Python-Style Query Expressions
+--------------------------------
+
+Columns and composed expressions support Python-like string methods, slicing,
+and one-line conditional values. Each expression is translated into
+parameterized SQL and can be selected, filtered, ordered, or used in an update.
+
+.. code-block:: python
+
+    # String methods and slicing
+    display_name = users.username.strip().upper()
+    username_suffix = users.username[-3:]
+    is_alice = users.username.lstrip().startswith("ali")
+    normalized = users.username.replace("-", "_")
+
+    # Python-style: value if condition else fallback
+    label = users.username.If(users.age >= 18).Else("minor")
+
+    rows = users.get_row(
+        which_columns=[display_name, username_suffix, label],
+        where=is_alice,
+        order_by=display_name
+    )
+
+    # Nested conditionals are also composable
+    membership = (
+        users.username
+        .If(users.age >= 18).Else("minor")
+        .If(users.username.startswith("a")).Else("other")
+    )
 
 Updating Data
 ---------------
@@ -271,21 +302,18 @@ Now join ``orders`` with ``products``:
 
 .. code-block:: python
 
-    from Ormophine.PostgreSQL import Join  # if not already imported
-
-    join_condition = orders.product_id == products.id
-
-    columns = [
-        orders.id,
-        products.name,
-        orders.quantity,
-        products.price * orders.quantity   # total cost
-    ]
-
-    result = orders.join(
-        columns=columns,
-        joins_list=[Join.Inner(products, join_condition)],
-        order_by=orders.id
+    result = (
+        orders
+        .inner_join(products, orders.product_id == products.id)
+        .get_row(
+            [
+                orders.id,
+                products.name,
+                orders.quantity,
+                products.price * orders.quantity,  # total cost
+            ],
+            order_by=orders.id
+        )
     )
 
     for row in result:
@@ -293,4 +321,4 @@ Now join ``orders`` with ``products``:
 
 .. seealso::
 
-   The PostgreSQL ORM supports all the same operations as the SQLite version: string slicing (``column[1:5]``), pattern matching (``.startswith()``, ``.endswith()``, ``.contains()``), bulk operations with custom placeholders, and many more. Explore the API documentation for full details.
+    The PostgreSQL ORM supports all the same operations as the SQLite version: string slicing (``column[1:5]``), ``.upper()``, ``.lstrip()``, ``.rstrip()``, ``.replace()``, pattern matching (``.startswith()``, ``.endswith()``, ``.contains()``), conditional expressions, chained joins, bulk operations, and many more. Explore the API documentation for full details.
