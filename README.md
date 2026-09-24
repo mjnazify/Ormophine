@@ -1,7 +1,7 @@
 
 # Ormophine
 
-**The simplest Python ORM. Read like Python, run like SQL.**
+**The most simple Python ORM. Read like Python, run like SQL.**
 
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -27,7 +27,10 @@ Ormophine gives you one thing no other ORM does: **you write plain Python, and i
 ```python
 # This is Python. But it's also a SQL query.
 rows = users.get_row(
-    which_columns = [users.name, users.age],
+    which_columns = [
+      (users.firstname + " " + users.lastname).If(users.firstname != None).Else(users.lastname),
+      users.age
+      ],
     where = (users.age >= 18) & users.name.lower().startswith('a'),
     order_by = users.age
 )
@@ -44,7 +47,7 @@ Comprehensive guides, API references, and examples are available at:
 👉 [https://ormophine.readthedocs.io/en/latest/index.html](https://ormophine.readthedocs.io/en/latest/index.html)
 
 🤖 **AI-Powered Assistance**
-To help you write queries and debug your code, Ormophine ships with AI reference files (`Sqlite.AI.Reference.txt`, `MySQL.AI.Reference.txt`, `PostgreSQL.AI.Reference.txt`).
+To help you write queries and debug your code, Ormophine ships with AI reference files (`Sqlite.AI.Refrence.txt`, `MySQL.AI.Refrence.txt`, `PostgreSQL.AI.Refrence.txt`).
 
 You can find these files in the root directory of the installed package. Simply attach the appropriate file to ChatGPT, Claude, or Gemini, ask your question, and the AI will respond using the exact API and behavior of your Ormophine version. It's like having an Ormophine expert on standby!
 
@@ -274,6 +277,122 @@ batch.run() # Executes all and commits in one transaction
 ```
 
 No context managers. No `.execute()` on every line. Just stack your operations and run.
+
+---
+
+### Writing Conditional Values in a Query
+
+Ormophine lets a column expression follow Python's one-line conditional idea:
+the value before `.If()` is returned when the condition is true, and the value
+passed to `.Else()` is returned otherwise.
+
+**SQLAlchemy:**
+*Uses an explicit SQL expression helper rather than a column method*
+```python
+from sqlalchemy import case
+
+display_name = case(
+  (users.c.is_active == 1, users.c.name),
+  else_='inactive'
+)
+stmt = select(display_name)
+```
+
+**PonyORM:**
+*Usually expresses the branching in Python after loading entities*
+```python
+with db_session:
+  rows = [(u.name if u.is_active else 'inactive') for u in User.select()]
+```
+
+**Peewee:**
+*Uses a framework-specific `Case` expression*
+```python
+from peewee import Case
+
+display_name = Case(
+  User.is_active,
+  ((1, User.name),),
+  'inactive'
+)
+rows = User.select(display_name)
+```
+
+**Ormophine:**
+```python
+display_name = (users.name).If(users.is_active == 1).Else('inactive')
+
+rows = users.get_row(
+  [display_name],
+  where=users.name.lstrip().startswith('A')
+)
+```
+
+The conditional remains a composable query expression: it can be selected,
+used in `where`, passed to `update`, nested, or chained with string methods.
+For a function-style spelling, use `Builtins.IIf(condition, then_value,
+else_value)`.
+
+---
+
+### Chained Joins
+
+Joins use the same fluent query expression style. Start from a table, add each
+join with its `ON` condition, and finish with `.get_row()`.
+
+**SQLAlchemy:**
+```python
+stmt = (
+  select(users.c.name, orders.c.amount)
+  .select_from(users)
+  .join(orders, orders.c.user_id == users.c.id)
+  .join(banlist, banlist.c.user_id == users.c.id)
+  .where(banlist.c.id > 20)
+)
+rows = connection.execute(stmt).fetchall()
+```
+
+**PonyORM:**
+```python
+with db_session:
+  rows = select(
+    (u.name, o.amount)
+    for u in User
+    for o in Order
+    if o.user_id == u.id and u.id > 20
+  )[:]
+```
+
+**Peewee:**
+```python
+query = (
+  User
+  .select(User.name, Order.amount)
+  .join(Order, on=(Order.user_id == User.id))
+  .switch(User)
+  .join(Banlist, on=(Banlist.user_id == User.id))
+  .where(Banlist.id > 20)
+)
+rows = list(query.dicts())
+```
+
+**Ormophine:**
+```python
+rows = (
+  users
+  .left_join(orders, orders.user_id == users.id)
+  .inner_join(banlist, banlist.user_id == users.id)
+  .get_row(
+    [users.name, orders.amount],
+    where=banlist.id > 20
+  )
+)
+```
+
+The join builder supports `inner_join`, `left_join`, and `right_join`, can be
+extended with additional joins, and automatically aliases repeated tables.
+SQLite does not support native `RIGHT JOIN`; use an equivalent `left_join`
+with the table order reversed.
 
 ---
 
@@ -617,81 +736,16 @@ users.bulk_insert(
 ### Joins
 
 ```python
-from Ormophine.Sqlite import Join
-
-result = orders.join(
-    columns    = [users.name, orders.amount, orders.date],
-    joins_list = [Join.Inner(users, users.id == orders.user_id)],
-    where      = orders.amount > 100,
-    order_by   = [orders.date]
+result = (
+  users
+  .inner_join(orders, orders.user_id == users.id)
+  .get_row(
+    [users.name, orders.amount, orders.date],
+    where=orders.amount > 100,
+    order_by=orders.date
+  )
 )
 ```
-
-### Schema management
-
-```python
-from Ormophine.Sqlite import TableStructure, DataTypes
-
-schema = TableStructure('products', strict=True)
-schema.add_column('id',    DataTypes.INTEGER(), primary_key=True)
-schema.add_column('title', DataTypes.TEXT(max_length=100), not_null=True, unique=True)
-schema.add_column('price', DataTypes.REAL(), default_value=0.0)
-
-products = db.create_table(schema)
-
-# Add / rename / drop columns dynamically
-products.add_column('stock', DataTypes.INTEGER(), default_value=0, not_null=True)
-products.rename_column(products.stock, 'inventory')
-products.delete_column(products.inventory, True, True, True)
-```
-
-### Safe Deletion & Administration
-
-```python
-# Triple-confirmation flags prevent catastrophic accidental drops
-db.delete_table(db.users, are_you_sure=True, are_you_really_sure=True, for_sure=True)
-
-# Create a new database on the fly during connection (MySQL/PostgreSQL)
-# from Ormophine.Mysql import Driver
-# db = Driver(host='localhost', port=3306, username='root', password='pass', db_name='new_db', create_new_db=True)
-```
-
-### WAL mode and performance tuning (SQLite)
-
-```python
-db.set_WAL_mode(True, wal_timer=60)   # automatic checkpoint every 60 s
-
-db.SetPragma.synchronous('NORMAL')
-db.SetPragma.cache_size(-4000)        # 4 MiB page cache
-db.SetPragma.foreign_keys(True)
-```
-
----
-
-## Python → SQL Reference
-
-This is a small list of Python expressions that Ormophine translates into SQL. Every value is automatically parameterized — SQL injection is prevented by design, not by discipline.
-
-| Python Expression                   | SQL Equivalent                          | What it does                         |
-|-------------------------------------|-----------------------------------------|--------------------------------------|
-| `age > 18`                          | `age > 18`                              | Comparison                           |
-| `(age >= 18) & (age < 65)`          | `age >= 18 AND age < 65`               | Logical AND                          |
-| `age == 18`                         | `age = 18`                              | Equality                             |
-| `name.startswith('A')`              | `name LIKE 'A%'`                        | Prefix match                         |
-| `name.endswith('.com')`             | `name LIKE '%.com'`                     | Suffix match                         |
-| `email.contains('@corp')`           | `email LIKE '%@corp%'`                  | Substring match                      |
-| `code[:3]`                          | `SUBSTR(code, 1, 3)`                    | Slice from start                     |
-| `code[2:5]`                         | `SUBSTR(code, 3, 3)`                    | Slice with start and end             |
-| `name[-4:]`                         | `SUBSTR(name, -4)`                      | Slice from end                       |
-| `name.lower()`                      | `LOWER(name)`                           | Lowercase                            |
-| `name.upper()`                      | `UPPER(name)`                           | Uppercase                            |
-| `name.strip()`                      | `TRIM(name)`                            | Strip whitespace                     |
-| `name + ' suffix'`                  | `name \|\| ' suffix'`                   | String concatenation                 |
-| `price * qty - discount`            | `price * qty - discount`                | Arithmetic                           |
-| `price + 10`                        | `price + 10`                            | Arithmetic with literal              |
-
-No `func.`, no `fn.`, no `F()`, no `.annotate()`. Just Python.
-
 ---
 
 ## Installation
@@ -718,14 +772,12 @@ Ormophine is intentionally lightweight. We don't aim to match the feature count 
 - [x] PostgreSQL backend with connection pooling
 - [x] Operator overloading and slicing (`[]`) for columns
 - [x] String methods simulation (`lower`, `upper`, `strip`, `startswith`, etc.)
-- [x] Read-only connection pool / Non-blocking reads
-- [x] WAL mode + automatic checkpointing
 - [x] Batch / bulk operations
 - [x] AI Reference files for LLM assistance
-- [ ] Expanding simulated Python methods (`.replace()`, `.find()`, etc.)
+- [x] Expanding simulated Python methods (`.replace()`, `.find()`, etc.)
+- [x] Benchmark suite publication
 - [ ] Video Tutorials
-- [ ] Benchmark suite publication
-
+- More developement
 ---
 
 ## Video Tutorials
@@ -745,7 +797,14 @@ The codebase is currently in active development. Contributions, bug reports, and
 
 ## License
 
-[MIT](LICENSE) — free to use, modify, and distribute.
+Ormophine is released under the [MIT License](LICENSE), a permissive
+open-source license commonly used by Python libraries. You may use, copy,
+modify, merge, publish, distribute, sublicense, and sell the software, subject
+to including the original copyright and license notices in copies or
+substantial portions of the software.
+
+The software is provided "as is", without warranty. See the [full license
+text](LICENSE) for the complete terms.
 
 ---
 

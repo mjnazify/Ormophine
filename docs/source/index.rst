@@ -41,6 +41,36 @@ how to express your logic in SQL.
 
 That's it. Read it like Python, it runs like SQL.
 
+For the First Time in the Python ORM Community
+------------------------------------------------
+
+To the best of our knowledge, no mainstream Python ORM currently offers this
+combination of Python expression syntax and SQL translation in one query API.
+This claim is about **query expressions**, not connection management or database
+administration. Common ORMs can express the same results, but generally require
+SQL functions, framework-specific wrappers, lambdas, or model-specific query
+objects.
+
+Ormophine brings these Python-shaped operations directly to columns and expressions:
+
+* **Python-style one-line conditionals**: use
+   ``users.name.If(users.is_active == 1).Else('inactive')`` to build a SQL
+   ``IF``/``IIF`` expression. It can be selected, nested, chained, or used in an
+   update. ``Builtins.IIf(condition, then_value, else_value)`` is also available.
+* **Native-looking string methods**: use ``.upper()``, ``.lower()``, ``.strip()``,
+   ``.lstrip()``, ``.rstrip()``, ``.replace()``, ``.startswith()``,
+   ``.endswith()``, and ``.contains()`` on columns and composed expressions.
+* **Python slicing in SQL expressions**: expressions such as
+   ``users.username[-3:]`` and ``users.lastname[5:-2]`` are translated into the
+   backend's substring operation.
+* **Composable expression chaining**: string methods, slicing, arithmetic,
+   comparisons, conditionals, and logical operators can be combined without
+   escaping to a separate function DSL.
+
+These are claims about the user-facing query API. They do not claim that other
+ORMs or SQL cannot produce equivalent SQL; the distinction is that Ormophine
+keeps the query close to the corresponding Python expression.
+
 Installation
 ------------
 
@@ -77,6 +107,10 @@ columns **behave like native Python values**:
 
    # Logic — combine with & and |
    (users.age >= 18) & (users.status == 'active')
+
+   # One-line conditional — Python's then-if-condition-else shape
+   display_name = (users.name).If(users.is_active == 1).Else('inactive')
+   rows = users.get_row([display_name])
 
 All of these are translated to the correct SQL under the hood. All values are
 automatically parameterized — **SQL injection is prevented by design, not by discipline.**
@@ -132,6 +166,48 @@ Switching databases is a one-line import change. The API stays identical:
 Same ``.insert()``, same ``.get_row()``, same ``.update()``, same ``.batch()``.
 Learn once, use anywhere.
 
+Writing Conditional Values in a Query
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The value before ``.If()`` is returned when the condition is true, and the
+value passed to ``.Else()`` is returned otherwise. The result remains a
+composable SQL expression:
+
+.. code-block:: python
+
+   display_name = users.name.If(users.is_active == 1).Else('inactive')
+
+   rows = users.get_row(
+      [display_name],
+      where=users.name.lstrip().startswith('A')
+   )
+
+For a function-style form, use ``Builtins.IIf(condition, then_value,
+else_value)``.
+
+Chained Joins
+^^^^^^^^^^^^^
+
+Joins use a fluent query builder. Start from a table, add each join with its
+``ON`` condition, and finish with ``.get_row()``:
+
+.. code-block:: python
+
+   rows = (
+      users
+      .left_join(orders, orders.user_id == users.id)
+      .inner_join(banlist, banlist.user_id == users.id)
+      .get_row(
+         [users.name, orders.amount],
+         where=banlist.id > 20
+      )
+   )
+
+The builder supports ``inner_join``, ``left_join``, and ``right_join``, can be
+extended with additional joins, and automatically aliases repeated tables.
+SQLite does not support native ``RIGHT JOIN``; use an equivalent
+``left_join`` with the table order reversed.
+
 Key Features
 ------------
 
@@ -167,6 +243,11 @@ Python Expression                SQL Equivalent                            What 
 ``name.lower()``                ``LOWER(name)``                           Lowercase
 ``name.upper()``                ``UPPER(name)``                           Uppercase
 ``name.strip()``                ``TRIM(name)``                            Strip whitespace
+``name.lstrip()``               ``LTRIM(name)``                           Strip leading whitespace
+``name.rstrip()``               ``RTRIM(name)``                           Strip trailing whitespace
+``name.replace('a', 'b')``       ``REPLACE(name, 'a', 'b')``                Replace text
+``name[-3:]``                   ``SUBSTR(name, -3)``                      Last three characters
+``name.If(active).Else('off')`` ``IF/IIF(active, name, 'off')``            Conditional value
 ``name + ' suffix'``            ``name || ' suffix'``                     String concatenation
 ``price * qty - discount``      ``price * qty - discount``                Arithmetic
 ``price + 10``                  ``price + 10``                            Arithmetic with literal
@@ -180,9 +261,9 @@ AI-Powered Assistance
 To help you write queries and debug your Ormophine code, we provide reference files that
 contain the full source code of the ORM for each backend:
 
-* ``Sqlite.AI.Reference.txt``
-* ``MySQL.AI.Reference.txt``
-* ``PostgreSQL.AI.Reference.txt``
+* ``Sqlite.AI.Refrence.txt``
+* ``MySQL.AI.Refrence.txt``
+* ``PostgreSQL.AI.Refrence.txt``
 
 These files are designed to be sent to any capable AI assistant (such as ChatGPT, Claude,
 or Gemini). Simply attach the appropriate file along with a short instruction prompt and
@@ -197,7 +278,7 @@ For example, if you installed the package in a virtual environment, you can find
 
 .. code-block:: text
 
-   path/to/venv/lib/python3.x/site-packages/Ormophine/{Sqlite,MySQL,PostgreSQL}.AI.Reference.txt
+   path/to/venv/lib/python3.x/site-packages/Ormophine/{Sqlite,MySQL,PostgreSQL}.AI.Refrence.txt
 
 **Recommended Prompt**
 
@@ -250,6 +331,19 @@ You can also use these Google Colab notebooks to run the tests instantly:
 * **PostgreSQL:** https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sharing
 
 For detailed visual charts and per-operation breakdowns, please refer to the `Benchmark Section in the GitHub README <https://github.com/yourusername/ormophine#-benchmark-results>`_.
+
+License
+-------
+
+Ormophine is released under the `MIT License <https://github.com/mjnazify/Ormophine/blob/main/LICENSE>`_,
+a permissive open-source license commonly used by Python libraries. You may use,
+copy, modify, merge, publish, distribute, sublicense, and sell the software,
+subject to including the original copyright and license notices in copies or
+substantial portions of the software.
+
+The software is provided "as is", without warranty. See the full `LICENSE
+text <https://github.com/mjnazify/Ormophine/blob/main/LICENSE>`_ for the complete
+terms.
 
 Documentation Map
 -----------------
