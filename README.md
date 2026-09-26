@@ -1,19 +1,29 @@
+<div align="center">
 
-# Ormophine
+<h1>Ormophine</h1>
 
-**The most simple Python ORM. Read like Python, run like SQL.**
+<p><b>The most simple Python ORM. Read like Python, run like SQL.</b></p>
 
-[![Python](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Active%20Development-orange)](https://github.com/yourusername/ormophine)
-[![PyPI](https://img.shields.io/badge/PyPI-Latest-blue?logo=pypi)](https://pypi.org/project/Ormophine/)
+<p>
+  <a href="https://www.python.org/">
+    <img src="https://img.shields.io/badge/Python-3.12%2B-blue?logo=python&logoColor=white" alt="Python">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
+  </a>
+  <a href="https://github.com/mjnazify/Ormophine">
+    <img src="https://img.shields.io/badge/Status-Active%20Development-orange" alt="Status">
+  </a>
+  <a href="https://pypi.org/project/Ormophine/">
+    <img src="https://img.shields.io/badge/PyPI-Latest-blue?logo=pypi" alt="PyPI">
+  </a>
+</p>
 
-*No models to define. No DSL to learn. No boilerplate to write.*
+<p><i>No models to define. No DSL to learn. No boilerplate to write.</i></p>
 
 </div>
 
 ---
-
 ## Philosophy
 
 Most Python ORMs were built for enterprise complexity — layers of abstractions, session lifecycles, model definitions, and migration pipelines. They're powerful, but they make **simple things hard**.
@@ -28,7 +38,7 @@ Ormophine gives you one thing no other ORM does: **you write plain Python, and i
 # This is Python. But it's also a SQL query.
 rows = users.get_row(
     which_columns = [
-      (users.firstname + " " + users.lastname).If(users.firstname != None).Else(users.lastname),
+      (users.firstname + " " + users.lastname).If(users.firstname != None).Else(users.lastname), 
       users.age
       ],
     where = (users.age >= 18) & users.name.lower().startswith('a'),
@@ -52,8 +62,64 @@ To help you write queries and debug your code, Ormophine ships with AI reference
 You can find these files in the root directory of the installed package. Simply attach the appropriate file to ChatGPT, Claude, or Gemini, ask your question, and the AI will respond using the exact API and behavior of your Ormophine version. It's like having an Ormophine expert on standby!
 
 
+
 ---
 
+## 🌟 For the First Time in the Python Community
+
+Ormophine introduces several query-expression paradigms that have **never existed before in mainstream Python ORMs** (SQLAlchemy, Peewee, Tortoise, PonyORM, or Django ORM). 
+
+Instead of forcing developers to learn a secondary Domain Specific Language (DSL), function wrappers (`func.`, `fn.`, `F()`), or verbose SQL construct helpers, **Ormophine makes Python expressions directly executable as SQL queries**:
+
+### 1. ✂️ Native Python String Slicing in SQL (`col[start:stop]`)
+For the first time, you can slice database columns using standard Python 0-based indexing and negative offsets:
+```python
+# Slices directly into SQL SUBSTR() / SUBSTRING() across SQLite, MySQL, & PostgreSQL
+users.code[:3]          # First 3 characters
+users.lastname[5:-2]    # From index 5, skipping last 2 characters
+users.phone[-4:]        # Last 4 digits
+```
+*In other ORMs, achieving this requires manual 1-based indexing math, `func.length()` calculations, and backend-specific substring wrappers.*
+
+---
+
+### 2. 🔀 Pythonic One-Line Conditionals (`.If().Else()`)
+Ormophine mirrors Python's native `value if condition else alternative` syntax directly on column expressions:
+```python
+# Clean, readable, and fully composable
+status_label = users.name.If(users.is_active == 1).Else('Inactive')
+
+rows = users.get_row([status_label], where=users.age >= 18)
+```
+Unlike rigid `CASE WHEN` constructs in other ORMs, Ormophine conditionals return first-class query expressions that can be **further chained with slicing, string methods, or mathematical operations**.
+
+---
+
+### 3. 🔗 Native String Methods Directly on Column Expressions
+You can call Python string methods directly on columns or computed expressions without wrapping them in external SQL function helpers:
+```python
+# Native Python methods chained seamlessly
+where = (users.email.lower().endswith('@company.com')) & (users.bio.strip().contains('developer'))
+```
+Supported methods include `.lower()`, `.upper()`, `.strip()`, `.lstrip()`, `.rstrip()`, `.startswith()`, `.endswith()`, `.contains()`, and `.replace()`.
+
+---
+
+### 4. 🧩 Composable Zero-DSL Query Expressions
+You can freely compose string concatenation, arithmetic, slicing, conditionals, and logical operators in one fluent expression without ever dropping into a framework DSL:
+```python
+# Full expression composition: concatenation -> strip -> slice -> conditional
+display_tag = ((users.first_name + " " + users.last_name).strip()[:10]).If(users.is_vip == True).Else('Standard')
+
+rows = users.get_row([display_tag], where=(users.age + 5 >= 25) & (users.status == 'active'))
+```
+
+---
+
+### 5. 🛡️ Automatic Transparent Parameterization
+Every literal value, string, or number passed within these Python expressions is **automatically converted into parameterized query arguments** (`?` or `%s`). You write natural Python without thinking about escaping or SQL injection vulnerabilities.
+
+---
 ## Simplicity in Action — Side by Side
 
 The best way to understand Ormophine's advantage is to see the same everyday tasks written in different ORMs. Notice what's missing in the Ormophine column: no models, no sessions, no `.execute()`, no `func.` wrappers, no lambdas.
@@ -164,10 +230,12 @@ User.insert(
 **Ormophine:**
 ```python
 # Auto-committed. Column objects as keys — readable and safe.
+name, email, age = users.name, users.email, users.age # For simplicity
+
 users.insert({
-    users.name:  'Alice',
-    users.email: 'alice@example.com',
-    users.age:   30
+    name:  'Alice',
+    email: 'alice@example.com',
+    age:   30
 })
 ```
 
@@ -320,10 +388,9 @@ rows = User.select(display_name)
 
 **Ormophine:**
 ```python
-display_name = (users.name).If(users.is_active == 1).Else('inactive')
 
 rows = users.get_row(
-  [display_name],
+  [(users.name).If(users.is_active == 1).Else('inactive')],
   where=users.name.lstrip().startswith('A')
 )
 ```
@@ -423,6 +490,8 @@ users.price * users.qty - users.discount
 
 # Concatenation — the + operator works naturally
 users.first_name + ' ' + users.last_name
+# Or you can add more complexity
+users.first_name.lower().strip() + ' ' + ((users.last_name[:-3]).If (users.last_name.endswith('kov')).Else (users.last_name))
 
 # Logic — combine with & and |
 (users.age >= 18) & (users.status == 'active')
@@ -444,15 +513,6 @@ orders = db.orders    # this too
 users.name    # column object
 users.age     # column object
 users.email   # column object
-```
-
-### Auto-Commit by Default
-
-Every insert, update, and delete commits automatically. No `session.commit()`. No `with engine.begin()`. For batch operations, use `.batch()` — otherwise, each operation stands on its own.
-
-```python
-# This is a complete, working operation. Nothing else needed.
-users.insert({users.name: 'Alice', users.age: 30})
 ```
 
 ### One API, Three Databases
@@ -477,17 +537,85 @@ Same `.insert()`, same `.get_row()`, same `.update()`, same `.batch()`. Learn on
 
 ---
 
+## Quick Examples
+
+### Connect and access tables
+
+```python
+from Ormophine.Sqlite import Driver
+
+db = Driver('company.db')
+
+# Tables and columns are discovered automatically — no models needed
+users   = db.users
+orders  = db.orders
+```
+
+### Insert
+
+```python
+users.insert({
+    users.name:  'Alice',
+    users.email: 'alice@example.com',
+    users.age:   30
+})
+```
+
+### Select with conditions
+
+```python
+name, email, age , phone= users.name, users.email, users.age, users.phone
+
+rows = users.get_row(
+    which_columns = [
+      name,
+     ("email: " + email).If(email != None).Else(("phone: " + phone).If(phone != None).Else('No information'))
+     ],
+    where   = (age >= 18) & name.startswith('A'),
+    order_by = age
+)
+```
+
+### Update
+
+```python
+users.update(
+    update = {users.age: users.age + 1},
+    where  = users.status == 'active'
+)
+```
+
+### Bulk insert
+
+```python
+users.bulk_insert(
+    columns   = [users.name, users.age],
+    data_list = [['Bob', 25], ['Carol', 32], ['Dave', 28]]
+)
+```
+
+### Joins
+
+```python
+result = (
+  users
+  .inner_join(orders, orders.user_id == users.id)
+  .get_row(
+    [users.name, orders.amount, orders.date],
+    where=orders.amount > 100,
+    order_by=orders.date
+  )
+)
+```
+
+---
+
 ## Why Ormophine?
 
 - **Zero Learning Curve** — if you know Python, you know Ormophine. Columns are variables, methods are methods, slicing is slicing, operators are operators. There is no DSL, no special syntax, nothing to look up.
 - **Reads Like English** — `users.name.lower().startswith('a')` says exactly what it does. Compare that to `func.lower(users.c.name).like('a%')`.
-- **Dynamic Schema Discovery** — tables and columns appear as attributes automatically. No model definitions. No reflection boilerplate. Connect and start writing queries.
-- **Auto-Commit Simplicity** — every write operation commits immediately by default. No session management. For atomic multi-step operations, the `.batch()` builder is one `batch.run()` call.
 - **Fast & Thread-Safe** — built on a dedicated writer queue (SQLite) and robust connection pooling (MySQL/PostgreSQL); parallel reads, serialized writes.
-- **Fault-Tolerant Connections** — automatically detects broken connections (e.g., database restarts) and seamlessly recreates them without crashing your application.
 - **Multi-Database** — one unified API across SQLite, MySQL, and PostgreSQL. Switch databases by changing your import.
-- **Built-in DB Administration** — manage users, permissions, create/drop databases, and run maintenance tasks (like PostgreSQL `VACUUM` or SQLite `PRAGMA`) directly from the driver.
-- **WAL Mode Support** (SQLite) — automatic checkpointing for maximum write throughput.
 
 ---
 
@@ -679,73 +807,57 @@ https://colab.research.google.com/drive/1XYrC30vUciS1YgY6M5MBoxwO9YTltzkD?usp=sh
 
 ---
 
-## Quick Examples
+## 🎯 Scope & Limitations (What Ormophine is NOT)
 
-### Connect and access tables
+Ormophine is deliberately designed to be **minimalist, intuitive, and blisteringly fast for standard CRUD workloads**. By keeping the core lightweight, we intentionally avoid the baggage of enterprise ORM patterns. 
 
-```python
-from Ormophine.Sqlite import Driver
+To help you decide if Ormophine is right for your project, here is a transparent overview of what Ormophine **does not** cover:
 
-db = Driver('company.db')
+### 1. No Declarative Model Classes or Active Record Objects
+Ormophine dynamically reflects your database schema at runtime (`db.users.name`). 
+- Queries return **clean Python primitives and tuples**, not heavyweight model instances.
+- There is no static class boilerplate (`class User(Model): ...`). 
+- *Note:* Because tables and columns are resolved dynamically at runtime, IDE auto-completion / static type hints (like Mypy) for column names are not available.
 
-# Tables and columns are discovered automatically — no models needed
-users   = db.users
-orders  = db.orders
-```
+### 2. No Relationship Mapping (Lazy / Eager Loading)
+- Ormophine does not provide automated relational navigation properties (e.g., `user.orders` or automated backreferences).
+- Multi-table operations are performed explicitly using clean, chained join builders (`.inner_join()`, `.left_join()`, `.right_join()`).
 
-### Insert
+### 3. No Unit of Work / Identity Map / Dirty Tracking
+- There is no background session tracking modified object attributes (e.g., `user.email = "new"; db.commit()`).
+- All updates, inserts, and deletes are explicit via `.update()`, `.insert()`, or transactional `.batch()` scripts.
 
-```python
-users.insert({
-    users.name:  'Alice',
-    users.email: 'alice@example.com',
-    users.age:   30
-})
-```
+### 4. No Schema Migration Engine (Not an Alembic / Django Migrations Replacement)
+- Ormophine provides simple, imperative DDL helpers (`create_table`, `add_column`, `delete_column`, `rename_table`, `create_index`).
+- It does **not** track migration versions, generate automatic schema diffs, or provide rollback migration histories. For complex enterprise schema evolution, use an external migration tool.
 
-### Select with conditions
+### 5. Synchronous Only (No `async` / `await` Support)
+- Ormophine's drivers use optimized multi-threading (dedicated writer queues in SQLite, robust connection pooling in MySQL/PostgreSQL), but all API calls are **synchronous (blocking I/O)**.
+- There is currently no `asyncio` / `await` syntax support for ASGI frameworks.
 
-```python
-name, email, age = users.name, users.email, users.age
+### 6. Complex SQL Constructs Outside Standard CRUD
+Ormophine covers common queries, slicing, arithmetic, string manipulation, conditionals, and standard joins. However, advanced SQL constructs are not natively built into the high-level query builder:
+- **`GROUP BY` & `HAVING`**: Not exposed in `get_row()` arguments (aggregates evaluate across target datasets).
+- **Window Functions**: (`ROW_NUMBER()`, `RANK()`, `OVER (PARTITION BY ...)` are omitted).
+- **Set Operations**: (`UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`).
+- **Arbitrary CTEs / Nested Derived Tables**: (`WITH ...` queries).
+- *Need these?* You can always drop down to raw SQL at any time using `db.custom_execute_with_fetch(...)`.
 
-rows = users.get_row(
-    which_columns = [name, email],
-    where   = (age >= 18) & name.startswith('A'),
-    order_by = age
-)
-```
+### 7. Non-Supported Database Engines
+- Ormophine exclusively supports **SQLite**, **MySQL**, and **PostgreSQL**.
+- Oracle, Microsoft SQL Server (MSSQL), CockroachDB, and NoSQL engines are not supported.
 
-### Update
+---
 
-```python
-users.update(
-    update = {users.age: users.age + 1},
-    where  = users.status == 'active'
-)
-```
+### 💡 Rule of Thumb: When to Use Ormophine?
 
-### Bulk insert
+| Use Ormophine If... | Use SQLAlchemy / Django ORM If... |
+| :--- | :--- |
+| ✅ You want clean, zero-boilerplate Python CRUD. | ❌ You need a full Unit of Work / Identity Map architecture. |
+| ✅ You want to query columns using natural Python syntax (`.lower()`, slicing `[2:5]`, conditionals `.If().Else()`). | ❌ You need automated schema migrations with history rollbacks (Alembic). |
+| ✅ You want lightweight, fast, auto-committed operations without managing sessions. | ❌ You need async I/O (`asyncio` / `asyncpg` / `aiosqlite`). |
+| ✅ You already have an existing database or prefer simple schema definition. | ❌ You rely heavily on complex Window functions, CTEs, or ORM-managed relationship graphs (`user.profile.posts`). |
 
-```python
-users.bulk_insert(
-    columns   = [users.name, users.age],
-    data_list = [['Bob', 25], ['Carol', 32], ['Dave', 28]]
-)
-```
-
-### Joins
-
-```python
-result = (
-  users
-  .inner_join(orders, orders.user_id == users.id)
-  .get_row(
-    [users.name, orders.amount, orders.date],
-    where=orders.amount > 100,
-    order_by=orders.date
-  )
-)
-```
 ---
 
 ## Installation
@@ -777,7 +889,7 @@ Ormophine is intentionally lightweight. We don't aim to match the feature count 
 - [x] Expanding simulated Python methods (`.replace()`, `.find()`, etc.)
 - [x] Benchmark suite publication
 - [ ] Video Tutorials
-- More developement
+- Further performance optimizations and extended simulated methods
 ---
 
 ## Video Tutorials
