@@ -8,7 +8,8 @@ from queue import SimpleQueue
 
 class Driver:
     """
-    Comprehensive SQLite Driver for Ormophine.
+    
+    Comprehensive SQLite Driver for Ormophine. 
 
     The Driver class serves as the central gateway to the SQLite database,
     managing connections, threading, and high‑level operations. It provides
