@@ -13760,30 +13760,16 @@ class Table:
         self,
         index_name: str,
         columns: list['Column'],
-        unique: bool = False,
-        where: 'ColumnsOperation' = None
     ) -> None:
         """
         Create an index on one or more columns of the table.
 
-        This method generates and executes a ``CREATE INDEX`` statement. If the
-        ``unique`` parameter is ``True``, a unique index is created, enforcing
-        uniqueness of the indexed column values. If a ``where`` condition is
-        provided, the index is created as a filtered (partial) index, which only
-        includes rows that satisfy the condition. The condition is constructed
-        using a :class:`ColumnsOperation` object, and its parameter values are
-        substituted directly into the SQL string (since MySQL does not support
-        parameter placeholders in index definitions).
+        This method generates and executes a ``CREATE INDEX`` statement.
 
         Args:
             index_name (str): The name of the index to create.
             columns (list[Column]): A list of :class:`Column` objects specifying
                 the columns to include in the index.
-            unique (bool, optional): If ``True``, a unique index is created.
-                Defaults to ``False``.
-            where (ColumnsOperation, optional): A condition expression that defines
-                which rows to include in the index. If provided, only rows matching
-                this condition are indexed. Defaults to ``None``.
 
         Returns:
             None
@@ -13797,24 +13783,8 @@ class Table:
             Creating a non‑unique index on a single column::
 
                 users.create_index('idx_users_name', [users.name])
-
-            Creating a unique index on multiple columns::
-
-                users.create_index('idx_users_email_unique', [users.email], unique=True)
-
-            Creating a filtered index on active users::
-
-                from ormophine.Mysql import ColumnsOperation
-
-                # Assuming users.active is a Column
-                condition = users.active == 1
-                users.create_index('idx_users_active', [users.last_login], where=condition)
         """
-        if where:
-            wr = f'WHERE {where._output[0]}'
-            for i in where._output[1]:
-                wr=wr.replace('%s',i if isinstance(i,str) else str(i),1)
-        self._excp(f'CREATE {'UNIQUE ' if unique else ''}INDEX {index_name} ON {self.name_} ({','.join(i.first_name for i in columns)}) {wr if where else ''}',[])
+        self._excp(f'CREATE INDEX {index_name} ON {self.name_} ({','.join(i.first_name for i in columns)})',[])
 
     def delete_index(self, index_name: str) -> None:
         """
