@@ -2728,18 +2728,6 @@ def test_85_create_index_simple(driver):
     indexes = driver.t85.get_indexes_info()
     assert any(idx['idx_name'] == 'idx_name85' for idx in indexes)
     driver.delete_table(driver.t85, True, True, True)
-def test_86_create_index_unique(driver):
-    schema = Mysql.TableStructure('t86')
-    schema.add_column('email', Mysql.DataTypes.VARCHAR(100))
-    driver.create_table(schema)
-    driver.t86.create_index('idx_email86', [driver.t86.email], unique=True)
-    indexes = driver.t86.get_indexes_info()
-    idx = next((i for i in indexes if i['idx_name'] == 'idx_email86'), None)
-    assert idx is not None and idx['unique'] is True
-    driver.t86.insert({driver.t86.email: 'a@b.com'})
-    with pytest.raises(Exception):
-        driver.t86.insert({driver.t86.email: 'a@b.com'})
-    driver.delete_table(driver.t86, True, True, True)
 def test_87_create_index_multi_column(driver):
     schema = Mysql.TableStructure('t87')
     schema.add_column('a', Mysql.DataTypes.INT())

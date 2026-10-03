@@ -2,331 +2,693 @@
 
 .. _quickstart:
 
-Sqlite Quickstart
-====================
+====================================================
+Ormophine SQLite ORM — Complete Quickstart Guide
+====================================================
 
-This guide is designed for first‑time users of **Ormophine**. By the end you will be able to connect to a database, define tables, insert, query, update, delete, and use advanced features like ``ColumnsOperation`` and joins.
+Welcome to the comprehensive, step-by-step developer guide for the **Ormophine SQLite ORM**.
 
-.. note::
+Ormophine is a modern, high-performance, dynamic Python ORM designed specifically for SQLite databases. It completely eliminates boilerplate model classes through **automatic table and column reflection**, delivers full type-safety and IDE autocompletion (Pylance/VS Code) via type hinting, provides concurrent multi-threaded read operations via built-in connection pooling, and compiles Python expressions directly into optimized SQLite SQL.
 
-   Ormophine is a **dynamic ORM** – you never write model classes.  
-   * Tables and columns become **Python attributes** automatically.  
-   * Whether you create a new table or connect to an existing database, everything is discovered and made available at runtime.
+.. contents:: Table of Contents
+   :depth: 2
+   :local:
 
-Importing the ORM
-------------------
+--------------------------------------------------------------------------------
+
+.. _sqlite-real-quickstart:
+
+0. ⚡ 60-Second Real Quickstart: Auto-Discovery & Instant CRUD
+==============================================================
+
+When you connect to an existing SQLite database:
+
+1. All existing tables are **automatically discovered** as attributes on the ``db`` driver instance (e.g., ``db.users``).
+2. All columns are **automatically available** as attributes (e.g., ``users.username``).
+3. You can unpack columns with **type hints** (``username: Column = users.username``) for IDE autocompletion and clean, concise code!
+
+Setup: Creating Sample Database & Table
+---------------------------------------
+
+If you have an existing SQLite database file, you can connect directly. Here is a quick preview:
+
+.. code-block:: python
+
+    import os, sqlite3
+    from Ormophine.Sqlite import Driver, Column, Table
+
+    # Setup an existing SQLite database with sample data
+    if os.path.exists("quickstart_demo.db"):
+        os.remove("quickstart_demo.db")
+
+    conn = sqlite3.connect("quickstart_demo.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        age INTEGER,
+        balance REAL DEFAULT 100.0
+    )
+    ''')
+    cursor.executemany(
+        "INSERT INTO users (username, age, balance) VALUES (?, ?, ?)",
+        [("alice", 25, 250.0), ("bob", 30, 80.0), ("charlie", 19, 120.0)]
+    )
+    conn.commit()
+    conn.close()
+
+    # 1. Connect to existing database
+    db_quick = Driver("quickstart_demo.db")
+
+    # 2. Auto-Discovery: Tables and columns are ready automatically!
+    users: Table = db_quick.users
+
+    # Pro-Tip: Unpack columns with type hints for IDE autocomplete (Pylance)
+    # Now you can use 'username' and 'age' directly instead of 'users.username'!
+    id: Column = users.id
+    username: Column = users.username
+    age: Column = users.age
+    balance: Column = users.balance
+
+    # 3. Quick Insert
+    users.insert({username: "eva", age: 24, balance: 150.0})
+
+    # 4. Powerful Multi-Feature Query:
+    # - String Concat (+): 'VIP: ' + username.upper()
+    # - String Slicing: username[0:3]
+    # - Column Math: balance * 1.05 (5% bonus)
+    # - Inline If/Else: username.If(age >= 25).Else('Junior User')
+    # - Combined WHERE (& and |): age >= 20 AND (starts with 'a' OR balance >= 150)
+    vip_label = "VIP: " + username.upper() + " [" + username[0:3] + "]"
+    bonus_balance = balance * 1.05
+    user_tier = username.If(age >= 25).Else("Junior User")
+
+    query_results = users.get_row(
+        which_columns=[id, vip_label, bonus_balance, user_tier],
+        where=(age >= 20) & (username.startswith("a") | (balance >= 150.0)),
+        order_by=age
+    )
+
+    print("⚡ Quickstart Query Results:")
+    for u_id, label, new_bal, tier in query_results:
+        print(f"  ID: {u_id} | {label:<18} | Bonus Bal: ${new_bal:6.2f} | Status: {tier}")
+
+    # 5. Quick Update & Delete
+    users.update(update={balance: balance + 50.0}, where=age < 25)
+    users.delete_row(where=username == "charlie")
+
+    # Clean shutdown
+    db_quick.disconnect()
+
+--------------------------------------------------------------------------------
+
+1. Getting Started & Database Connection
+========================================
+
+Importing the Core Classes
+--------------------------
 
 All core classes are available from the ``Ormophine.Sqlite`` module:
 
 .. code-block:: python
 
-    from Ormophine.Sqlite import Driver, TableStructure, DataTypes
+    from Ormophine.Sqlite import Driver, TableStructure, DataTypes, Builtins, Column
 
-.. hint::
+* ``Driver``: Manages thread-safe readers connection pool, WAL mode, transactions, and background workers.
+* ``TableStructure``: Defines table schemas, column types, strict types, constraints, and foreign keys.
+* ``DataTypes``: Provides SQLite typed column definitions (``INTEGER``, ``TEXT``, ``REAL``, ``NUMERIC``, ``BLOB``).
+* ``Builtins``: Static namespace for SQLite built-in functions (covered in Section 12).
+* ``Column``: Type hint class for IDE autocompletion (VS Code / Pylance).
 
-   ``Driver`` manages the connection.  
-   ``TableStructure`` defines a table schema.  
-   ``DataTypes`` provides typed column definitions with optional constraints.  
+Initializing the Connection Pool
+--------------------------------
 
-Connecting to a Database
---------------------------
-
-Create a ``Driver`` instance. This immediately opens the database file and **discovers all existing tables and columns**:
-
-.. code-block:: python
-
-    db = Driver("mydatabase.db")
-    # All existing tables are now available as attributes of `db`.
-    # Example: if a table named 'users' already exists, you can access it via `db.users`.
-
-For a brand‑new database the file is created, but no tables exist yet. You can check existing tables with:
+Initialize a ``Driver`` instance with a database file path or in-memory mode:
 
 .. code-block:: python
 
-    print(db.get_tables())   # dict of table names -> Table objects
+    # 1. File-based database with concurrent readers pool
+    db = Driver(
+        "tutorial_demo.db",
+        readers_pool_size=5,   # Multi-threaded reader connections
+        memory=False           # Set to True for fast in-memory SQLite database
+    )
 
-Creating Your First Table
----------------------------
+    print("Connected to SQLite successfully with readers pool!")
 
-Use ``TableStructure`` to design a table, then call ``db.create_table()``:
+--------------------------------------------------------------------------------
+
+2. Defining Table Structures (DDL)
+==================================
+
+Use ``TableStructure`` to define your database schema programmatically. Ormophine supports SQLite's ``STRICT`` mode for guaranteed data integrity.
+
+2.1 Simple Table Example: ``users``
+-----------------------------------
 
 .. code-block:: python
 
-    # Define a 'users' table
+    # Define the 'users' schema with STRICT mode
     users_schema = TableStructure("users", strict=True)
 
-    # Add columns with type and constraints
-    users_schema.add_column(
-        "id", DataTypes.INTEGER(),
-        primary_key=True
-    )
-    users_schema.add_column(
-        "username", DataTypes.TEXT(max_length=50),
-        unique=True, not_null=True
-    )
-    users_schema.add_column(
-        "age", DataTypes.INTEGER(min_val=0),
-        default_value=18
-    )
+    users_schema.add_column("id", DataTypes.INTEGER(), primary_key=True)
+    users_schema.add_column("username", DataTypes.TEXT(max_length=50), unique=True, not_null=True)
+    users_schema.add_column("age", DataTypes.INTEGER(min_value=0, max_value=120), default_value=18)
 
-    # Create the table – it returns a Table object.
+    # Create the table in SQLite
     users = db.create_table(users_schema)
-    # The table is now also accessible as `db.users`.
 
-.. important::
+    # Unpack columns with type hints for clean code & Pylance autocomplete
+    id: Column = users.id
+    username: Column = users.username
+    age: Column = users.age
 
-   After creation (or after connecting to an existing database), every column becomes an **attribute** of the ``Table`` object. For example, you can refer to ``users.username``, ``users.age``, etc. This makes writing queries natural and safe.
+    print(f"Simple table '{users.name_}' created successfully!")
 
-Inserting Data
-----------------
-
-Single insert using a dictionary where **keys are the column attributes**:
+2.2 Complex Table Example: ``products``
+---------------------------------------
 
 .. code-block:: python
 
+    # Define a more complex 'products' schema
+    products_schema = TableStructure("products", strict=True)
+
+    products_schema.add_column("id", DataTypes.INTEGER(), primary_key=True)
+    products_schema.add_column("name", DataTypes.TEXT(min_length=2, max_length=100), not_null=True)
+    products_schema.add_column("category", DataTypes.TEXT(), not_null=True)
+    products_schema.add_column("price", DataTypes.REAL(min_value=0.0), not_null=True)
+    products_schema.add_column("discount", DataTypes.REAL(), default_value=0.0)
+
+    products = db.create_table(products_schema)
+
+    # Unpack products columns with type hints
+    p_id: Column = products.id
+    name: Column = products.name
+    category: Column = products.category
+    price: Column = products.price
+    discount: Column = products.discount
+
+    print(f"Complex table '{products.name_}' created successfully!")
+
+--------------------------------------------------------------------------------
+
+3. Basic CRUD Operations
+========================
+
+3.1 Inserting Data (Single & Bulk)
+----------------------------------
+
+* **Single Insert:** Insert one row with ``users.insert()``.
+* **Bulk Insert:** Insert multiple rows efficiently with ``users.bulk_insert()``.
+
+.. code-block:: python
+
+    # 1. Single Insert
     users.insert({
-        users.username: "alice",
-        users.age: 25
+        username: "alice",
+        age: 25
     })
-    # If 'id' is an INTEGER PRIMARY KEY it auto‑increments.
 
-Bulk insert for multiple rows:
-
-.. code-block:: python
-
+    # 2. Bulk Insert (fast batch insertion)
     users.bulk_insert(
-        columns=[users.username, users.age],
+        columns=[username, age],
         data_list=[
             ("bob", 30),
             ("charlie", 22),
             ("diana", 28),
+            ("edward", 35),
         ]
     )
 
-Querying Data – Simple Queries
----------------------------------
+    # Populate products table
+    products.bulk_insert(
+        columns=[name, category, price, discount],
+        data_list=[
+            ("Widget-A", "gadgets", 20.00, 0.10),
+            ("Gadget Pro", "gadgets", 50.00, 0.20),
+            ("SuperTool", "tools", 30.00, 0.00),
+            ("MegaWidget", "gadgets", 100.00, 0.25),
+            ("HeavyHammer", "tools", 15.00, 0.00),
+        ]
+    )
 
-The ``get_row()`` method retrieves rows. You can choose which columns to fetch, apply a ``WHERE`` condition, and order the results.
+3.2 Querying Data (``get_row``)
+-------------------------------
 
 .. code-block:: python
 
-    # Fetch usernames and ages, ordered by age
+    # Simple Query: Get id, username, and age ordered by age
     all_users = users.get_row(
-        which_columns=[users.username, users.age],
-        order_by=users.age
+        which_columns=[id, username, age],
+        order_by=age
     )
-    for row in all_users:
-        print(row)  # e.g., ('charlie', 22), ('alice', 25), ...
 
-Filtering uses ``ColumnsOperation`` – these are created by using comparison operators on column attributes:
+    print("All Users (Ordered by Age):")
+    for u_id, u_name, u_age in all_users:
+        print(f"  ID: {u_id} | Username: {u_name:<10} | Age: {u_age}")
+
+3.3 Updating Data (``update``)
+------------------------------
+
+* **Simple Update:** Assign a fixed value.
+* **Complex Update:** Update using a mathematical expression on an existing column (``age + 1``).
 
 .. code-block:: python
 
-    # Users older than 24
-    condition = users.age > 24
-    older_users = users.get_row(
-        which_columns=[users.username],
-        where=condition
-    )
-    for (username,) in older_users:
-        print(username)  # alice, bob, diana
-
-.. tip::
-
-   All column attributes return a ``ColumnsOperation`` when used with operators like ``>``, ``==``, ``+``, ``.like()``, etc. This allows you to build expressive SQL expressions directly in Python.
-
-Updating Data
----------------
-
-Update rows that match a condition. You can assign a constant value or an expression based on the current column value.
-
-.. code-block:: python
-
-    # Increase age by 1 for all users under 30
-    condition = users.age < 30
+    # Simple Update: Set fixed age for 'alice'
     users.update(
-        update={users.age: users.age + 1},   # using ColumnsOperation
-        where=condition
+        update={age: 26},
+        where=username == "alice"
     )
 
-Python-Style Query Expressions
---------------------------------
+    # Complex Update: Increase age by 1 for all users under 30
+    users.update(
+        update={age: age + 1},  # Column math expression!
+        where=age < 30
+    )
 
-Columns and composed expressions support Python-like string methods, slicing,
-and one-line conditional values. Each expression is translated into
-parameterized SQL and can be selected, filtered, ordered, or used in an update.
+3.4 Deleting Data (``delete_row``)
+----------------------------------
 
 .. code-block:: python
 
-    # String methods and slicing
-    display_name = users.username.strip().upper()
-    username_suffix = users.username[-3:]
-    is_alice = users.username.lstrip().startswith("ali")
-    normalized = users.username.replace("-", "_")
+    # Delete user 'edward'
+    users.delete_row(where=username == "edward")
 
-    # Python-style: value if condition else fallback
-    label = users.username.If(users.age >= 18).Else("minor")
+--------------------------------------------------------------------------------
 
-    rows = users.get_row(
-        which_columns=[display_name, username_suffix, label],
-        where=is_alice,
-        order_by=display_name
-    )
+4. Mastering Conditions & Filtering (``WHERE`` Clause)
+======================================================
 
-    # Nested conditionals are also composable
-    membership = (
-        users.username
-        .If(users.age >= 18).Else("minor")
-        .If(users.username.startswith("a")).Else("other")
-    )
+.. warning::
 
-Deleting Data
----------------
+   **Always wrap conditions in parentheses ``()`` when combining with ``&`` (AND) and ``|`` (OR):**
+   In Python, bitwise operators have higher priority than comparison operators.
+   
+   * ❌ **Wrong:** ``age > 20 & username == "alice"``
+   *  **Right:** ``(age > 20) & (username == "alice")``
 
-Delete rows matching a condition:
+4.1 Logical AND (``&``) and OR (``|``)
+--------------------------------------
 
 .. code-block:: python
 
-    # Remove user 'charlie'
-    condition = users.username == "charlie"
-    users.delete_row(where=condition)
+    # Simple Filter
+    simple_cond = age >= 25
+    print("Simple Filter (age >= 25):", users.get_row([username, age], where=simple_cond))
 
-Complex Example with ColumnsOperation
-----------------------------------------
+    # Complex Filter: (age < 25 OR age >= 30) AND (username != 'alice')
+    complex_cond = ((age < 25) | (age >= 30)) & (username != "alice")
+    print("Complex Filter with nested & and |:", users.get_row([username, age], where=complex_cond))
 
-Now let’s see a more advanced scenario with a ``products`` table. We’ll use arithmetic, string manipulations, and combine conditions.
-
-1. **Create the products table**
-
-   .. code-block:: python
-
-        products_schema = TableStructure("products", strict=True)
-        products_schema.add_column("id", DataTypes.INTEGER(), primary_key=True)
-        products_schema.add_column("name", DataTypes.TEXT())
-        products_schema.add_column("price", DataTypes.REAL(min_val=0.0))
-        products_schema.add_column("discount", DataTypes.REAL(min_val=0.0, max_val=1.0))
-        products_schema.add_column("category", DataTypes.TEXT())
-
-        products = db.create_table(products_schema)
-
-2. **Insert sample data**
-
-   .. code-block:: python
-
-        products.bulk_insert(
-            columns=[products.name, products.price, products.discount, products.category],
-            data_list=[
-                ("Widget", 19.99, 0.1, "gadgets"),
-                ("Gadget Pro", 49.99, 0.2, "gadgets"),
-                ("SuperTool", 29.99, 0.0, "tools"),
-                ("MegaWidget", 99.99, 0.25, "gadgets"),
-            ]
-        )
-
-3. **Arithmetic expression** – compute final price and filter
-
-   .. code-block:: python
-
-        # final_price = price * (1 - discount)
-        final_price = products.price * (1 - products.discount)
-        condition = final_price > 30
-
-        result = products.get_row(
-            which_columns=[products.name, final_price],
-            where=condition,
-            order_by=final_price
-        )
-
-        for name, price in result:
-            print(f"{name}: ${price:.2f}")
-        # Output: Gadget Pro: $39.99, MegaWidget: $74.99
-
-4. **String operations** – case‑insensitive search
-
-   .. code-block:: python
-
-        # Gadgets whose name contains "widget" (case‑insensitive)
-        condition = (products.category == "gadgets") & (products.name.lower().contains("widget"))
-
-        gadget_widgets = products.get_row(
-            which_columns=[products.name, products.price],
-            where=condition
-        )
-        for name, price in gadget_widgets:
-            print(f"{name}: ${price}")
-        # Widget: $19.99, MegaWidget: $99.99
-
-5. **Update using a calculation** – apply extra discount
-
-   .. code-block:: python
-
-        # Increase discount by 5 percentage points where discount < 20%
-        new_discount = products.discount + 0.05
-        products.update(
-            update={products.discount: new_discount},
-            where=products.discount < 0.2
-        )
-
-6. **Deleting with a string condition**
-
-   .. code-block:: python
-
-        # Remove all tools
-        products.delete_row(where=products.category == "tools")
-
-Batch Operations – Transactions
---------------------------------
-
-For multiple statements that must run atomically, use ``batch()``:
+4.2 Pattern Matching & String Filtering
+---------------------------------------
 
 .. code-block:: python
 
+    # 1. Starts with prefix
+    print("Starts with 'd':", users.get_row([username], where=username.startswith("d")))
+
+    # 2. Case-insensitive substring search combined with price check
+    pattern_cond = (name.lower().contains("widget")) & (price > 15.0)
+    print("Products containing 'widget' and price > 15:", products.get_row([name, price], where=pattern_cond))
+
+4.3 In-List Filtering (``.In()`` and ``.not_In()``)
+---------------------------------------------------
+
+.. code-block:: python
+
+    # 1. Membership check with .In()
+    in_cond = username.In(data_list=["alice", "bob"])
+    print("Users IN ['alice', 'bob']:", users.get_row([username], where=in_cond))
+
+    # 2. Non-membership check with .not_In() combined with age filter
+    not_in_cond = (username.not_In(data_list=["bob", "charlie"])) & (age >= 25)
+    print("Users NOT IN ['bob', 'charlie'] with age >= 25:", users.get_row([username, age], where=not_in_cond))
+
+4.4 Subqueries & Combining Multiple Subqueries (``&`` / ``|``)
+--------------------------------------------------------------
+
+.. code-block:: python
+
+    # Create 'admins' and 'banned_users' tables
+    admins_schema = TableStructure("admins", strict=True)
+    admins_schema.add_column("id", DataTypes.INTEGER(), primary_key=True)
+    admins_schema.add_column("username", DataTypes.TEXT())
+    admins = db.create_table(admins_schema)
+    admin_username: Column = admins.username
+    admins.bulk_insert([admin_username], [("bob",), ("diana",), ("charlie",)])
+
+    banned_schema = TableStructure("banned_users", strict=True)
+    banned_schema.add_column("id", DataTypes.INTEGER(), primary_key=True)
+    banned_schema.add_column("user_id", DataTypes.INTEGER(), not_null=True)
+    banned_table = db.create_table(banned_schema)
+    banned_user_id: Column = banned_table.user_id
+    banned_table.insert({banned_user_id: 4})  # Ban user with id=4 (diana)
+
+    # Complex Subquery: User IS in admins table AND IS NOT in banned_users table
+    is_admin = username.In(column=admin_username)
+    is_not_banned = id.not_In(column=banned_user_id)
+
+    active_admins = users.get_row(
+        which_columns=[id, username, age],
+        where=(is_admin) & (is_not_banned),
+        order_by=id
+    )
+
+    print("Active Admins (who are NOT banned):")
+    for row in active_admins:
+        print(" ", row)
+
+--------------------------------------------------------------------------------
+
+5. Advanced Expressions & ``ColumnsOperation``
+==============================================
+
+5.1 String Concatenation with ``+`` Operator (IMPORTANT)
+--------------------------------------------------------
+
+In Ormophine, you can concatenate columns and strings naturally using the standard **``+`` operator**.
+The ORM automatically converts ``+`` on text columns into SQLite's SQL concatenation (``||``).
+
+.. code-block:: python
+
+    # Simple String Concatenation
+    user_greeting = "User: " + username
+    for greeting in users.get_row([user_greeting]):
+        print(" ", greeting)
+
+    # Complex String Concatenation: Combine multiple columns and static strings
+    product_label = name + " (" + category + ")"
+    for row in products.get_row([p_id, product_label, price]):
+        print(f"  ID: {row[0]} | Label: {row[1]:<25} | Price: ${row[2]:.2f}")
+
+5.2 Arithmetic Calculations & Computed Filters
+----------------------------------------------
+
+.. code-block:: python
+
+    # Calculate discounted price + 9% tax
+    discounted_price = price * (1 - discount)
+    final_price_with_tax = discounted_price * 1.09
+
+    results = products.get_row(
+        which_columns=[name, price, discounted_price, final_price_with_tax],
+        where=final_price_with_tax > 25.0,
+        order_by=final_price_with_tax
+    )
+
+    print("Products with Final Price (inc. Tax) > $25:")
+    for prod_name, base_p, disc_p, total_p in results:
+        print(f"  {prod_name:<12} | Base: ${base_p:.2f} | Discounted: ${disc_p:.2f} | Total (+Tax): ${total_p:.2f}")
+
+5.3 String Transformations & Slicing
+------------------------------------
+
+.. code-block:: python
+
+    # Python slicing compiles to SQLite substr()
+    prefix = name[0:6]
+    upper_name = name.upper()
+    replaced_name = name.replace("-", "_")
+
+    results = products.get_row([name, prefix, upper_name, replaced_name])
+    for orig, pre, up, rep in results:
+        print(f"  Orig: {orig:<12} | Slice[0:6]: {pre:<8} | Upper: {up:<12} | Replaced: {rep}")
+
+5.4 Inline & Nested Conditional Expressions (``.If().Else()``)
+--------------------------------------------------------------
+
+.. code-block:: python
+
+    # Simple 2-Tier Condition
+    simple_tier = name.If(price >= 30.0).Else("Budget Item")
+
+    # Complex Nested 3-Tier Condition (Premium > Mid-Range > Budget)
+    # Compiles to SQLite: CASE WHEN ... THEN ... ELSE (CASE WHEN ...) END
+    nested_tier = (
+        (name + " [Premium]").If(price >= 80.0)
+        .Else(
+            (name + " [Mid-Range]").If(price >= 30.0)
+            .Else(name + " [Budget]")
+        )
+    )
+
+    print("Complex Nested 3-Tier Classification:")
+    for prod_name, prod_price, tier_label in products.get_row([name, price, nested_tier], order_by=price):
+        print(f"  {prod_name:<12} (${prod_price:6.2f}) -> {tier_label}")
+
+--------------------------------------------------------------------------------
+
+6. Query Pagination & Readers Pool
+==================================
+
+Ormophine SQLite uses a dedicated pool of read-only connections to handle high concurrency without blocking the main writer thread.
+
+.. code-block:: python
+
+    # Simple Limit: Top 2 items
+    top_2 = products.get_row([name, price], limit=2, order_by=price)
+
+    # Complex Pagination: Page 2 (Limit 2, Offset 2)
+    page_2 = products.get_row(
+        which_columns=[p_id, name, price],
+        order_by=price,
+        limit=2,
+        offset=2
+    )
+
+--------------------------------------------------------------------------------
+
+7. Batch Operations & Atomic Transactions
+=========================================
+
+Use ``table.batch()`` to group multiple statements into a single atomic transaction.
+
+.. code-block:: python
+
+    # Start an atomic batch transaction
     batch = products.batch()
-    batch.insert({products.name: "Hammer", products.price: 12.50, products.discount: 0.0, products.category: "tools"})
+
+    # 1. Queue an Insert
+    batch.insert({
+        name: "PowerDrill",
+        category: "tools",
+        price: 60.00,
+        discount: 0.05
+    })
+
+    # 2. Queue an Update (increase tools price by 10%)
     batch.update(
-        update={products.price: products.price * 1.1},  # 10% price increase
-        where=products.discount == 0.0
+        update={price: price * 1.10},
+        where=category == "tools"
     )
-    batch.run()   # both operations execute in a single transaction
 
-Joining Tables
-----------------
+    # 3. Execute all queued operations atomically
+    batch.run()
+    print("Batch transaction executed successfully!")
 
-Assume we have an ``orders`` table referencing ``products``.
+--------------------------------------------------------------------------------
+
+8. Table Joins (``INNER JOIN``, ``LEFT JOIN``)
+==============================================
 
 .. code-block:: python
 
-    orders_schema = TableStructure("orders")
+    # 1. Create 'orders' table referencing 'products'
+    orders_schema = TableStructure("orders", strict=True)
     orders_schema.add_column("id", DataTypes.INTEGER(), primary_key=True)
-    orders_schema.add_column("product_id", DataTypes.INTEGER())
-    orders_schema.add_column("quantity", DataTypes.INTEGER(min_val=1))
+    orders_schema.add_column("product_id", DataTypes.INTEGER(), not_null=True)
+    orders_schema.add_column("quantity", DataTypes.INTEGER(), default_value=1)
+
+    # Define Foreign Key constraint
+    orders_schema.foreign_key(
+        column="product_id",
+        refrences_table=products,
+        refrences_column=p_id,
+        on_delete="CASCADE"
+    )
     orders = db.create_table(orders_schema)
 
-    orders.insert({orders.product_id: 1, orders.quantity: 3})
-    orders.insert({orders.product_id: 2, orders.quantity: 1})
-    orders.insert({orders.product_id: 4, orders.quantity: 5})
+    order_id: Column = orders.id
+    order_product_id: Column = orders.product_id
+    quantity: Column = orders.quantity
 
-Now join ``orders`` with ``products``:
+    # 2. Insert sample orders
+    orders.bulk_insert(
+        columns=[order_product_id, quantity],
+        data_list=[(1, 3), (2, 1), (4, 5)]
+    )
 
-.. code-block:: python
-
-    result = (
+    # 3. Join orders with products and calculate line totals
+    total_cost = price * quantity
+    joined_orders = (
         orders
-        .inner_join(products, orders.product_id == products.id)
+        .inner_join(products, order_product_id == p_id)
         .get_row(
-            [
-                orders.id,
-                products.name,
-                orders.quantity,
-                products.price * orders.quantity,  # total cost
+            which_columns=[
+                order_id,
+                name,
+                quantity,
+                price,
+                total_cost
             ],
-            order_by=orders.id
+            order_by=order_id
         )
     )
 
-    for row in result:
-        print(row)  # (order_id, product_name, quantity, total_cost)
+    print("Order Details (INNER JOIN with Line Totals):")
+    for o_id, prod_name, qty, unit_p, total in joined_orders:
+        print(f"  Order #{o_id} | Product: {prod_name:<12} | Qty: {qty} | Unit: ${unit_p:.2f} | Total: ${total:.2f}")
 
-.. seealso::
+--------------------------------------------------------------------------------
 
-    The API Reference covers all available methods for ``Driver``, ``Table``, ``ColumnsOperation``, and ``DataTypes``. Explore it to discover more functionality like string slicing (``column[1:5]``), ``.upper()``, ``.lstrip()``, ``.rstrip()``, ``.replace()``, ``.startswith()``, ``.endswith()``, ``.contains()``, conditional expressions, and chained joins.
+9. Schema Alterations & Table Management (DDL)
+==============================================
+
+.. code-block:: python
+
+    # 1. Add a new column
+    users.add_column("email", DataTypes.TEXT(), default_value="user@example.com")
+    email: Column = users.email
+    print("Columns after adding 'email':", users.get_columns_name())
+
+    # 2. Rename column 'age' to 'user_age'
+    users.rename_column(age, "user_age")
+    user_age: Column = users.user_age
+    print("Columns after renaming 'age' -> 'user_age':", users.get_columns_name())
+
+    # 3. Safely delete column (requires explicit 3 confirmations)
+    users.delete_column(
+        email,
+        are_you_sure=True,
+        are_you_really_sure=True,
+        for_sure=True
+    )
+    print("Columns after deleting 'email':", users.get_columns_name())
+
+--------------------------------------------------------------------------------
+
+10. Index Management (Standard & Partial Indexes)
+=================================================
+
+SQLite natively supports both standard indexes and **Conditional (Partial) Indexes** with a ``where`` clause.
+
+.. code-block:: python
+
+    # 1. Simple Index on category column
+    products.create_index("idx_products_cat", columns=[category])
+
+    # 2. Complex Partial Index: Only indexes high-value products (price > 40)
+    products.create_index(
+        "idx_expensive_items",
+        columns=[name],
+        where=price > 40.0
+    )
+
+    # 3. View existing index details
+    print("Index info on 'products':", products.get_indexes_info())
+
+    # 4. Drop an index
+    products.delete_index("idx_products_cat")
+    print("Dropped index idx_products_cat successfully!")
+
+--------------------------------------------------------------------------------
+
+11. Database Maintenance & Cleanup
+==================================
+
+.. code-block:: python
+
+    # Defragment and optimize SQLite database file (VACUUM & PRAGMA optimize)
+    db.defragment()
+    print("Database defragmented and optimized successfully!")
+
+--------------------------------------------------------------------------------
+
+12. SQL Built-in Functions (``Builtins``)
+=========================================
+
+The ``Builtins`` class gives you direct access to SQLite native SQL functions.
+Every function in ``Builtins`` returns a ``ColumnsOperation`` so you can use it anywhere (in ``get_row``, ``where``, ``update``, etc.).
+
+12.1 Aggregate Functions (``Count``, ``Sum``, ``Avg``, ``Min``, ``Max``)
+-------------------------------------------------------------------------
+
+.. code-block:: python
+
+    # Compute multiple summary statistics in a single query
+    stats = products.get_row([
+        Builtins.Count(p_id),
+        Builtins.Avg(price),
+        Builtins.Min(price),
+        Builtins.Max(price),
+        Builtins.Sum(price)
+    ])[0]
+
+    print("--- Product Summary Statistics ---")
+    print(f"  Count        : {stats[0]}")
+    print(f"  Average Price: ${stats[1]:.2f}")
+    print(f"  Min Price    : ${stats[2]:.2f}")
+    print(f"  Max Price    : ${stats[3]:.2f}")
+    print(f"  Total Sum    : ${stats[4]:.2f}")
+
+12.2 Mathematical & String Functions (``Round``, ``Abs``, ``Len``)
+------------------------------------------------------------------
+
+.. code-block:: python
+
+    results = products.get_row([
+        name,
+        Builtins.Len(name),
+        Builtins.Round(price),
+        Builtins.Abs(price - 50.0),
+    ])
+
+    for prod_name, length, rounded_p, diff in results:
+        print(f"  {prod_name:<12} | Len: {length:<2} | Round: ${rounded_p:<5} | Diff from $50: ${diff:.2f}")
+
+12.3 Range & Null Checks (``Between``, ``!= None``, ``== None``)
+----------------------------------------------------------------
+
+In Ormophine, checking for NULL values uses standard Python comparison:
+* ``col != None`` compiles automatically to SQL **``IS NOT NULL``**
+* ``col == None`` compiles automatically to SQL **``IS NULL``**
+
+.. code-block:: python
+
+    # Simple Null Check using '!= None' (compiles to SQL IS NOT NULL)
+    valid_products = products.get_row([name], where=category != None)
+
+    # Complex Range Filter: Price between $20 and $70 AND category == 'gadgets'
+    between_filter = Builtins.Between(price, 20.0, 70.0) & (category == "gadgets")
+    range_results = products.get_row([name, price, category], where=between_filter)
+
+    print("Gadgets priced between $20 and $70 (Builtins.Between):")
+    for row in range_results:
+        print(" ", row)
+
+12.4 Date & Time Functions (``Now``, ``Today``)
+-----------------------------------------------
+
+.. code-block:: python
+
+    date_info = products.get_row([
+        name,
+        Builtins.Now(),            # Current UTC Datetime
+        Builtins.Today(),          # Current UTC Date
+    ], limit=2)
+
+    print("Current SQLite UTC Date and Time Helpers:")
+    for row in date_info:
+        print(" ", row)
+
+12.5 Graceful Shutdown
+----------------------
+
+.. code-block:: python
+
+    # Disconnect driver and shutdown worker threads cleanly
+    db.disconnect()
+    print("Driver disconnected cleanly. SQLite quickstart tutorial complete!")
