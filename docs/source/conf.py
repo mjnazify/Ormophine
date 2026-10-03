@@ -5,7 +5,7 @@ import sys
 project = 'Ormophine'
 copyright = '2026, M.J.Nazify.Yummy'
 author = 'M.J.Nazify.Yummy'
-release = '0.12.10'
+release = '0.12.11'
 
 # -- General configuration ---------------------------------------------------
 extensions = [

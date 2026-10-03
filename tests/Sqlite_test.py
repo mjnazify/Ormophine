@@ -4,8 +4,6 @@ import time
 from Ormophine import Sqlite
 import datetime 
 import sqlite3
-
-
 @pytest.fixture
 def bdriver(tmp_path):
     drv = Sqlite.Driver(str(tmp_path / "test_builtins.db"), setup_time=0.1)
@@ -14,8 +12,6 @@ def bdriver(tmp_path):
         drv.disconnect()
     except Exception:
         pass
-
-
 @pytest.fixture
 def bt(bdriver):
     schema = Sqlite.TableStructure('bt', strict=True)
@@ -38,76 +34,45 @@ def bt(bdriver):
         ]
     )
     return tbl
-
-
-# ===========================================================================
-# Internal helpers: _normalize / _make
-# ===========================================================================
 def test_builtins_normalize_column(bt):
     sql, params, dt, c = Sqlite.Builtins._normalize(bt.name)
     assert sql == bt.name.name
     assert params == []
     assert dt is str
     assert c is bt.name
-
-
 def test_builtins_normalize_columns_operation(bt):
     op = bt.age + 1
     sql, params, dt, c = Sqlite.Builtins._normalize(op)
     assert params == [1]
     assert c is bt.age
-
-
 def test_builtins_normalize_raw_literal(bt):
     sql, params, dt, c = Sqlite.Builtins._normalize('hello')
     assert sql == '?'
     assert params == ['hello']
     assert dt is str
-
-
 def test_builtins_make_returns_columns_operation(bt):
     op = Sqlite.Builtins.Len(bt.name)
     assert isinstance(op, Sqlite.ColumnsOperation)
-
-
-# ===========================================================================
-# Len
-# ===========================================================================
 def test_builtins_len_basic(bt):
     res = bt.get_row([Sqlite.Builtins.Len(bt.name)], order_by=bt.id)
     assert res == [5, 3, 5, None, 3]
-
-
 def test_builtins_len_in_where(bt):
     res = bt.get_row([bt.name], where=Sqlite.Builtins.Len(bt.name) > 3, order_by=bt.id)
     assert res == ['Alice', 'Carol']
-
-
 def test_builtins_len_literal():
     op = Sqlite.Builtins.Len('hello')
     assert op._output[0] == '(LENGTH(?))'
     assert op._output[1] == ['hello']
     assert op.current_datatype is int
-
-
 def test_builtins_len_datatype_is_int(bt):
     assert Sqlite.Builtins.Len(bt.name).current_datatype is int
-
-
 def test_builtins_len_nested_arithmetic(bt):
     expr = ((Sqlite.Builtins.Len(bt.name) + 3) / 4) * 4
     res = bt.get_row([expr], order_by=bt.id)
     assert res == [8.0, 4.0, 8.0, None, 4.0]
-
-
-# ===========================================================================
-# Sum / Total / Avg / Min / Max / Count
-# ===========================================================================
 def test_builtins_sum_basic(bt):
     res = bt.get_row([Sqlite.Builtins.Sum(bt.salary)])
     assert res == [260000.0]
-
-
 def test_builtins_sum_empty_table(bdriver):
     schema = Sqlite.TableStructure('empty_sum', strict=True)
     schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
@@ -115,13 +80,9 @@ def test_builtins_sum_empty_table(bdriver):
     t = bdriver.create_table(schema)
     res = t.get_row([Sqlite.Builtins.Sum(t.v)])
     assert res == [None]
-
-
 def test_builtins_sum_datatype_propagation(bt):
     assert Sqlite.Builtins.Sum(bt.salary).current_datatype is float
     assert Sqlite.Builtins.Sum(bt.age).current_datatype is int
-
-
 def test_builtins_total_empty_returns_zero(bdriver):
     schema = Sqlite.TableStructure('empty_total', strict=True)
     schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
@@ -129,153 +90,97 @@ def test_builtins_total_empty_returns_zero(bdriver):
     t = bdriver.create_table(schema)
     res = t.get_row([Sqlite.Builtins.Total(t.v)])
     assert res == [0.0]
-
-
 def test_builtins_total_datatype_is_float(bt):
     assert Sqlite.Builtins.Total(bt.salary).current_datatype is float
-
-
 def test_builtins_avg_basic(bt):
     res = bt.get_row([Sqlite.Builtins.Avg(bt.salary)])
     assert res == [65000.0]
-
-
 def test_builtins_avg_datatype_is_float(bt):
     assert Sqlite.Builtins.Avg(bt.age).current_datatype is float
-
-
 def test_builtins_min_max(bt):
     assert bt.get_row([Sqlite.Builtins.Min(bt.age)]) == [25]
     assert bt.get_row([Sqlite.Builtins.Max(bt.age)]) == [40]
-
-
 def test_builtins_min_datatype_propagation(bt):
     assert Sqlite.Builtins.Min(bt.age).current_datatype is int
     assert Sqlite.Builtins.Min(bt.name).current_datatype is str
-
-
 def test_builtins_count_star(bt):
     res = bt.get_row([Sqlite.Builtins.Count('*')])
     assert res == [5]
-
-
 def test_builtins_count_column_skips_null(bt):
     res = bt.get_row([Sqlite.Builtins.Count(bt.name)])
     assert res == [4]
-
 def test_builtins_count_datatype_is_int(bt):
     assert Sqlite.Builtins.Count('*').current_datatype is int
     assert Sqlite.Builtins.Count(bt.name).current_datatype is int
-
 def test_builtins_count_with_where(bt):
     res = bt.get_row([Sqlite.Builtins.Count('*')], where=bt.age > 30)
     assert res == [2]
-
 def test_builtins_abs_basic(bt):
     res = bt.get_row([Sqlite.Builtins.Abs(bt.balance)], order_by=bt.id)
     assert res == [100.0, 50.0, 200.0, 10.0, 0.0]
-
 def test_builtins_abs_datatype(bt):
     assert Sqlite.Builtins.Abs(bt.age).current_datatype is int
     assert Sqlite.Builtins.Abs(bt.salary).current_datatype is float
-
 def test_builtins_abs_in_where(bt):
     res = bt.get_row([bt.id], where=Sqlite.Builtins.Abs(bt.balance) >= 100, order_by=bt.id)
     assert res == [1, 3]
-
 def test_builtins_round_basic(bt):
     res = bt.get_row([Sqlite.Builtins.Round(bt.score)], order_by=bt.id)
     assert res == [86.0, 72.0, 95.0, 60.0, None]
-
-
 def test_builtins_round_datatype_float(bt):
     assert Sqlite.Builtins.Round(bt.score).current_datatype is float
-
-
 def test_builtins_int_cast(bt):
     res = bt.get_row([Sqlite.Builtins.Int(bt.score)], order_by=bt.id)
     assert res == [85, 72, 95, 60, None]
-
-
 def test_builtins_int_datatype(bt):
     assert Sqlite.Builtins.Int(bt.score).current_datatype is int
-
-
 def test_builtins_int_numeric_chain(bt):
     expr = Sqlite.Builtins.Int(bt.score) * 2
     res = bt.get_row([expr], order_by=bt.id)
     assert res == [170, 144, 190, 120, None]
-
-
 def test_builtins_float_cast(bt):
     res = bt.get_row([Sqlite.Builtins.Float(bt.age)], order_by=bt.id)
     assert res == [30.0, 25.0, 35.0, 40.0, None]
-
-
 def test_builtins_float_datatype(bt):
     assert Sqlite.Builtins.Float(bt.age).current_datatype is float
-
-
 def test_builtins_str_cast(bt):
     res = bt.get_row([Sqlite.Builtins.Str(bt.age)], order_by=bt.id)
     assert res == ['30', '25', '35', '40', None]
-
-
 def test_builtins_str_concat_chain(bt):
     expr = Sqlite.Builtins.Str(bt.salary) + ' USD'
     assert '||' in expr._output[0]
     res = bt.get_row([expr], order_by=bt.id)
     assert res[0] == '50000.0 USD'
-
-
 def test_builtins_str_datatype(bt):
     assert Sqlite.Builtins.Str(bt.age).current_datatype is str
-
-
 def test_builtins_bool_cast(bt):
-    # active flag on the score column (any nonzero -> 1 by SQLite cast)
+    
     res = bt.get_row([Sqlite.Builtins.Bool(bt.balance)], order_by=bt.id)
-    assert res == [1, -50, 200, -10, 0]  # cast(x AS INTEGER) keeps sign
-
-
+    assert res == [1, -50, 200, -10, 0]  
 def test_builtins_bool_datatype(bt):
     assert Sqlite.Builtins.Bool(bt.age).current_datatype is int
-
-
 def test_builtins_bool_literal():
     op = Sqlite.Builtins.Bool(True)
     assert op._output == ('(CASE WHEN ? THEN 1 ELSE 0 END)', [True])
     assert op.current_datatype is int
-
-# ===========================================================================
-# TypeOf / Sign / Floor / Ceil / Sqrt / Pow
-# ===========================================================================
 def test_builtins_typeof(bt):
     res = bt.get_row([Sqlite.Builtins.TypeOf(bt.name)], order_by=bt.id)
     assert res == ['text', 'text', 'text', 'null', 'text']
-
-
 def test_builtins_typeof_datatype(bt):
     assert Sqlite.Builtins.TypeOf(bt.name).current_datatype is str
-
-
 def test_builtins_typeof_in_where(bt):
     res = bt.get_row([bt.id], where=Sqlite.Builtins.TypeOf(bt.age) == 'integer')
     assert res == [1, 2, 3, 4]
-
 def test_builtins_sign(bt):
     res = bt.get_row([Sqlite.Builtins.Sign(bt.balance)], order_by=bt.id)
     assert res == [1, -1, 1, -1, 0]
-
 def test_builtins_sign_datatype(bt):
     assert Sqlite.Builtins.Sign(bt.balance).current_datatype is int
-
 def test_builtins_floor(bt):
     res = bt.get_row([Sqlite.Builtins.Floor(bt.score)], order_by=bt.id)
     assert res == [85, 72, 95, 60, None]
-
 def test_builtins_floor_negative():
-    # Portable FLOOR: CAST(x AS INTEGER) - (x < CAST(x AS INTEGER))
+    
     op = Sqlite.Builtins.Floor(-1.5)
     assert op._output[0] == '(CAST(? AS INTEGER) - (? < CAST(? AS INTEGER)))'
     assert op._output[1] == [-1.5, -1.5, -1.5]
@@ -283,34 +188,24 @@ def test_builtins_floor_negative():
 def test_builtins_ceil(bt):
     res = bt.get_row([Sqlite.Builtins.Ceil(bt.score)], order_by=bt.id)
     assert res == [86, 72, 95, 60, None]
-
-
 def test_builtins_bool_cast(bt):
-    # Python bool semantics: any nonzero -> 1, zero -> 0, NULL -> 0
+    
     res = bt.get_row([Sqlite.Builtins.Bool(bt.balance)], order_by=bt.id)
     assert res == [1, 1, 1, 1, 0]
-
-
 def test_builtins_bool_datatype(bt):
     assert Sqlite.Builtins.Bool(bt.age).current_datatype is int
-
-
 def test_builtins_bool_literal_true():
     op = Sqlite.Builtins.Bool(True)
     assert op._output[0] == '(CASE WHEN ? THEN 1 ELSE 0 END)'
     assert op._output[1] == [True]
     assert op.current_datatype is int
-
-
 def test_builtins_bool_literal_zero():
     res_check = Sqlite.Builtins.Bool(0)
     assert res_check._output[0] == '(CASE WHEN ? THEN 1 ELSE 0 END)'
-
-
 def test_builtins_bool_matches_python():
-    # SQLite truthiness for numerics matches Python exactly:
-    #   0, 0.0, -0.0, None -> 0
-    #   anything else -> 1
+    
+    
+    
     op_zero = Sqlite.Builtins.Bool(0)
     op_nonzero = Sqlite.Builtins.Bool(-50)
     op_none = Sqlite.Builtins.Bool(None)
@@ -318,293 +213,187 @@ def test_builtins_bool_matches_python():
 def test_builtins_sign(bt):
     res = bt.get_row([Sqlite.Builtins.Sign(bt.balance)], order_by=bt.id)
     assert res == [1, -1, 1, -1, 0]
-
-
 def test_builtins_sign_datatype(bt):
     assert Sqlite.Builtins.Sign(bt.balance).current_datatype is int
-
-
 def test_builtins_sign_on_expression(bt):
     expr = Sqlite.Builtins.Sign(bt.age - 30)
     res = bt.get_row([expr], order_by=bt.id)
     assert res == [0, -1, 1, 1, None]
-
-
 def test_builtins_floor(bt):
     res = bt.get_row([Sqlite.Builtins.Floor(bt.score)], order_by=bt.id)
     assert res == [85, 72, 95, 60, None]
-
-
 def test_builtins_floor_negative_correct():
-    # FLOOR(-1.5) = -2 (unlike CAST(-1.5 AS INTEGER) = -1)
+    
     op = Sqlite.Builtins.Floor(-1.5)
     assert op._output[0].startswith('(CAST(? AS INTEGER)')
     assert op.current_datatype is int
-
-
 def test_builtins_ceil(bt):
     res = bt.get_row([Sqlite.Builtins.Ceil(bt.score)], order_by=bt.id)
     assert res == [86, 72, 95, 60, None]
 def test_builtins_unixepoch(bt):
     res = bt.get_row([Sqlite.Builtins.UnixEpoch('1970-01-02 00:00:00')], limit=1)
     assert res == [86400]
-
-
 def test_builtins_unixepoch_datatype(bt):
     assert Sqlite.Builtins.UnixEpoch(bt.created_at).current_datatype is int
-
-
 def test_builtins_unixepoch_roundtrip():
-    # unix epoch of 1970-01-01 00:00:00 is 0
+    
     res = Sqlite.Builtins.UnixEpoch('1970-01-01 00:00:00')
     assert 'julianday' in res._output[0]
-
-
 def test_builtins_unixnow(bt):
     res = bt.get_row([Sqlite.Builtins.UnixNow()], limit=1)
     assert isinstance(res[0], int)
     assert res[0] > 1_000_000_000
-
 def test_builtins_unixnow_datatype():
     assert Sqlite.Builtins.UnixNow().current_datatype is int
-
-
 def test_builtins_unixnow_no_params():
     assert Sqlite.Builtins.UnixNow()._output[1] == []
-
 def test_builtins_ceil_negative_correct():
-    # CEIL(-1.5) = -1
+    
     op = Sqlite.Builtins.Ceil(-1.5)
     assert op._output[0].startswith('(CAST(? AS INTEGER)')
     assert op.current_datatype is int
 def test_builtins_find(bt):
     res = bt.get_row([Sqlite.Builtins.Find(bt.name, 'a')], order_by=bt.id)
-    # SQLite INSTR returns 1-based index, 0 if not found
+    
     assert res == [0, 0, 2, None, 0]
-
-
 def test_builtins_find_case_insensitive_via_lower(bt):
     res = bt.get_row(
         [Sqlite.Builtins.Find(bt.name.lower(), 'a')],
         order_by=bt.id,
     )
-    # 'alice' -> 'a' at 1; 'bob' -> 0; 'carol' -> 2; None -> None; 'eve' -> 0
+    
     assert res == [1, 0, 2, None, 0]
-
 def test_builtins_find_datatype(bt):
     assert Sqlite.Builtins.Find(bt.name, 'x').current_datatype is int
-
-
 def test_builtins_find_in_where(bt):
     res = bt.get_row([bt.name], where=Sqlite.Builtins.Find(bt.name, 'o') > 0, order_by=bt.id)
     assert res == ['Bob', 'Carol']
-
-
 def test_builtins_format(bt):
     res = bt.get_row(
         [Sqlite.Builtins.Format('Hello, %s!', bt.name)],
         order_by=bt.id,
     )
     assert res == ['Hello, Alice!','Hello, Bob!','Hello, Carol!','Hello, !','Hello, Eve!',]
-
 def test_builtins_format_padded_id(bt):
     res = bt.get_row([Sqlite.Builtins.Format('EMP-%05d', bt.id)], order_by=bt.id)
     assert res[0] == 'EMP-00001'
     assert res[4] == 'EMP-00005'
-
-
 def test_builtins_format_datatype(bt):
     assert Sqlite.Builtins.Format('%s', bt.name).current_datatype is str
-
-
 def test_builtins_format_multi_args(bt):
     expr = Sqlite.Builtins.Format('%s:%d', bt.name, bt.age)
     res = bt.get_row([expr], order_by=bt.id)
     assert res[0] == 'Alice:30'
-
-
 def test_builtins_capitalize(bt):
     res = bt.get_row([Sqlite.Builtins.Capitalize(bt.name)], order_by=bt.id)
     assert res == ['Alice', 'Bob', 'Carol', None, 'Eve']
-
-
 def test_builtins_capitalize_datatype(bt):
     assert Sqlite.Builtins.Capitalize(bt.name).current_datatype is str
-
-
 def test_builtins_capitalize_normalizes():
     op = Sqlite.Builtins.Capitalize('hELLO wORLD')
     assert op._output[0].startswith('(UPPER(SUBSTR(?')
-    # NOTE: SQL contains the placeholder twice, but _normalize does not
-    # duplicate the parameter list — SQLite binds the same '?' twice with
-    # the same value from position 1 of the params.
+    
+    
+    
     assert op._output[1] == ['hELLO wORLD']
-
-# ===========================================================================
-# IsNull / IsNotNull / Between / IIf
-# ===========================================================================
 def test_builtins_isnull(bt):
     res = bt.get_row([bt.id], where=Sqlite.Builtins.IsNull(bt.name), order_by=bt.id)
     assert res == [4]
-
-
 def test_builtins_isnull_datatype(bt):
     assert Sqlite.Builtins.IsNull(bt.name).current_datatype is int
-
-
 def test_builtins_isnotnull(bt):
     res = bt.get_row([bt.id], where=Sqlite.Builtins.IsNotNull(bt.name), order_by=bt.id)
     assert res == [1, 2, 3, 5]
-
-
 def test_builtins_isnull_literal_none():
     op = Sqlite.Builtins.IsNull(None)
     assert op._output[0] == '((?) IS NULL)'
     assert op._output[1] == [None]
-
-
 def test_builtins_between(bt):
     res = bt.get_row([bt.id], where=Sqlite.Builtins.Between(bt.age, 25, 35), order_by=bt.id)
     assert res == [1, 2, 3]
-
-
 def test_builtins_between_inclusive(bt):
     res = bt.get_row([bt.id], where=Sqlite.Builtins.Between(bt.age, 30, 30))
     assert res == [1]
-
-
 def test_builtins_between_datatype(bt):
     assert Sqlite.Builtins.Between(bt.age, 0, 10).current_datatype is int
-
-
 def test_builtins_between_params_order(bt):
     op = Sqlite.Builtins.Between(bt.name, 'A', 'Z')
     assert op._output[1] == ['A', 'Z']
-
-
 def test_builtins_iif(bt):
     res = bt.get_row(
         [Sqlite.Builtins.IIf(bt.age >= 30, 'old', 'young')],
         order_by=bt.id,
     )
-    # row 5 has age=NULL -> NULL >= 30 -> NULL -> falsy -> 'young'
+    
     assert res == ['old', 'young', 'old', 'old', 'young']
-
 def test_builtins_iif_params(bt):
     op = Sqlite.Builtins.IIf(bt.age >= 18, 'adult', 'minor')
     assert op._output[1] == [18, 'adult', 'minor']
-
-
 def test_builtins_iif_datatype_none(bt):
     assert Sqlite.Builtins.IIf(bt.age > 0, 1, 'x').current_datatype is None
-
-
 def test_builtins_iif_nested():
     op = Sqlite.Builtins.IIf(True, Sqlite.Builtins.IIf(False, 'a', 'b'), 'c')
-    # Parameters: [True] + [False, 'a', 'b'] + ['c']
+    
     assert op._output[1] == [True, False, 'a', 'b', 'c']
-
-
-# ===========================================================================
-# Date / Time / DateTime / Strftime
-# ===========================================================================
 def test_builtins_date(bt):
     res = bt.get_row([Sqlite.Builtins.Date(bt.created_at)], order_by=bt.id)
     assert res == ['2024-03-15', '2024-01-10', '2023-12-25', '2024-06-01', '2024-03-15']
-
-
 def test_builtins_date_datatype(bt):
     assert Sqlite.Builtins.Date(bt.created_at).current_datatype is str
-
-
 def test_builtins_time(bt):
     res = bt.get_row([Sqlite.Builtins.Time(bt.created_at)], order_by=bt.id)
     assert res == ['09:30:42', '14:20:00', '08:00:00', '23:59:59', '09:30:42']
-
-
 def test_builtins_datetime(bt):
     res = bt.get_row([Sqlite.Builtins.DateTime(bt.created_at)], order_by=bt.id)
     assert res[0] == '2024-03-15 09:30:42'
-
-
 def test_builtins_datetime_normalizes_date_only():
     op = Sqlite.Builtins.DateTime('2024-03-15')
     res_check = op._output[0]
     assert 'datetime' in res_check
-
-
 def test_builtins_strftime(bt):
     res = bt.get_row(
         [Sqlite.Builtins.Strftime('%Y', bt.created_at)],
         order_by=bt.id,
     )
     assert res == ['2024', '2024', '2023', '2024', '2024']
-
-
 def test_builtins_strftime_params(bt):
     op = Sqlite.Builtins.Strftime('%Y-%m', bt.created_at)
     assert op._output[1] == ['%Y-%m']
     assert op.current_datatype is str
-
-
 def test_builtins_strftime_where(bt):
     res = bt.get_row(
         [bt.id],
         where=Sqlite.Builtins.Strftime('%Y', bt.created_at) == '2023',
     )
     assert res == [3]
-
-
-# ===========================================================================
-# JulianDay / UnixEpoch
-# ===========================================================================
 def test_builtins_julianday(bt):
     res = bt.get_row([Sqlite.Builtins.JulianDay('2024-01-01')])
     assert res[0] == pytest.approx(2460310.5)
-
-
 def test_builtins_julianday_datatype(bt):
     assert Sqlite.Builtins.JulianDay(bt.created_at).current_datatype is float
-
-
 def test_builtins_julianday_diff_in_python(bt):
-    # 14 days between 2024-03-01 and 2024-03-15
+    
     a = Sqlite.Builtins.JulianDay('2024-03-15')
     b = Sqlite.Builtins.JulianDay('2024-03-01')
     res = bt.get_row([a - b])
     assert res[0] == pytest.approx(14.0)
-
 def test_builtins_unixepoch(bt):
     res = bt.get_row([Sqlite.Builtins.UnixEpoch('1970-01-02 00:00:00')],limit=1)
     assert res == [86400]
-
 def test_builtins_unixepoch_datatype(bt):
     assert Sqlite.Builtins.UnixEpoch(bt.created_at).current_datatype is int
-
-
-# ===========================================================================
-# Year / Month / Day / Hour / Minute / Second
-# ===========================================================================
 def test_builtins_year(bt):
     res = bt.get_row([Sqlite.Builtins.Year(bt.created_at)], order_by=bt.id)
     assert res == [2024, 2024, 2023, 2024, 2024]
-
-
 def test_builtins_year_datatype(bt):
     assert Sqlite.Builtins.Year(bt.created_at).current_datatype is int
-
-
 def test_builtins_year_numeric_chain(bt):
     expr = Sqlite.Builtins.Year(bt.created_at) + 1
     res = bt.get_row([expr], order_by=bt.id)
     assert res == [2025, 2025, 2024, 2025, 2025]
-
-
 def test_builtins_month(bt):
     res = bt.get_row([Sqlite.Builtins.Month(bt.created_at)], order_by=bt.id)
     assert res == [3, 1, 12, 6, 3]
-
-
 def test_builtins_month_in_between(bt):
     res = bt.get_row(
         [bt.id],
@@ -612,226 +401,140 @@ def test_builtins_month_in_between(bt):
         order_by=bt.id,
     )
     assert res == [1, 2, 5]
-
-
 def test_builtins_day(bt):
     res = bt.get_row([Sqlite.Builtins.Day(bt.created_at)], order_by=bt.id)
     assert res == [15, 10, 25, 1, 15]
-
-
 def test_builtins_hour(bt):
     res = bt.get_row([Sqlite.Builtins.Hour(bt.created_at)], order_by=bt.id)
     assert res == [9, 14, 8, 23, 9]
-
-
 def test_builtins_minute(bt):
     res = bt.get_row([Sqlite.Builtins.Minute(bt.created_at)], order_by=bt.id)
     assert res == [30, 20, 0, 59, 30]
-
-
 def test_builtins_second(bt):
     res = bt.get_row([Sqlite.Builtins.Second(bt.created_at)], order_by=bt.id)
     assert res == [42, 0, 0, 59, 42]
-
-
 def test_builtins_hour_business_hours(bt):
     h = Sqlite.Builtins.Hour(bt.created_at)
     res = bt.get_row([bt.id], where=(h >= 9) & (h < 17), order_by=bt.id)
     assert res == [1, 2, 5]
-
-
 def test_builtins_second_datatype(bt):
     assert Sqlite.Builtins.Second(bt.created_at).current_datatype is int
     assert Sqlite.Builtins.Minute(bt.created_at).current_datatype is int
-
-
-# ===========================================================================
-# DayOfWeek / DayOfYear / WeekOfYear / Weekday / IsoWeekday
-# ===========================================================================
 def test_builtins_dayofweek(bt):
-    # 2024-03-15 is Friday -> %w == 5
+    
     res = bt.get_row([Sqlite.Builtins.DayOfWeek('2024-03-15')],limit=1)
     assert res == [5]
-
-
 def test_builtins_dayofweek_sunday_is_zero():
-    # 2024-03-17 is Sunday -> 0
+    
     res = Sqlite.Builtins.DayOfWeek('2024-03-17')
     assert 'strftime' in res._output[0]
-
-
 def test_builtins_dayofyear(bt):
     res = bt.get_row([Sqlite.Builtins.DayOfYear('2024-03-15')],limit=1)
     assert res == [75]
-
-
 def test_builtins_dayofyear_leap():
     res = Sqlite.Builtins.DayOfYear('2024-12-31')
-    # 2024 is a leap year -> 366
+    
     assert res._output[0].startswith('(CAST(strftime')
-
-
 def test_builtins_weekofyear():
     op = Sqlite.Builtins.WeekOfYear('2024-03-15')
     assert op.current_datatype is int
     assert '%W' in op._output[0]
-
-
 def test_builtins_weekday():
-    # 2024-03-15 is Friday -> Python weekday 4
+    
     op = Sqlite.Builtins.Weekday('2024-03-15')
     assert '+ 6' in op._output[0] and '% 7' in op._output[0]
-
-
 def test_builtins_weekday_datatype():
     assert Sqlite.Builtins.Weekday('2024-03-15').current_datatype is int
-
-
 def test_builtins_isoweekday():
-    # 2024-03-15 is Friday -> ISO 5
+    
     op = Sqlite.Builtins.IsoWeekday('2024-03-15')
     assert '+ 1' in op._output[0]
     assert op.current_datatype is int
-
-
-# ===========================================================================
-# Now / Today / UnixNow
-# ===========================================================================
 def test_builtins_now(bt):
     res = bt.get_row([Sqlite.Builtins.Now()])
     assert isinstance(res[0], str)
-    assert len(res[0]) >= 19  # 'YYYY-MM-DD HH:MM:SS'
-
-
+    assert len(res[0]) >= 19  
 def test_builtins_now_datatype():
     assert Sqlite.Builtins.Now().current_datatype is str
-
-
 def test_builtins_now_no_params():
     assert Sqlite.Builtins.Now()._output[1] == []
-
-
 def test_builtins_today(bt):
     res = bt.get_row([Sqlite.Builtins.Today()])
     assert isinstance(res[0], str)
-    assert len(res[0]) == 10  # 'YYYY-MM-DD'
-
-
+    assert len(res[0]) == 10  
 def test_builtins_unixnow(bt):
     res = bt.get_row([Sqlite.Builtins.UnixNow()])
     assert isinstance(res[0], int)
-    assert res[0] > 1_000_000_000  # sanity after year 2001
-
-
+    assert res[0] > 1_000_000_000  
 def test_builtins_unixnow_datatype():
     assert Sqlite.Builtins.UnixNow().current_datatype is int
-
-
 def test_builtins_now_used_in_update(bt):
     bt.update({bt.created_at: Sqlite.Builtins.Now()}, bt.id == 1)
     res = bt.get_row([bt.created_at], bt.id == 1)
     assert res[0].startswith('20')
     assert len(res[0]) >= 19
-
-# ===========================================================================
-# DateAdd / DateTimeAdd / TimeAdd / StrftimeMod
-# ===========================================================================
 def test_builtins_dateadd_basic():
     op = Sqlite.Builtins.DateAdd('now', '+1 day')
     assert op._output[0] == '(date(?, ?))'
     assert op._output[1] == ['now', '+1 day']
     assert op.current_datatype is str
-
-
 def test_builtins_dateadd_no_modifiers():
     op = Sqlite.Builtins.DateAdd('2024-03-15')
     assert op._output[0] == '(date(?))'
     assert op._output[1] == ['2024-03-15']
-
-
 def test_builtins_datetimeadd(bt):
     op = Sqlite.Builtins.DateTimeAdd('now', '+1 hour')
     assert op._output[0] == '(datetime(?, ?))'
     assert op._output[1] == ['now', '+1 hour']
-
-
 def test_builtins_datetimeadd_no_modifiers():
     op = Sqlite.Builtins.DateTimeAdd('2024-03-15 09:00:00')
     assert op._output[0] == '(datetime(?))'
-
-
 def test_builtins_timeadd(bt):
     op = Sqlite.Builtins.TimeAdd('now', '+30 minutes')
     assert op._output[0] == '(time(?, ?))'
     assert op._output[1] == ['now', '+30 minutes']
-
-
 def test_builtins_timeadd_no_modifiers():
     op = Sqlite.Builtins.TimeAdd('12:00:00')
     assert op._output[0] == '(time(?))'
-
-
 def test_builtins_strftimemod(bt):
     op = Sqlite.Builtins.StrftimeMod('%Y-%m', 'now', '+1 month')
     assert op._output[0] == '(strftime(?, ?, ?))'
     assert op._output[1] == ['%Y-%m', 'now', '+1 month']
     assert op.current_datatype is str
-
-
 def test_builtins_strftimemod_no_modifiers(bt):
     op = Sqlite.Builtins.StrftimeMod('%Y', bt.created_at)
-    # fmt + value's params, no modifiers
+    
     assert op._output[1] == ['%Y']
-
-
-# ===========================================================================
-# DateDiffDays / DateDiffSeconds / Timediff
-# ===========================================================================
 def test_builtins_datediffdays():
     op = Sqlite.Builtins.DateDiffDays('2024-03-15', '2024-03-01')
     assert op.current_datatype is int
     assert 'julianday' in op._output[0]
-
-
 def test_builtins_datediffdays_sign():
-    # b is later than a -> negative
+    
     op = Sqlite.Builtins.DateDiffDays('2024-03-01', '2024-03-15')
     assert op._output[0].startswith('(CAST(julianday')
-
-
 def test_builtins_datediffdays_params_order():
     op = Sqlite.Builtins.DateDiffDays('now', '2020-01-01')
     assert op._output[1] == ['now', '2020-01-01']
-
-
 def test_builtins_datediffseconds():
     op = Sqlite.Builtins.DateDiffSeconds('2024-03-15 12:00:00', '2024-03-15 11:00:00')
     assert op.current_datatype is int
     assert '86400' in op._output[0]
-
-# ===========================================================================
-# Integration: chaining and combining Builtins
-# ===========================================================================
 def test_builtins_combined_select(bt):
-    # Builtins has no Upper/Lower — those live on Column / ColumnsOperation.
+    
     expr = Sqlite.Builtins.Len(bt.name.upper())
     assert expr._output[0].startswith('(LENGTH(')
     assert expr.current_datatype is int
-
-
 def test_builtins_nested_via_column_method(bt):
-    # Chaining a Column method through a Builtin input is fully supported.
+    
     expr = Sqlite.Builtins.Avg(bt.name.upper()[:1] != '')
     res = bt.get_row([expr], limit=1)
     assert res[0] is not None
-
 def test_builtins_aggregate_with_group_by_replacement(bt):
-    # Sum over all rows in SELECT list
+    
     res = bt.get_row([Sqlite.Builtins.Sum(bt.age), Sqlite.Builtins.Count('*')])
-    # sum of 30,25,35,40 + NULL = 130; count = 5
+    
     assert res == [(130, 5)]
-
-
 def test_builtins_in_where_with_arithmetic(bt):
     res = bt.get_row(
         [bt.id],
@@ -839,33 +542,23 @@ def test_builtins_in_where_with_arithmetic(bt):
         order_by=bt.id,
     )
     assert res == [1, 3]
-
-
 def test_builtins_nested_aggregate_in_select(bt):
     expr = Sqlite.Builtins.Round(Sqlite.Builtins.Avg(bt.salary) / 1000)
     res = bt.get_row([expr])
     assert res == [65.0]
-
-
 def test_builtins_cast_then_concat(bt):
     expr = Sqlite.Builtins.Str(bt.id).add_first('ID-')
     res = bt.get_row([expr], order_by=bt.id)
     assert res == ['ID-1', 'ID-2', 'ID-3', 'ID-4', 'ID-5']
-
-
 def test_builtins_column_operation_input(bt):
-    # Pass a ColumnsOperation into a Builtin
+    
     expr = bt.age + 5
     res = bt.get_row([Sqlite.Builtins.Abs(expr)], order_by=bt.id)
     assert res == [35, 30, 40, 45, None]
-
-
 def test_builtins_in_update_statement(bt):
     bt.update({bt.age: Sqlite.Builtins.Int(bt.age * 1.5)}, bt.id == 1)
     res = bt.get_row([bt.age], bt.id == 1)
     assert res == [45]
-
-
 def test_builtins_reader_pool(bt):
     res = bt.get_row(
         [Sqlite.Builtins.Len(bt.name)],
@@ -873,15 +566,12 @@ def test_builtins_reader_pool(bt):
         from_readers_pool=True,
     )
     assert res == [5, 3, 5, None, 3]
-
-
 def test_builtins_in_join(bdriver, bt):
     schema = Sqlite.TableStructure('scores_b', strict=True)
     schema.add_column('uid', Sqlite.DataTypes.INTEGER(), primary_key=True)
     schema.add_column('pts', Sqlite.DataTypes.INTEGER())
     scores = bdriver.create_table(schema)
     scores.bulk_insert([scores.uid, scores.pts], [(1, 10), (2, 20), (3, 30)])
-
     res = (bt.inner_join(scores, bt.id == scores.uid)
              .get_row([bt.name, Sqlite.Builtins.Abs(scores.pts * -1)],
                       order_by=bt.id))
@@ -4743,3 +4433,422 @@ def test_489_structure_deferrable_fk(driver):
     schema.foreign_key('pid', def_t, def_t.id, deferrable=True, initially='DEFERRED')
     sql = schema.get_structure()
     assert "DEFERRABLE INITIALLY DEFERRED" in sql
+import pytest
+import os
+import datetime
+import sqlite3
+from Ormophine import Sqlite
+@pytest.fixture
+def ext_db_path(tmp_path):
+    return str(tmp_path / "test_coverage_ext.db")
+@pytest.fixture
+def ext_driver(ext_db_path):
+    drv = Sqlite.Driver(ext_db_path, setup_time=0.1)
+    yield drv
+    try:
+        drv.disconnect()
+    except Exception:
+        pass
+@pytest.fixture
+def ext_table(ext_driver):
+    schema = Sqlite.TableStructure('cov_users', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('name', Sqlite.DataTypes.TEXT(max_length=50), not_null=True)
+    schema.add_column('code', Sqlite.DataTypes.TEXT())
+    schema.add_column('email', Sqlite.DataTypes.TEXT(), default_value='user@example.com')
+    schema.add_column('age', Sqlite.DataTypes.INTEGER(min_val=0, max_val=150), default_value=20)
+    schema.add_column('salary', Sqlite.DataTypes.REAL(min_val=0.0), default_value=1000.0)
+    schema.add_column('status', Sqlite.DataTypes.ENUM('active', 'inactive', 'pending'))
+    schema.add_column('created_at', Sqlite.DataTypes.TEXT(), default_value='2026-01-01 10:00:00')
+    tbl = ext_driver.create_table(schema)
+    tbl.bulk_insert(
+        [tbl.id, tbl.name, tbl.code, tbl.email, tbl.age, tbl.salary, tbl.status, tbl.created_at],
+        [
+            (1, '  Alice  ', 'xxABCxx', 'alice@test.com', 25, 5000.0, 'active', '2026-01-01 10:00:00'),
+            (2, '  Bob  ', 'yyDEFyy', 'bob@test.com', 30, 6000.0, 'inactive', '2026-02-15 12:30:00'),
+            (3, '  Charlie  ', 'zzGHIzz', 'charlie@test.com', 35, 7500.0, 'active', '2026-03-20 18:45:00'),
+            (4, '  Diana  ', 'xxJKLxx', 'diana@test.com', 28, 5500.0, 'pending', '2026-04-10 08:15:00'),
+        ]
+    )
+    return tbl
+def test_col_lstrip_default(ext_table):
+    name = ext_table.name
+    rows = ext_table.get_row([name.lstrip()], where=ext_table.id == 1)
+    assert rows[0] == 'Alice  '
+def test_col_lstrip_custom_chars(ext_table):
+    code = ext_table.code
+    rows = ext_table.get_row([code.lstrip('x')], where=ext_table.id == 1)
+    assert rows[0] == 'ABCxx'
+def test_col_rstrip_default(ext_table):
+    name = ext_table.name
+    rows = ext_table.get_row([name.rstrip()], where=ext_table.id == 1)
+    assert rows[0] == '  Alice'
+def test_col_rstrip_custom_chars(ext_table):
+    code = ext_table.code
+    rows = ext_table.get_row([code.rstrip('x')], where=ext_table.id == 1)
+    assert rows[0] == 'xxABC'
+def test_col_strip_custom_chars(ext_table):
+    code = ext_table.code
+    rows = ext_table.get_row([code.strip('x')], where=ext_table.id == 1)
+    assert rows[0] == 'ABC'
+def test_col_add_first(ext_table):
+    name = ext_table.name
+    rows = ext_table.get_row([name.strip().add_first('User: ')], where=ext_table.id == 1)
+    assert rows[0] == 'User: Alice'
+def test_col_add_end(ext_table):
+    name = ext_table.name
+    rows = ext_table.get_row([name.strip().add_end(' [VIP]')], where=ext_table.id == 1)
+    assert rows[0] == 'Alice [VIP]'
+def test_op_chained_string_transformations(ext_table):
+    name = ext_table.name
+    op = (name.strip().upper()).add_first('START_').add_end('_END')
+    rows = ext_table.get_row([op], where=ext_table.id == 2)
+    assert rows[0] == 'START_BOB_END'
+def test_op_replace(ext_table):
+    email = ext_table.email
+    rows = ext_table.get_row([email.replace('test.com', 'ormophine.io')], where=ext_table.id == 1)
+    assert rows[0] == 'alice@ormophine.io'
+def test_op_slicing(ext_table):
+    code = ext_table.code
+    rows = ext_table.get_row([code.strip('x')[0:2]], where=ext_table.id == 1)
+    assert rows[0] == 'AB'
+def test_column_direct_rename(ext_table):
+    ext_table.email.rename('user_email')
+    cols = ext_table.get_columns_name()
+    assert 'user_email' in cols
+    assert 'email' not in cols
+    assert hasattr(ext_table, 'user_email')
+def test_column_direct_delete_column_guard(ext_table):
+    
+    ext_table.code.delete_column(are_you_sure=True, are_you_really_sure=False, for_sure=True)
+    assert 'code' in ext_table.get_columns_name()
+    
+    ext_table.code.delete_column(are_you_sure=True, are_you_really_sure=True, for_sure=True)
+    assert 'code' not in ext_table.get_columns_name()
+def test_table_get_table_info_readers_pool(ext_table):
+    info_main = ext_table.get_table_info(from_readers_pool=False)
+    info_reader = ext_table.get_table_info(from_readers_pool=True)
+    assert isinstance(info_main, list)
+    assert len(info_main) == len(info_reader)
+    assert len(info_main) > 0
+def test_table_get_columns_name_readers_pool(ext_table):
+    cols_main = ext_table.get_columns_name(from_readers_pool=False)
+    cols_reader = ext_table.get_columns_name(from_readers_pool=True)
+    assert isinstance(cols_main, list)
+    assert cols_main == cols_reader
+    assert 'name' in cols_main
+def test_table_delete_column_guard(ext_table):
+    ext_table.delete_column(ext_table.status, are_you_sure=True, are_you_really_sure=False, for_sure=True)
+    assert 'status' in ext_table.get_columns_name()
+def test_table_indexes_full_lifecycle(ext_table):
+    
+    ext_table.create_index('idx_cov_age', [ext_table.age])
+    
+    ext_table.create_index('idx_cov_sal_partial', [ext_table.salary], where=ext_table.salary > 5000.0)
+    
+    indexes = ext_table.get_indexes()
+    assert 'idx_cov_age' in indexes
+    assert 'idx_cov_sal_partial' in indexes
+    
+    indexes_r = ext_table.get_indexes(from_readers_pool=True)
+    assert 'idx_cov_age' in indexes_r
+    
+    idx_info = ext_table.get_index_info('idx_cov_age')
+    assert isinstance(idx_info, dict)
+    assert idx_info['name'] == 'idx_cov_age'
+    assert 'age' in idx_info['indexed_columns']
+    idx_info_r = ext_table.get_index_info('idx_cov_age', from_readers_pool=True)
+    assert idx_info_r['name'] == 'idx_cov_age'
+    
+    ext_table.reindex('idx_cov_age')
+    
+    ext_table.delete_index('idx_cov_age')
+    assert 'idx_cov_age' not in ext_table.get_indexes()
+def test_table_bulk_update_placeholders(ext_table):
+    ext_table.bulk_update(
+        update={ext_table.salary: ext_table.PLACE_HOLDER},
+        where=ext_table.id == ext_table.PLACE_HOLDER,
+        data_list=[(5200.0, 1), (6300.0, 2)]
+    )
+    sal1 = ext_table.get_row([ext_table.salary], where=ext_table.id == 1)[0]
+    sal2 = ext_table.get_row([ext_table.salary], where=ext_table.id == 2)[0]
+    assert sal1 == 5200.0
+    assert sal2 == 6300.0
+def test_table_delete_table_lifecycle(ext_driver):
+    schema = Sqlite.TableStructure('temp_drop_tbl', strict=True)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    tbl = ext_driver.create_table(schema)
+    
+    tbl.delete_table(are_you_sure=True, are_you_really_sure=False, for_sure=True)
+    assert 'temp_drop_tbl' in ext_driver.get_tables()
+    
+    tbl.delete_table(are_you_sure=True, are_you_really_sure=True, for_sure=True)
+    assert 'temp_drop_tbl' not in ext_driver.get_tables()
+def test_table_joins_inner_left_right(ext_driver):
+    dept_schema = Sqlite.TableStructure('cov_dept', strict=True)
+    dept_schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    dept_schema.add_column('dept_name', Sqlite.DataTypes.TEXT())
+    dept_tbl = ext_driver.create_table(dept_schema)
+    emp_schema = Sqlite.TableStructure('cov_emp', strict=True)
+    emp_schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    emp_schema.add_column('emp_name', Sqlite.DataTypes.TEXT())
+    emp_schema.add_column('dept_id', Sqlite.DataTypes.INTEGER())
+    emp_tbl = ext_driver.create_table(emp_schema)
+    dept_tbl.bulk_insert([dept_tbl.id, dept_tbl.dept_name], [(1, 'Engineering'), (2, 'Sales'), (3, 'HR')])
+    emp_tbl.bulk_insert([emp_tbl.id, emp_tbl.emp_name, emp_tbl.dept_id], [(10, 'Eve', 1), (20, 'Frank', 2)])
+    
+    inner_res = emp_tbl.inner_join(dept_tbl, emp_tbl.dept_id == dept_tbl.id).get_row(
+        [emp_tbl.emp_name, dept_tbl.dept_name],
+        order_by=emp_tbl.id
+    )
+    assert len(inner_res) == 2
+    assert inner_res[0] == ('Eve', 'Engineering')
+    
+    left_res = dept_tbl.left_join(emp_tbl, dept_tbl.id == emp_tbl.dept_id).get_row(
+        [dept_tbl.dept_name, emp_tbl.emp_name],
+        order_by=dept_tbl.id
+    )
+    assert len(left_res) == 3
+    
+    right_res = emp_tbl.right_join(dept_tbl, emp_tbl.dept_id == dept_tbl.id).get_row(
+        [dept_tbl.dept_name, emp_tbl.emp_name],
+        order_by=dept_tbl.id
+    )
+    assert len(right_res) >= 2
+def test_driver_administration_methods(ext_driver, ext_table):
+    
+    tables = ext_driver.get_tables()
+    assert 'cov_users' in tables
+    
+    tbl_handle = ext_driver.table_object('cov_users')
+    assert 'cov_users' in tbl_handle.name_
+    
+    ext_driver.defragment()
+    
+    ext_driver.set_WAL_mode(True, wal_timer=1)
+    ext_driver.set_WAL_mode(False)
+def test_driver_custom_execute_methods(ext_driver, ext_table):
+    
+    res = ext_driver.custom_execute_with_fetch('SELECT COUNT(*) FROM cov_users')
+    assert res[0][0] == 4
+    res_reader = ext_driver.custom_execute_with_fetch('SELECT COUNT(*) FROM cov_users', from_readers_pool=True)
+    assert res_reader[0][0] == 4
+    
+    ext_driver.custom_execute('UPDATE cov_users SET age = age + 1 WHERE id = 1')
+    res_age = ext_table.get_row([ext_table.age], where=ext_table.id == 1)[0]
+    assert res_age == 26
+    
+    ext_driver.custom_execute_many(
+        'UPDATE cov_users SET salary = salary + ? WHERE id = ?',
+        [(100.0, 1), (200.0, 2)]
+    )
+def test_pragmas_all_settings(ext_driver):
+    pragmas = Sqlite.SetPragma(ext_driver)
+    
+    pragmas.journal_mode('WAL')
+    pragmas.journal_mode('DELETE')
+    pragmas.journal_mode('MEMORY')
+    
+    pragmas.synchronous('NORMAL')
+    pragmas.synchronous('FULL')
+    pragmas.synchronous('OFF')
+    
+    pragmas.wal_autocheckpoint(1000)
+    pragmas.wal_checkpoint('PASSIVE')
+    pragmas.wal_checkpoint('FULL')
+    
+    pragmas.foreign_keys(True)
+    pragmas.foreign_keys(False)
+    pragmas.foreign_keys('ON')
+    pragmas.foreign_keys('OFF')
+    
+    pragmas.defer_foreign_keys(True)
+    pragmas.defer_foreign_keys(False)
+    
+    pragmas.cache_size(2000)
+    pragmas.cache_size(-2000)
+    pragmas.mmap_size(268435456)
+    
+    pragmas.shrink_memory()
+    pragmas.optimize()
+    
+    pragmas.automatic_index(True)
+    pragmas.automatic_index(False)
+    pragmas.writable_schema(False)
+def test_datatypes_advanced_declarations(ext_driver):
+    schema = Sqlite.TableStructure('cov_types', strict=False)
+    schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema.add_column('c_varchar', Sqlite.DataTypes.VARCHAR(min_length=1, max_length=100))
+    schema.add_column('c_char', Sqlite.DataTypes.CHAR(min_length=1, max_length=10))
+    schema.add_column('c_tinyint', Sqlite.DataTypes.TINYINT(min_val=0, max_val=100))
+    schema.add_column('c_smallint', Sqlite.DataTypes.SMALLINT())
+    schema.add_column('c_mediumint', Sqlite.DataTypes.MEDIUMINT())
+    schema.add_column('c_int', Sqlite.DataTypes.INT())
+    schema.add_column('c_bigint', Sqlite.DataTypes.BIGINT())
+    schema.add_column('c_float', Sqlite.DataTypes.FLOAT())
+    schema.add_column('c_double', Sqlite.DataTypes.DOUBLE())
+    schema.add_column('c_decimal', Sqlite.DataTypes.DECIMAL(precision=10, scale=2))
+    schema.add_column('c_numeric', Sqlite.DataTypes.NUMERIC(precision=8, scale=2))
+    schema.add_column('c_blob', Sqlite.DataTypes.BLOB())
+    schema.add_column('c_null', Sqlite.DataTypes.NULL())
+    schema.add_column('c_boolean', Sqlite.DataTypes.BOOLEAN())
+    schema.add_column('c_custom', Sqlite.DataTypes.CUSTOM('TEXT', check='LENGTH(c_custom) >= 2'))
+    schema.add_column('c_enum', Sqlite.DataTypes.ENUM('red', 'green', 'blue'))
+    tbl = ext_driver.create_table(schema)
+    tbl.insert({
+        tbl.c_varchar: 'Hello',
+        tbl.c_char: 'A',
+        tbl.c_tinyint: 5,
+        tbl.c_smallint: 50,
+        tbl.c_mediumint: 500,
+        tbl.c_int: 5000,
+        tbl.c_bigint: 50000,
+        tbl.c_float: 1.23,
+        tbl.c_double: 4.56,
+        tbl.c_decimal: 78.90,
+        tbl.c_numeric: 12.34,
+        tbl.c_boolean: True,
+        tbl.c_custom: 'valid_text',
+        tbl.c_enum: 'green'
+    })
+    rows = tbl.get_row([tbl.c_varchar, tbl.c_enum, tbl.c_custom], where=tbl.id == 1)
+    assert rows[0] == ('Hello', 'green', 'valid_text')
+def test_tablestructure_advanced_options(ext_driver):
+    
+    schema_pk = Sqlite.TableStructure('cov_pk_conflict', strict=True, primarykey_on_conflict='REPLACE')
+    schema_pk.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema_pk.add_column('val', Sqlite.DataTypes.TEXT(), unique=True, unique_on_conflict='REPLACE')
+    schema_pk.add_column('req', Sqlite.DataTypes.TEXT(), not_null=True, not_null_on_conflict='IGNORE')
+    tbl_pk = ext_driver.create_table(schema_pk)
+    tbl_pk.insert({tbl_pk.id: 1, tbl_pk.val: 'initial', tbl_pk.req: 'data'})
+    
+    tbl_pk.insert({tbl_pk.id: 1, tbl_pk.val: 'replaced', tbl_pk.req: 'data'})
+    res = tbl_pk.get_row([tbl_pk.val], where=tbl_pk.id == 1)[0]
+    assert res == 'replaced'
+    
+    schema_fk = Sqlite.TableStructure('cov_fk_advanced', strict=True)
+    schema_fk.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    schema_fk.add_column('user_id', Sqlite.DataTypes.INTEGER())
+    schema_fk.foreign_key(
+        column='user_id',
+        refrences_table=tbl_pk,
+        refrences_column=tbl_pk.id,
+        on_delete='CASCADE',
+        on_update='SET NULL',
+        deferrable=True,
+        initially='DEFERRED'
+    )
+    tbl_fk = ext_driver.create_table(schema_fk)
+    assert 'cov_fk_advanced' in ext_driver.get_tables()
+def test_builtins_extended_date_and_time(ext_table):
+    
+    res = ext_table.get_row([
+        Sqlite.Builtins.DateDiffDays('2026-10-10', '2026-10-01'),
+        Sqlite.Builtins.DateDiffSeconds('2026-10-01 13:00:00', '2026-10-01 12:00:00'),
+        Sqlite.Builtins.JulianDay('2026-01-01'),
+        Sqlite.Builtins.UnixEpoch('2026-01-01 00:00:00'),
+        Sqlite.Builtins.UnixNow(),
+    ], limit=1)[0]
+    assert res[0] == 9
+    assert abs(res[1] - 3600) <= 1
+    assert res[2] > 2400000.0
+    assert res[3] > 0
+    assert res[4] > 0
+def test_builtins_date_modifications(ext_table):
+    res = ext_table.get_row([
+        Sqlite.Builtins.DateAdd('2026-01-01', '+1 year', '+2 months', '+3 days'),
+        Sqlite.Builtins.DateTimeAdd('2026-01-01 10:00:00', '+1 day', '+2 hours', '+30 minutes', '+15 seconds'),
+        Sqlite.Builtins.TimeAdd('10:00:00', '+1 hour', '+15 minutes', '+30 seconds'),
+        Sqlite.Builtins.StrftimeMod('%Y-%m-%d', '2026-01-01', '+5 days'),
+    ], limit=1)[0]
+    assert res[0] == '2027-03-04'
+    assert '2026-01-02 12:30:15' in res[1]
+    assert res[2] == '11:15:30'
+    assert res[3] == '2026-01-06'
+def test_builtins_parts_and_logic(ext_table):
+    res = ext_table.get_row([
+        Sqlite.Builtins.Year('2026-07-15'),
+        Sqlite.Builtins.Month('2026-07-15'),
+        Sqlite.Builtins.Day('2026-07-15'),
+        Sqlite.Builtins.Hour('2026-07-15 14:35:20'),
+        Sqlite.Builtins.Minute('2026-07-15 14:35:20'),
+        Sqlite.Builtins.Second('2026-07-15 14:35:20'),
+        Sqlite.Builtins.DayOfWeek('2026-07-15'),
+        Sqlite.Builtins.DayOfYear('2026-07-15'),
+        Sqlite.Builtins.WeekOfYear('2026-07-15'),
+        Sqlite.Builtins.Weekday('2026-07-15'),
+        Sqlite.Builtins.IsoWeekday('2026-07-15'),
+    ], limit=1)[0]
+    assert res[0] == 2026
+    assert res[1] == 7
+    assert res[2] == 15
+    assert res[3] == 14
+    assert res[4] == 35
+    assert res[5] == 20
+def test_builtins_math_and_helpers(ext_table):
+    res = ext_table.get_row([
+        Sqlite.Builtins.Sign(ext_table.age - 30),
+        Sqlite.Builtins.Floor(ext_table.salary / 1000.0),
+        Sqlite.Builtins.Ceil(ext_table.salary / 1000.0),
+        Sqlite.Builtins.Find(ext_table.email, '@'),
+        Sqlite.Builtins.Capitalize(ext_table.name.strip()),
+        Sqlite.Builtins.Total(ext_table.salary),
+        Sqlite.Builtins.IsNull(ext_table.code),
+        Sqlite.Builtins.IsNotNull(ext_table.code),
+    ], limit=1)[0]
+    assert res[0] == -1
+    assert res[1] == 5
+    assert res[2] == 5
+    assert res[3] == 6  
+    assert res[4] == 'Alice'
+    assert res[5] > 0
+    assert res[6] == 0  
+    assert res[7] == 1
+def test_columns_operation_arithmetic_operators(ext_table):
+    age = ext_table.age
+    rows = ext_table.get_row([
+        1000 / age,     
+        age / 5,        
+        age % 4,        
+        100 % age,      
+        age + 10,       
+        100 - age,      
+        age * 2,        
+    ], where=ext_table.id == 1)[0]
+    assert rows[0] == 40.0      
+    assert rows[1] == 5.0       
+    assert rows[2] == 1         
+    assert rows[3] == 0         
+    assert rows[4] == 35        
+    assert rows[5] == 75        
+    assert rows[6] == 50        
+def test_columns_operation_pow_representation(ext_table):
+    op_pow = ext_table.age ** 2
+    assert op_pow._output[0] == '([cov_users].[age] ** ?)'
+    assert op_pow._output[1] == [2]
+    op_rpow = 2 ** ext_table.age
+    assert op_rpow._output[0] == '(? ** [cov_users].[age])'
+    assert op_rpow._output[1] == [2]
+def test_batch_cross_table_multi_actions(ext_driver, ext_table):
+    
+    log_schema = Sqlite.TableStructure('cov_logs', strict=True)
+    log_schema.add_column('id', Sqlite.DataTypes.INTEGER(), primary_key=True)
+    log_schema.add_column('msg', Sqlite.DataTypes.TEXT())
+    log_tbl = ext_driver.create_table(log_schema)
+    batch = ext_table.batch()
+    
+    batch.update(update={ext_table.salary: ext_table.salary + 1000.0}, where=ext_table.id == 1)
+    
+    batch.insert({log_tbl.msg: 'Salary updated for Alice'}, table=log_tbl)
+    
+    batch.delete_row(where=ext_table.id == 4)
+    
+    batch.run()
+    
+    sal = ext_table.get_row([ext_table.salary], where=ext_table.id == 1)[0]
+    assert sal == 6000.0
+    logs = log_tbl.get_row([log_tbl.msg])
+    assert len(logs) == 1
+    assert logs[0] == 'Salary updated for Alice'
+    deleted_rows = ext_table.get_row([ext_table.id], where=ext_table.id == 4)
+    assert len(deleted_rows) == 0
